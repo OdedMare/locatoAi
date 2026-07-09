@@ -7,7 +7,7 @@ never changes. Each op handler does exactly one spatial operation (SRP).
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Dict, Optional, Type
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -23,9 +23,9 @@ class ExecutionContext:
 
     catalog: CatalogService
     providers: ProviderRegistry
-    user_geometry: BaseGeometry | None
+    user_geometry: Optional[BaseGeometry]
     now: datetime
-    results: dict[str, gpd.GeoDataFrame] = field(default_factory=dict)
+    results: Dict[str, gpd.GeoDataFrame] = field(default_factory=dict)
 
     def load_layer_features(self, layer_id: str) -> gpd.GeoDataFrame:
         """Shared by `load` and `near` (which loads its target layer)."""
@@ -41,11 +41,11 @@ class OpHandler(ABC):
     def run(self, step: Step, ctx: ExecutionContext) -> gpd.GeoDataFrame: ...
 
 
-_REGISTRY: dict[str, OpHandler] = {}
+_REGISTRY: Dict[str, OpHandler] = {}
 
 
-def register_op(op_name: str) -> Callable[[type[OpHandler]], type[OpHandler]]:
-    def decorator(cls: type[OpHandler]) -> type[OpHandler]:
+def register_op(op_name: str) -> Callable[[Type[OpHandler]], Type[OpHandler]]:
+    def decorator(cls: Type[OpHandler]) -> Type[OpHandler]:
         _REGISTRY[op_name] = cls()
         return cls
 

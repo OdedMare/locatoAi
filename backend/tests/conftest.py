@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import List, Optional
 
 import pytest
 
@@ -41,13 +42,13 @@ LAYERS = [
 class FakeLayersRepository:
     """In-memory implementation of the LayersRepository port."""
 
-    def __init__(self, layers: list[LayerMeta]):
+    def __init__(self, layers: List[LayerMeta]):
         self._layers = {layer.id: layer for layer in layers}
 
-    def list_layers(self) -> list[LayerMeta]:
+    def list_layers(self) -> List[LayerMeta]:
         return list(self._layers.values())
 
-    def get_layer(self, layer_id: str) -> LayerMeta | None:
+    def get_layer(self, layer_id: str) -> Optional[LayerMeta]:
         return self._layers.get(layer_id)
 
 

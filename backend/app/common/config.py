@@ -1,6 +1,7 @@
 """Application configuration (env-driven)."""
 
 from functools import lru_cache
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     """Table with the layer metadata the agent chooses from."""
 
     llm_model: str = "gpt-3.5-turbo"
-    llm_base_url: str | None = None
+    llm_base_url: Optional[str] = None
     """Set for OpenAI-compatible servers (Groq, vLLM, Ollama...)."""
 
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")

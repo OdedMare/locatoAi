@@ -7,6 +7,7 @@ whether their PG/table settings actually work.
 """
 
 import re
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -18,30 +19,30 @@ router = APIRouter()
 
 
 class SettingsUpdate(BaseModel):
-    llm_model: str | None = None
-    llm_base_url: str | None = None
-    openai_api_key: str | None = None  # empty/omitted = keep current
-    database_url: str | None = None
-    layers_table: str | None = None
+    llm_model: Optional[str] = None
+    llm_base_url: Optional[str] = None
+    openai_api_key: Optional[str] = None  # empty/omitted = keep current
+    database_url: Optional[str] = None
+    layers_table: Optional[str] = None
 
 
 class CatalogStatus(BaseModel):
     ok: bool
-    layer_count: int | None = None
-    error: str | None = None
+    layer_count: Optional[int] = None
+    error: Optional[str] = None
 
 
 class SettingsResponse(BaseModel):
     llm_model: str
-    llm_base_url: str | None
+    llm_base_url: Optional[str]
     openai_api_key_set: bool
-    openai_api_key_hint: str | None
+    openai_api_key_hint: Optional[str]
     database_url: str
     layers_table: str
     catalog: CatalogStatus
 
 
-def _mask_key(key: str) -> str | None:
+def _mask_key(key: str) -> Optional[str]:
     if not key:
         return None
     return f"…{key[-4:]}" if len(key) > 8 else "…"

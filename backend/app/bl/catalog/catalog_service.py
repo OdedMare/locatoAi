@@ -5,6 +5,7 @@ talk HTTP, or know Postgres — the repository/provider ports do the I/O.
 """
 
 import time
+from typing import Dict, List, Tuple
 
 from app.bl.ports import (
     LayerMeta,
@@ -26,9 +27,9 @@ class CatalogService:
         self._providers = providers
         self._schema_ttl = schema_ttl_seconds
         # {layer_id: (schema, fetched_at_monotonic)}
-        self._schema_cache: dict[str, tuple[LayerSchema, float]] = {}
+        self._schema_cache: Dict[str, Tuple[LayerSchema, float]] = {}
 
-    def list_layers(self) -> list[LayerMeta]:
+    def list_layers(self) -> List[LayerMeta]:
         """All layers the agent may choose from (metadata only)."""
         return self._repository.list_layers()
 

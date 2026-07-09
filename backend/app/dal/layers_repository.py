@@ -8,6 +8,8 @@ every call, so UI settings changes apply without a restart. The table
 identifier is validated + quoted by the store (never raw user input).
 """
 
+from typing import List, Optional
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -28,12 +30,12 @@ class PostgresLayersRepository:
     def _select(self) -> str:
         return f"SELECT {_COLUMNS} FROM {self._store.get().quoted_layers_table()}"
 
-    def list_layers(self) -> list[LayerMeta]:
+    def list_layers(self) -> List[LayerMeta]:
         with self._connect() as conn:
             rows = conn.execute(self._select()).fetchall()
         return [self._to_meta(row) for row in rows]
 
-    def get_layer(self, layer_id: str) -> LayerMeta | None:
+    def get_layer(self, layer_id: str) -> Optional[LayerMeta]:
         with self._connect() as conn:
             row = conn.execute(
                 self._select() + " WHERE id = %s", (layer_id,)

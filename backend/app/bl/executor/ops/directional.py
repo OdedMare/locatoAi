@@ -17,13 +17,12 @@ class DirectionalOp(OpHandler):
         # Centroid in a projected CRS (WGS84 centroids are inaccurate and
         # geopandas warns); order is what matters here.
         centroids = to_metric(gdf).geometry.centroid
-        match step.direction:
-            case "north":
-                order = centroids.y.sort_values(ascending=False)
-            case "south":
-                order = centroids.y.sort_values(ascending=True)
-            case "east":
-                order = centroids.x.sort_values(ascending=False)
-            case "west":
-                order = centroids.x.sort_values(ascending=True)
+        if step.direction == "north":
+            order = centroids.y.sort_values(ascending=False)
+        elif step.direction == "south":
+            order = centroids.y.sort_values(ascending=True)
+        elif step.direction == "east":
+            order = centroids.x.sort_values(ascending=False)
+        else:  # "west" — directions are closed by the Literal type
+            order = centroids.x.sort_values(ascending=True)
         return gdf.loc[order.index[: step.count]]

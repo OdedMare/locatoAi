@@ -6,6 +6,7 @@ nothing about individual ops (OCP): it dispatches via the op registry.
 """
 
 from datetime import datetime, timezone
+from typing import Optional
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -26,8 +27,8 @@ class PlanExecutor:
     def execute(
         self,
         plan: GeoQueryPlan,
-        user_geometry: BaseGeometry | None = None,
-        now: datetime | None = None,
+        user_geometry: Optional[BaseGeometry] = None,
+        now: Optional[datetime] = None,
     ) -> gpd.GeoDataFrame:
         """Run a validated plan and return the output step's features (WGS84)."""
         ctx = ExecutionContext(

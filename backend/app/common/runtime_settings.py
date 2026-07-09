@@ -10,6 +10,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
+from typing import Optional
 
 from app.common.config import Settings
 
@@ -21,7 +22,7 @@ _TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
 @dataclass
 class RuntimeSettings:
     llm_model: str
-    llm_base_url: str | None
+    llm_base_url: Optional[str]
     openai_api_key: str
     database_url: str
     layers_table: str

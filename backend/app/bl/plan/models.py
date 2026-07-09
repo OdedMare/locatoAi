@@ -10,9 +10,10 @@ Locked decisions:
 public.layers).
 """
 
-from typing import Annotated, Literal, Union
+from typing import List, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Annotated
 
 
 class LoadStep(BaseModel):
@@ -34,7 +35,7 @@ class AttributeFilterStep(BaseModel):
     input: str
     field: str
     operator: Literal["eq", "neq", "gt", "lt", "contains"]
-    value: str | float
+    value: Union[str, float]
 
 
 class NearStep(BaseModel):
@@ -78,6 +79,6 @@ Step = Annotated[
 
 class GeoQueryPlan(BaseModel):
     explanation: str
-    steps: list[Step]
+    steps: List[Step]
     output: str
-    context_layers: list[str] = []
+    context_layers: List[str] = []

@@ -5,17 +5,19 @@ These run after parsing and before execution. When the agent lands
 the prompt, then a clarify fallback.
 """
 
+from typing import Set
+
 from app.bl.plan.models import GeoQueryPlan, LoadStep, NearStep, WithinGeometryStep
 from app.common.errors import PlanValidationError
 
 
 def validate_plan(
     plan: GeoQueryPlan,
-    known_layer_ids: set[str],
+    known_layer_ids: Set[str],
     has_user_geometry: bool,
 ) -> None:
     """Raise PlanValidationError with a clear, agent-readable message."""
-    seen_ids: set[str] = set()
+    seen_ids: Set[str] = set()
 
     for step in plan.steps:
         if step.id in seen_ids:

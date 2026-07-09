@@ -6,7 +6,7 @@ must not touch any BL module.
 """
 
 from datetime import datetime
-from typing import Protocol
+from typing import List, Optional, Protocol
 
 import geopandas as gpd
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ class LayerMeta(BaseModel):
     id: str
     name: str
     description: str = ""
-    tags: list[str] = []
+    tags: List[str] = []
     provider: str
     source_url: str
 
@@ -34,15 +34,15 @@ class LayerSchema(BaseModel):
 
     layer_id: str
     geometry_type: str
-    fields: list[LayerField]
+    fields: List[LayerField]
 
 
 class LayersRepository(Protocol):
     """Catalog store (implemented by dal.layers_repository)."""
 
-    def list_layers(self) -> list[LayerMeta]: ...
+    def list_layers(self) -> List[LayerMeta]: ...
 
-    def get_layer(self, layer_id: str) -> LayerMeta | None: ...
+    def get_layer(self, layer_id: str) -> Optional[LayerMeta]: ...
 
 
 class Provider(Protocol):
@@ -54,7 +54,7 @@ class Provider(Protocol):
     def describe_schema(self, layer: LayerMeta) -> LayerSchema: ...
 
     def fetch_features(
-        self, layer: LayerMeta, now: datetime | None = None
+        self, layer: LayerMeta, now: Optional[datetime] = None
     ) -> gpd.GeoDataFrame: ...
 
 

@@ -11,6 +11,7 @@ the service or DAL tiers.
 
 import time
 from dataclasses import dataclass
+from typing import Dict, Optional
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -24,10 +25,10 @@ from app.bl.plan.validators import validate_plan
 @dataclass
 class QueryOutcome:
     status: str  # "ok" | "clarify" | "error"
-    clarify: str | None = None
-    plan: GeoQueryPlan | None = None
-    features: gpd.GeoDataFrame | None = None
-    timing_ms: dict[str, int] | None = None
+    clarify: Optional[str] = None
+    plan: Optional[GeoQueryPlan] = None
+    features: Optional[gpd.GeoDataFrame] = None
+    timing_ms: Optional[Dict[str, int]] = None
 
 
 class QueryOrchestrator:
@@ -35,7 +36,7 @@ class QueryOrchestrator:
         self._catalog = catalog
         self._executor = executor
 
-    def run_query(self, query: str, boundaries: BaseGeometry | None) -> QueryOutcome:
+    def run_query(self, query: str, boundaries: Optional[BaseGeometry]) -> QueryOutcome:
         """Natural-language entry point. Agent-backed from Day 2."""
         # DAY 2: select_layers → get_schema per layer → build_plan →
         #        validate_plan (retry once on failure) → execute_plan.
@@ -48,7 +49,7 @@ class QueryOrchestrator:
         )
 
     def execute_plan(
-        self, plan: GeoQueryPlan, boundaries: BaseGeometry | None
+        self, plan: GeoQueryPlan, boundaries: Optional[BaseGeometry]
     ) -> QueryOutcome:
         """Validate and execute an explicit plan (debug path, real logic)."""
         known_ids = {layer.id for layer in self._catalog.list_layers()}

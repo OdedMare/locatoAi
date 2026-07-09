@@ -18,15 +18,14 @@ class AttributeFilterOp(OpHandler):
             )
 
         column = gdf[step.field]
-        match step.operator:
-            case "eq":
-                mask = column == step.value
-            case "neq":
-                mask = column != step.value
-            case "gt":
-                mask = column > step.value
-            case "lt":
-                mask = column < step.value
-            case "contains":
-                mask = column.astype(str).str.contains(str(step.value), na=False)
+        if step.operator == "eq":
+            mask = column == step.value
+        elif step.operator == "neq":
+            mask = column != step.value
+        elif step.operator == "gt":
+            mask = column > step.value
+        elif step.operator == "lt":
+            mask = column < step.value
+        else:  # "contains" — operators are closed by the Literal type
+            mask = column.astype(str).str.contains(str(step.value), na=False)
         return gdf[mask]

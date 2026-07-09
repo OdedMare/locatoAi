@@ -11,6 +11,7 @@ the same bl.ports.Provider protocol (LSP).
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 import geopandas as gpd
@@ -27,7 +28,7 @@ _PYTHON_TO_SCHEMA_TYPE = {str: "string", int: "number", float: "number", bool: "
 
 
 class MockArcgisProvider:
-    def __init__(self, data_dir: str | Path):
+    def __init__(self, data_dir: Union[str, Path]):
         self._data_dir = Path(data_dir)
 
     def _file_for(self, layer: LayerMeta) -> Path:
@@ -60,7 +61,7 @@ class MockArcgisProvider:
         )
 
     def fetch_features(
-        self, layer: LayerMeta, now: datetime | None = None
+        self, layer: LayerMeta, now: Optional[datetime] = None
     ) -> gpd.GeoDataFrame:
         path = self._file_for(layer)
         if not path.exists():
