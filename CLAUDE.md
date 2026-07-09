@@ -16,12 +16,14 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 # Python runtime is EXACTLY 3.8.10 (requires-python pin). No local 3.8.10
 # exists on ARM macs — use the Docker image:
 cd backend
-docker build -t ailocator-backend:py3.8.10 .                      # build (rebuild after dep changes)
-docker run --rm -p 8000:8000 ailocator-backend:py3.8.10           # serve API (DB via host.docker.internal)
-docker run --rm ailocator-backend:py3.8.10 python -m pytest -q    # run tests
-docker run --rm ailocator-backend:py3.8.10 python -m pytest tests/test_executor.py::test_near_uses_meters_not_degrees  # single test
-# Code changes require rebuild (source is COPYed, not mounted); for a quick
-# iteration loop mount it: docker run --rm -p 8000:8000 -v "$PWD/app:/srv/backend/app" ailocator-backend:py3.8.10
+docker build --platform linux/amd64 -t ailocator-backend:py3.8.10 .   # build (amd64: no arm64 py3.8 geo wheels; rebuild after code/dep changes)
+docker run -d --name ailocator-backend --platform linux/amd64 -p 8000:8000 \
+  --add-host=pghost:host-gateway \
+  -e AILOCATOR_DATABASE_URL=postgresql://$(whoami)@pghost:5432/gis \
+  ailocator-backend:py3.8.10                                          # serve API (pghost = host PG; host.docker.internal breaks on IPv6)
+docker run --rm --platform linux/amd64 ailocator-backend:py3.8.10 python -m pytest -q                 # run tests
+docker run --rm --platform linux/amd64 ailocator-backend:py3.8.10 python -m pytest tests/test_executor.py::test_near_uses_meters_not_degrees  # single test
+# quick iteration without rebuild: add -v "$PWD/app:/srv/backend/app" to the run command
 
 # frontend
 cd frontend

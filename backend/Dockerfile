@@ -1,4 +1,7 @@
 # Exact target runtime: Python 3.8.10 (see runtime.txt / .python-version).
+# Build with: docker build --platform linux/amd64 ...
+# (the geo stack ships no linux-arm64 wheels for Python 3.8; on Apple
+# Silicon the amd64 image runs via Rosetta emulation)
 FROM python:3.8.10-slim
 
 WORKDIR /srv/backend
