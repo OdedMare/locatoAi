@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.5,<2.11",
     "pydantic-settings>=2.2,<2.8",
     "geopandas==0.13.2",
+    "fiona>=1.9,<1.10",  # 1.10 ships no py3.8 wheels (needs GDAL to build)
     "shapely>=2.0",
     "pyproj>=3.4,<3.6",
     "pandas>=2.0,<2.1",
