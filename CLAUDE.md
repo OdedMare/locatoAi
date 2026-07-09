@@ -14,6 +14,7 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 ```bash
 # backend (requires local Postgres 'gis' DB — see below)
 cd backend
+# Python runtime: 3.8.10
 .venv/bin/uvicorn app.main:app --port 8000   # serve API
 .venv/bin/python -m pytest -q                # run tests
 .venv/bin/python -m pytest tests/test_executor.py::test_near_uses_meters_not_degrees  # single test
