@@ -68,7 +68,7 @@ export default function QueryPanel({
           {!isSubmitting && <kbd>⌘⏎</kbd>}
         </button>
 
-        <ResultsPanel />
+        <ResultsPanel response={lastResponse} />
 
         <RequestPreview request={lastRequest} response={lastResponse} />
       </div>

@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "כיכר רבין", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7805, 32.0809] } },
+    { "type": "Feature", "properties": { "name": "כיכר דיזנגוף", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7743, 32.0779] } },
+    { "type": "Feature", "properties": { "name": "כיכר המדינה", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7887, 32.0868] } },
+    { "type": "Feature", "properties": { "name": "כיכר הבימה", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7793, 32.0729] } },
+    { "type": "Feature", "properties": { "name": "כיכר אתרים", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7679, 32.0866] } }
+  ]
+}

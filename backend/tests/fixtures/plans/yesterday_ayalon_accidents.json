@@ -1,0 +1,9 @@
+{
+  "explanation": "Accidents that happened yesterday on the Ayalon",
+  "steps": [
+    { "id": "s1", "op": "load", "layer": "accidents" },
+    { "id": "s2", "op": "attribute_filter", "input": "s1", "field": "road_en", "operator": "eq", "value": "Ayalon" },
+    { "id": "s3", "op": "temporal_filter", "input": "s2", "from": "2026-07-08T00:00:00Z", "to": "2026-07-08T23:59:59Z" }
+  ],
+  "output": "s3"
+}

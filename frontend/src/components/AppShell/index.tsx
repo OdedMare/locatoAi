@@ -3,14 +3,15 @@
 import { useCallback, useState } from "react";
 import QueryPanel from "@/components/QueryPanel";
 import MapWorkspace from "@/components/MapWorkspace";
-import { submitQuery } from "@/services/mockGeoQueryService";
-import type {
-  BBox,
-  GeographyMode,
-  GeoJSONPolygon,
-  GeoQueryRequest,
-  GeoQueryResponse,
-  MapViewState,
+import { submitQuery } from "@/services/geoQueryService";
+import {
+  bboxToMultiPolygon,
+  polygonToMultiPolygon,
+  type GeographyMode,
+  type GeoJSONPolygon,
+  type GeoQueryRequest,
+  type GeoQueryResponse,
+  type MapViewState,
 } from "@/types/geo-query";
 
 /** Default view: Tel Aviv. */
@@ -28,7 +29,6 @@ export default function AppShell() {
   const [queryText, setQueryText] = useState("");
   const [geographyMode, setGeographyMode] = useState<GeographyMode>("none");
   const [drawnGeometry, setDrawnGeometry] = useState<GeoJSONPolygon | null>(null);
-  const [drawnBbox, setDrawnBbox] = useState<BBox | null>(null);
   const [mapView, setMapView] = useState<MapViewState>(INITIAL_VIEW);
   const [lastRequest, setLastRequest] = useState<GeoQueryRequest | null>(null);
   const [lastResponse, setLastResponse] = useState<GeoQueryResponse | null>(null);
@@ -38,37 +38,23 @@ export default function AppShell() {
     setGeographyMode(mode);
     // Any previously drawn shape belongs to the old mode — discard it.
     setDrawnGeometry(null);
-    setDrawnBbox(null);
   }, []);
 
   const handleGeometryDrawn = useCallback(
-    (geometry: GeoJSONPolygon, bbox: BBox) => {
-      setDrawnGeometry(geometry);
-      setDrawnBbox(bbox);
-    },
+    (geometry: GeoJSONPolygon) => setDrawnGeometry(geometry),
     []
   );
 
-  /** Build the structured request object from current UI state. */
+  /** Build the backend request — exactly {query, boundaries}. */
   const buildRequest = (): GeoQueryRequest => ({
-    queryText: queryText.trim(),
-    geography: {
-      mode: geographyMode,
-      geometry:
-        geographyMode === "polygon" || geographyMode === "rectangle"
-          ? drawnGeometry
+    query: queryText.trim(),
+    boundaries:
+      geographyMode === "viewport"
+        ? bboxToMultiPolygon(mapView.bbox)
+        : (geographyMode === "polygon" || geographyMode === "rectangle") &&
+            drawnGeometry
+          ? polygonToMultiPolygon(drawnGeometry)
           : null,
-      bbox:
-        geographyMode === "viewport"
-          ? mapView.bbox
-          : geographyMode === "polygon" || geographyMode === "rectangle"
-            ? drawnBbox
-            : null,
-    },
-    uiContext: {
-      mapCenter: mapView.center,
-      mapZoom: mapView.zoom,
-    },
   });
 
   const handleRunQuery = async () => {
@@ -77,7 +63,6 @@ export default function AppShell() {
     setLastRequest(request);
     setIsSubmitting(true);
     try {
-      // Mock for now — swaps to POST /api/geo-query in the next stage.
       const response = await submitQuery(request);
       setLastResponse(response);
     } finally {
