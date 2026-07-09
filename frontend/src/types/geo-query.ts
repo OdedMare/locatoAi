@@ -1,12 +1,11 @@
 /**
  * Core types for the Geo-AI query request pipeline.
  *
- * These types define the contract between the UI and the future backend
- * endpoint (`POST /api/geo-query`). Keep them stable — the AI agent /
- * SQL-generation stage will consume exactly this shape.
+ * GeoQueryRequest/GeoQueryResponse mirror the backend contract exactly
+ * (backend/app/service/dto.py). Do not change one side without the other.
  */
 
-/** How the user scopes the query geographically. */
+/** How the user scopes the query geographically (UI concept only). */
 export type GeographyMode = "none" | "viewport" | "polygon" | "rectangle";
 
 /** Minimal GeoJSON Polygon (RFC 7946). Coordinates are [lng, lat]. */
@@ -16,48 +15,63 @@ export interface GeoJSONPolygon {
   coordinates: [number, number][][];
 }
 
+/** GeoJSON MultiPolygon — the boundary shape the backend accepts. */
+export interface GeoJSONMultiPolygon {
+  type: "MultiPolygon";
+  coordinates: [number, number][][][];
+}
+
 /** Bounding box: [minLng, minLat, maxLng, maxLat]. */
 export type BBox = [number, number, number, number];
 
-/** Geographic scope attached to a query. */
-export interface GeographySelection {
-  mode: GeographyMode;
-  /** Drawn shape (polygon / rectangle modes). Null otherwise. */
-  geometry: GeoJSONPolygon | null;
-  /** Bounding box (viewport mode, or derived from a drawn shape). Null otherwise. */
-  bbox: BBox | null;
-}
-
-/** Map state at submit time — useful context for the agent (e.g. "near me", ambiguous place names). */
-export interface UiContext {
-  /** [lng, lat] */
-  mapCenter: [number, number];
-  mapZoom: number;
-}
-
-/** The structured request object sent to the (future) geo-query backend. */
+/** The request sent to POST /api/query — exactly {query, boundaries}. */
 export interface GeoQueryRequest {
-  queryText: string;
-  geography: GeographySelection;
-  uiContext: UiContext;
+  query: string;
+  boundaries: GeoJSONMultiPolygon | null;
 }
 
-/** Mock response shape for this stage. The real backend will return parsed intent + spatial results. */
+/** Backend response (backend/app/service/dto.py QueryResponse). */
 export interface GeoQueryResponse {
-  status: "accepted";
-  requestId: string;
-  receivedAt: string;
-  /** Echo of the submitted request, for debugging. */
-  echo: GeoQueryRequest;
-  /** Empty in this stage — populated by the GIS execution engine later. */
-  results: unknown[];
+  status: "ok" | "clarify" | "error";
+  clarify: string | null;
+  /** The Geo Query Plan the agent built (Day 2+). */
+  plan: unknown | null;
+  /** GeoJSON FeatureCollection of results. */
+  features: GeoJSON.FeatureCollection | null;
+  timing_ms: Record<string, number> | null;
 }
 
-/** Live map view state reported by the map component. */
+/** Live map view state reported by the map component (UI-internal). */
 export interface MapViewState {
   /** [lng, lat] */
   center: [number, number];
   zoom: number;
   /** Current viewport bounds as [minLng, minLat, maxLng, maxLat]. */
   bbox: BBox;
+}
+
+/** Wrap a single polygon as the MultiPolygon the backend expects. */
+export function polygonToMultiPolygon(
+  polygon: GeoJSONPolygon
+): GeoJSONMultiPolygon {
+  return { type: "MultiPolygon", coordinates: [polygon.coordinates] };
+}
+
+/** Convert a viewport bbox to a MultiPolygon boundary. */
+export function bboxToMultiPolygon(bbox: BBox): GeoJSONMultiPolygon {
+  const [minLng, minLat, maxLng, maxLat] = bbox;
+  return {
+    type: "MultiPolygon",
+    coordinates: [
+      [
+        [
+          [minLng, minLat],
+          [maxLng, minLat],
+          [maxLng, maxLat],
+          [minLng, maxLat],
+          [minLng, minLat],
+        ],
+      ],
+    ],
+  };
 }
