@@ -13,12 +13,15 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 
 ```bash
 # backend (requires local Postgres 'gis' DB — see below)
+# Python runtime is EXACTLY 3.8.10 (requires-python pin). No local 3.8.10
+# exists on ARM macs — use the Docker image:
 cd backend
-# Python runtime: 3.8.10
-.venv/bin/uvicorn app.main:app --port 8000   # serve API
-.venv/bin/python -m pytest -q                # run tests
-.venv/bin/python -m pytest tests/test_executor.py::test_near_uses_meters_not_degrees  # single test
-.venv/bin/pip install -e ".[dev]"            # (re)install deps
+docker build -t ailocator-backend:py3.8.10 .                      # build (rebuild after dep changes)
+docker run --rm -p 8000:8000 ailocator-backend:py3.8.10           # serve API (DB via host.docker.internal)
+docker run --rm ailocator-backend:py3.8.10 python -m pytest -q    # run tests
+docker run --rm ailocator-backend:py3.8.10 python -m pytest tests/test_executor.py::test_near_uses_meters_not_degrees  # single test
+# Code changes require rebuild (source is COPYed, not mounted); for a quick
+# iteration loop mount it: docker run --rm -p 8000:8000 -v "$PWD/app:/srv/backend/app" ailocator-backend:py3.8.10
 
 # frontend
 cd frontend
