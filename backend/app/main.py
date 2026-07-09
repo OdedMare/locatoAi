@@ -15,10 +15,11 @@ from app.common.errors import (
     ProviderError,
 )
 from app.common.logging import configure_logging
+from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.providers.arcgis_mock import MockArcgisProvider
 from app.dal.providers.registry import ProviderRegistryImpl
-from app.service import plan_router, query_router
+from app.service import plan_router, query_router, settings_router
 
 _ERROR_STATUS = {
     LayerNotFoundError: 404,
@@ -30,8 +31,9 @@ _ERROR_STATUS = {
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    settings_store = RuntimeSettingsStore(settings)
 
-    repository = PostgresLayersRepository(settings.database_url)
+    repository = PostgresLayersRepository(settings_store)
     providers = ProviderRegistryImpl()
     providers.register("arcgis", MockArcgisProvider(settings.data_dir))
 
@@ -43,10 +45,13 @@ def create_app() -> FastAPI:
     app = FastAPI(title="AiLocator", version="0.1.0")
     app.state.orchestrator = QueryOrchestrator(catalog, executor)
     app.state.catalog = catalog
+    app.state.repository = repository
+    app.state.settings_store = settings_store
     app.state.request_log = configure_logging(settings.request_log_path)
 
     app.include_router(query_router.router)
     app.include_router(plan_router.router)
+    app.include_router(settings_router.router)
 
     @app.get("/health")
     def health() -> dict:
