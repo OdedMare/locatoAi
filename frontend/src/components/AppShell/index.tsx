@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import QueryPanel from "@/components/QueryPanel";
 import MapWorkspace from "@/components/MapWorkspace";
+import SettingsPanel from "@/components/SettingsPanel";
 import { submitQuery } from "@/services/geoQueryService";
 import {
   bboxToMultiPolygon,
@@ -33,6 +34,7 @@ export default function AppShell() {
   const [lastRequest, setLastRequest] = useState<GeoQueryRequest | null>(null);
   const [lastResponse, setLastResponse] = useState<GeoQueryResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleModeChange = useCallback((mode: GeographyMode) => {
     setGeographyMode(mode);
@@ -82,7 +84,11 @@ export default function AppShell() {
         isSubmitting={isSubmitting}
         lastRequest={lastRequest}
         lastResponse={lastResponse}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
+      {isSettingsOpen && (
+        <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
+      )}
       <MapWorkspace
         mode={geographyMode}
         drawnGeometry={drawnGeometry}

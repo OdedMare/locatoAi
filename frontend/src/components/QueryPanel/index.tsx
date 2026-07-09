@@ -20,6 +20,7 @@ interface QueryPanelProps {
   isSubmitting: boolean;
   lastRequest: GeoQueryRequest | null;
   lastResponse: GeoQueryResponse | null;
+  onOpenSettings: () => void;
 }
 
 /** Left-hand panel: query input, geography controls, run button, debug + results. */
@@ -33,15 +34,27 @@ export default function QueryPanel({
   isSubmitting,
   lastRequest,
   lastResponse,
+  onOpenSettings,
 }: QueryPanelProps) {
   const canRun = queryText.trim().length > 0 && !isSubmitting;
 
   return (
     <aside className="query-panel">
       <header className="query-panel-header">
-        <h1>
-          Locato<span className="accent">AI</span>
-        </h1>
+        <div className="header-row">
+          <h1>
+            Locato<span className="accent">AI</span>
+          </h1>
+          <button
+            type="button"
+            className="settings-button"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+            title="Settings"
+          >
+            ⚙
+          </button>
+        </div>
         <p className="tagline">Ask geographic questions in plain language</p>
       </header>
 
