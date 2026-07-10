@@ -1,0 +1,17 @@
+fastapi<1,>=0.110
+uvicorn<0.34,>=0.23
+pydantic<2.11,>=2.5
+pydantic-settings<2.8,>=2.2
+geopandas==0.13.2
+shapely>=2.0
+pyproj<3.6,>=3.4
+pandas<2.1,>=2.0
+numpy<1.25,>=1.24
+httpx>=0.27
+structlog<25,>=24.1
+psycopg[binary]<3.2,>=3.1
+openai<2,>=1.40
+typing-extensions>=4.8
+
+[dev]
+pytest<8.4,>=8.0

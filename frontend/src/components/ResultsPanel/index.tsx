@@ -1,20 +1,38 @@
 "use client";
 
+import type { GeoQueryResponse } from "@/types/geo-query";
+
+interface ResultsPanelProps {
+  response: GeoQueryResponse | null;
+}
+
 /**
- * Placeholder results panel.
- *
- * FUTURE: this panel will render the spatial results returned by the
- * geo-query backend (feature lists, counts, links to map highlights).
+ * Results panel. Shows feature counts / clarify questions from the
+ * backend; rich result rendering (lists, map highlights) comes with the
+ * agent in the next stage.
  */
-export default function ResultsPanel() {
+export default function ResultsPanel({ response }: ResultsPanelProps) {
   return (
     <section className="results-panel">
       <header className="panel-section-header">
         <h2>Results</h2>
       </header>
-      <p className="panel-placeholder">
-        Results will appear here in the next stage.
-      </p>
+      {response === null ? (
+        <p className="panel-placeholder">
+          Results will appear here in the next stage.
+        </p>
+      ) : response.status === "clarify" ? (
+        <p className="panel-placeholder">💬 {response.clarify}</p>
+      ) : response.status === "error" ? (
+        <p className="panel-placeholder">
+          ⚠️ Request failed{response.clarify ? ` — ${response.clarify}` : ""}.
+          Is the backend running on port 8000?
+        </p>
+      ) : (
+        <p className="panel-placeholder">
+          ✅ {response.features?.features.length ?? 0} features returned.
+        </p>
+      )}
     </section>
   );
 }
