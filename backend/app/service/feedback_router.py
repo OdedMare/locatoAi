@@ -1,7 +1,8 @@
 """POST /api/feedback — user verdicts on agent selections.
 
-Appends JSON lines to logs/feedback.jsonl. Downvoted queries are the
-raw material for new eval cases in scripts/eval_select_layers.py.
+Appends JSON lines to the feedback log (see config.feedback_log_path).
+Downvoted queries are the raw material for new eval cases in
+scripts/eval_select_layers.py.
 """
 
 import json
@@ -12,9 +13,9 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-router = APIRouter()
+from app.common.config import get_settings
 
-_FEEDBACK_PATH = Path("logs/feedback.jsonl")
+router = APIRouter()
 
 
 class FeedbackRequest(BaseModel):
@@ -27,9 +28,11 @@ class FeedbackRequest(BaseModel):
 
 @router.post("/api/feedback")
 def submit_feedback(body: FeedbackRequest) -> dict:
-    _FEEDBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    log_path = Path(get_settings().feedback_log_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
     record = body.model_dump()
     record["timestamp"] = datetime.now(timezone.utc).isoformat()
-    with _FEEDBACK_PATH.open("a", encoding="utf-8") as fh:
+    with log_path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
     return {"status": "ok"}

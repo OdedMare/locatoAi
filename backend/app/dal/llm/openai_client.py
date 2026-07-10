@@ -24,6 +24,14 @@ from app.common.errors import AgentError
 from app.common.runtime_settings import RuntimeSettingsStore
 
 
+# One initial attempt + one retry with the parse error appended.
+_MAX_JSON_ATTEMPTS = 2
+# Deterministic output — the agent emits structured JSON, not prose.
+_TEMPERATURE = 0
+# The SDK requires a non-empty key; local servers (Ollama...) ignore it.
+_LOCAL_SERVER_KEY_PLACEHOLDER = "not-needed"
+
+
 def extract_json(text: str) -> dict:
     """Parse a JSON object out of an LLM reply (tolerates ``` fences and prose)."""
     cleaned = text.strip()
@@ -62,8 +70,7 @@ class OpenAIJsonClient:
                 "or set a base URL for a local server (e.g. Ollama)"
             )
         client = OpenAI(
-            # SDK requires a non-empty key; local servers ignore its value.
-            api_key=settings.openai_api_key or "not-needed",
+            api_key=settings.openai_api_key or _LOCAL_SERVER_KEY_PLACEHOLDER,
             base_url=settings.llm_base_url or None,
         )
 
@@ -72,7 +79,7 @@ class OpenAIJsonClient:
             {"role": "user", "content": user},
         ]
         last_error = "unknown"
-        for _attempt in range(2):
+        for _attempt in range(_MAX_JSON_ATTEMPTS):
             content = self._complete(client, settings.llm_model, messages)
             try:
                 return extract_json(content)
@@ -104,7 +111,7 @@ class OpenAIJsonClient:
         for kwargs in attempts:
             try:
                 response = client.chat.completions.create(
-                    model=model, temperature=0, **kwargs
+                    model=model, temperature=_TEMPERATURE, **kwargs
                 )
                 break
             except BadRequestError as exc:

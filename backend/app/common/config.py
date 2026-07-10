@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     request_log_path: str = "logs/requests.jsonl"
 
+    feedback_log_path: str = "logs/feedback.jsonl"
+    """UI 👍/👎 verdicts land here — the raw material for new eval cases."""
+
 
 @lru_cache
 def get_settings() -> Settings:
