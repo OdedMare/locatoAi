@@ -40,9 +40,12 @@ export default function AppShell() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem("locato-theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setIsDarkMode(savedTheme ? savedTheme === "dark" : prefersDark);
+    const frame = window.requestAnimationFrame(() => {
+      const savedTheme = window.localStorage.getItem("locato-theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setIsDarkMode(savedTheme ? savedTheme === "dark" : prefersDark);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
