@@ -1170,6 +1170,64 @@ body {
   resize: vertical;
 }
 
+.tag-editor {
+  min-height: 44px;
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tag-editor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.tag-editor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  color: #087c61;
+  border: 1px solid #a7d9cd;
+  border-radius: 999px;
+  background: #edf8f5;
+  font-size: 12px;
+}
+
+.tag-editor-chip button {
+  padding: 0;
+  color: inherit;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tag-editor-input {
+  min-width: 130px;
+  flex: 1;
+  padding: 5px 2px;
+  color: var(--text);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+}
+
+.tag-editor-input::placeholder {
+  color: var(--text-muted);
+}
+
 /* ---------- Dark theme ---------- */
 
 :root[data-theme="dark"] {
@@ -1294,6 +1352,17 @@ body {
   color: #ececec;
   border-color: #4a4a4a;
   background: #2f2f2f;
+}
+
+:root[data-theme="dark"] .tag-editor {
+  border-color: #4a4a4a;
+  background: #2f2f2f;
+}
+
+:root[data-theme="dark"] .tag-editor-chip {
+  color: #7bd8c1;
+  border-color: #347c6b;
+  background: #173c34;
 }
 
 :root[data-theme="dark"] .settings-input::placeholder,

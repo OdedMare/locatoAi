@@ -19,7 +19,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
   const [provider, setProvider] = useState("arcgis");
   const [sourceUrl, setSourceUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -43,6 +44,29 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     );
   }, [layers, search]);
 
+  const commitTags = (value: string) => {
+    const additions = value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    if (additions.length === 0) return;
+    setTags((current) => {
+      const seen = new Set(current.map((tag) => tag.toLocaleLowerCase()));
+      const unique = additions.filter((tag) => {
+        const key = tag.toLocaleLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return [...current, ...unique].slice(0, 20);
+    });
+    setTagDraft("");
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags((current) => current.filter((tag) => tag !== tagToRemove));
+  };
+
   const handleAddLayer = async () => {
     if (!name.trim() || !sourceUrl.trim() || saving) return;
     setSaving(true);
@@ -51,14 +75,15 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       const created = await createLayer({
         name: name.trim(),
         description: description.trim(),
-        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        tags,
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
       setDescription("");
-      setTags("");
+      setTags([]);
+      setTagDraft("");
       setSourceUrl("");
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
     } catch (err) {
@@ -117,8 +142,36 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
             </div>
             <label className="field-label" htmlFor="layer-description">תיאור</label>
             <textarea id="layer-description" className="settings-input layer-description-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="איזה מידע גיאוגרפי השכבה מכילה" dir="auto" />
-            <label className="field-label" htmlFor="layer-tags">תגיות <span className="optional">(מופרדות בפסיקים)</span></label>
-            <input id="layer-tags" className="settings-input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="חינוך, בית ספר, ילדים" dir="auto" />
+            <label className="field-label" htmlFor="layer-tags">תגיות <span className="optional">(Enter או פסיק להוספה)</span></label>
+            <div className="tag-editor" onClick={() => document.getElementById("layer-tags")?.focus()}>
+              {tags.map((tag) => (
+                <span key={tag} className="tag-editor-chip" dir="auto">
+                  {tag}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); removeTag(tag); }} aria-label={`הסרת התגית ${tag}`}>×</button>
+                </span>
+              ))}
+              <input
+                id="layer-tags"
+                className="tag-editor-input"
+                value={tagDraft}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.includes(",")) commitTags(value);
+                  else setTagDraft(value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    commitTags(tagDraft);
+                  } else if (e.key === "Backspace" && !tagDraft && tags.length > 0) {
+                    removeTag(tags[tags.length - 1]);
+                  }
+                }}
+                onBlur={() => commitTags(tagDraft)}
+                placeholder={tags.length === 0 ? "חינוך, בית ספר, ילדים" : "תגית נוספת…"}
+                dir="auto"
+              />
+            </div>
             <label className="field-label" htmlFor="layer-source-url">כתובת המקור</label>
             <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://provider.example/layer" dir="ltr" />
             {formMessage && <p className="settings-message">{formMessage}</p>}
