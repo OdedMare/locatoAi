@@ -21,10 +21,15 @@ class FakeLLM:
 
 
 def test_selects_known_layers_in_order(catalog):
-    llm = FakeLLM({"layer_ids": ["roundabouts", "schools"], "clarify": None})
+    llm = FakeLLM({
+        "reasoning": "צריך בתי ספר וכיכרות",
+        "layer_ids": ["roundabouts", "schools"],
+        "clarify": None,
+    })
     selection = LayerSelector(llm, catalog).select("schools near squares")
     assert [l.id for l in selection.layers] == ["roundabouts", "schools"]
     assert selection.clarify is None
+    assert selection.reasoning == "צריך בתי ספר וכיכרות"
 
 
 def test_hallucinated_ids_are_dropped_and_deduped(catalog):

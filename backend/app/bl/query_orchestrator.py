@@ -28,8 +28,9 @@ class QueryOutcome:
     plan: Optional[GeoQueryPlan] = None
     features: Optional[gpd.GeoDataFrame] = None
     timing_ms: Optional[Dict[str, int]] = None
-    # Agent trace — what the model chose, so the UI can show its "thinking".
+    # Agent trace — what the model chose and why (the UI's "thinking" view).
     selected_layers: List[LayerMeta] = field(default_factory=list)
+    reasoning: str = ""
 
 
 class QueryOrchestrator:
@@ -60,7 +61,12 @@ class QueryOrchestrator:
         timing = {"select": select_ms}
 
         if selection.clarify:
-            return QueryOutcome(status="clarify", clarify=selection.clarify, timing_ms=timing)
+            return QueryOutcome(
+                status="clarify",
+                clarify=selection.clarify,
+                timing_ms=timing,
+                reasoning=selection.reasoning,
+            )
 
         # NEXT STAGE: build_plan(query, schemas of selected layers) →
         # validate (retry once) → execute. Until then, report the selection.
@@ -70,6 +76,7 @@ class QueryOrchestrator:
             clarify="Layers selected: " + names + ". Plan building is the next stage.",
             timing_ms=timing,
             selected_layers=selection.layers,
+            reasoning=selection.reasoning,
         )
 
     def execute_plan(

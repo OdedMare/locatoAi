@@ -1,0 +1,11 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "לב דיזנגוף", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7749, 32.0751] } },
+    { "type": "Feature", "properties": { "name": "רב-חן דיזנגוף", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7745, 32.0781] } },
+    { "type": "Feature", "properties": { "name": "סינמטק תל אביב", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7796, 32.0662] } },
+    { "type": "Feature", "properties": { "name": "לב סמדר רמת אביב", "city": "תל אביב", "city_en": "Tel Aviv" }, "geometry": { "type": "Point", "coordinates": [34.7952, 32.1128] } },
+    { "type": "Feature", "properties": { "name": "סינמה סיטי גלילות", "city": "רמת השרון", "city_en": "Ramat HaSharon" }, "geometry": { "type": "Point", "coordinates": [34.8036, 32.1476] } },
+    { "type": "Feature", "properties": { "name": "יס פלאנט ראשון לציון", "city": "ראשון לציון", "city_en": "Rishon LeZion" }, "geometry": { "type": "Point", "coordinates": [34.7754, 31.9788] } }
+  ]
+}

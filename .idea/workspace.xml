@@ -4,7 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="97cf71f2-a071-4ef9-bd37-67c59df4c0a2" name="Changes" comment="" />
+    <list default="true" id="97cf71f2-a071-4ef9-bd37-67c59df4c0a2" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/agent/prompts/select_layers.md" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/agent/prompts/select_layers.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/agent/select_layers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/agent/select_layers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/ports.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/ports.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/query_orchestrator.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/query_orchestrator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/dal/providers/arcgis_mock.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/dal/providers/arcgis_mock.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/service/agent_router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/service/agent_router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/service/dto.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/service/dto.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/service/query_router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/service/query_router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/scripts/eval_select_layers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/scripts/eval_select_layers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/AgentTrace/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/AgentTrace/index.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/services/geoQueryService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/services/geoQueryService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/styles/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/types/geo-query.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/geo-query.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

@@ -313,6 +313,16 @@ body {
   color: var(--text-muted);
 }
 
+.agent-reasoning {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
 .agent-step.running {
   color: var(--accent);
 }

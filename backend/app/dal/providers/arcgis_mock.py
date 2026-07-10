@@ -26,6 +26,24 @@ OFFSET_HOURS_FIELD = "timestamp_offset_hours"
 
 _PYTHON_TO_SCHEMA_TYPE = {str: "string", int: "number", float: "number", bool: "boolean"}
 
+_MAX_SAMPLES = 5
+_MAX_SAMPLE_CHARS = 40
+
+
+def _sample_values(features: list, field_name: str) -> list:
+    """Up to N distinct values for a field (truncated — untrusted text)."""
+    seen = []
+    for feature in features:
+        value = feature.get("properties", {}).get(field_name)
+        if value is None:
+            continue
+        text = str(value)[:_MAX_SAMPLE_CHARS]
+        if text not in seen:
+            seen.append(text)
+        if len(seen) >= _MAX_SAMPLES:
+            break
+    return seen
+
 
 class MockArcgisProvider:
     def __init__(self, data_dir: Union[str, Path]):
@@ -46,14 +64,21 @@ class MockArcgisProvider:
             return LayerSchema(layer_id=layer.id, geometry_type="unknown", fields=[])
 
         first = features[0]
-        fields = [
-            LayerField(
-                name="timestamp" if name == OFFSET_HOURS_FIELD else name,
-                type="string" if name == OFFSET_HOURS_FIELD
-                else _PYTHON_TO_SCHEMA_TYPE.get(type(value), "string"),
+        fields = []
+        for name, value in first.get("properties", {}).items():
+            if name == OFFSET_HOURS_FIELD:
+                fields.append(
+                    LayerField(name="timestamp", type="string",
+                               description="ISO 8601 event time")
+                )
+                continue
+            fields.append(
+                LayerField(
+                    name=name,
+                    type=_PYTHON_TO_SCHEMA_TYPE.get(type(value), "string"),
+                    samples=_sample_values(features, name),
+                )
             )
-            for name, value in first.get("properties", {}).items()
-        ]
         return LayerSchema(
             layer_id=layer.id,
             geometry_type=first.get("geometry", {}).get("type", "unknown"),

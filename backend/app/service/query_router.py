@@ -46,4 +46,5 @@ def run_query(
             )
             for l in outcome.selected_layers
         ],
+        reasoning=outcome.reasoning,
     )

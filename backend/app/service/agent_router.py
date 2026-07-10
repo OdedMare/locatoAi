@@ -28,6 +28,7 @@ class SelectedLayer(BaseModel):
 class SelectLayersResponse(BaseModel):
     layers: List[SelectedLayer]
     clarify: Optional[str] = None
+    reasoning: str = ""
     timing_ms: int
 
 
@@ -51,5 +52,6 @@ def select_layers(body: SelectLayersRequest, request: Request) -> SelectLayersRe
             SelectedLayer(id=l.id, name=l.name, tags=l.tags) for l in selection.layers
         ],
         clarify=selection.clarify,
+        reasoning=selection.reasoning,
         timing_ms=timing_ms,
     )

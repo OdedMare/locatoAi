@@ -27,6 +27,9 @@ class LayerField(BaseModel):
     name: str
     type: str
     description: str = ""
+    samples: List[str] = []
+    """A few distinct example values — lets the plan agent write
+    attribute filters that match the data's language/format."""
 
 
 class LayerSchema(BaseModel):

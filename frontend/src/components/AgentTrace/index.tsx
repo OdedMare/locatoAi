@@ -30,6 +30,11 @@ export default function AgentTrace({ response, isSubmitting }: AgentTraceProps) 
         <p className="agent-step running">🧠 Selecting layers from the catalog…</p>
       ) : response!.selected_layers.length > 0 ? (
         <>
+          {response!.reasoning && (
+            <p className="agent-reasoning" dir="auto">
+              🧠 {response!.reasoning}
+            </p>
+          )}
           <p className="agent-step done">✓ Layers chosen from the catalog:</p>
           <ul className="layer-chip-list">
             {response!.selected_layers.map((layer) => (
@@ -45,9 +50,16 @@ export default function AgentTrace({ response, isSubmitting }: AgentTraceProps) 
           </ul>
         </>
       ) : response!.clarify && response!.status === "clarify" ? (
-        <p className="agent-step clarify" dir="auto">
-          💬 Needs clarification: {response!.clarify}
-        </p>
+        <>
+          {response!.reasoning && (
+            <p className="agent-reasoning" dir="auto">
+              🧠 {response!.reasoning}
+            </p>
+          )}
+          <p className="agent-step clarify" dir="auto">
+            💬 {response!.clarify}
+          </p>
+        </>
       ) : (
         <p className="agent-step">No agent activity for this request.</p>
       )}

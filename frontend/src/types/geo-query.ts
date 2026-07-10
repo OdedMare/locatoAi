@@ -49,6 +49,8 @@ export interface GeoQueryResponse {
   timing_ms: Record<string, number> | null;
   /** Which catalog layers the agent chose (its "thinking", for review). */
   selected_layers: SelectedLayer[];
+  /** The model's short Hebrew reasoning for the choice. */
+  reasoning: string;
 }
 
 /** Live map view state reported by the map component (UI-internal). */

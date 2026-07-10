@@ -27,6 +27,7 @@ export async function submitQuery(
       features: null,
       timing_ms: null,
       selected_layers: [],
+      reasoning: "",
     };
   }
 
@@ -39,6 +40,7 @@ export async function submitQuery(
       features: null,
       timing_ms: null,
       selected_layers: [],
+      reasoning: "",
     };
   }
   return res.json();

@@ -49,6 +49,8 @@ class QueryResponse(BaseModel):
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection
     timing_ms: Optional[Dict[str, int]] = None
     selected_layers: List[SelectedLayerDto] = []
+    reasoning: str = ""
+    """The model's short Hebrew 'why' for its layer choice."""
 
 
 def gdf_to_feature_collection(

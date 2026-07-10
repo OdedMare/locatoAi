@@ -31,6 +31,8 @@ def _sanitize(text: str, limit: int) -> str:
 class LayerSelection:
     layers: List[LayerMeta] = field(default_factory=list)
     clarify: Optional[str] = None
+    reasoning: str = ""
+    """The model's short Hebrew 'why' — shown in the UI agent panel."""
 
 
 class LayerSelector:
@@ -45,6 +47,11 @@ class LayerSelector:
 
         data = self._llm.complete_json(system=system, user=query.strip())
 
+        reasoning = data.get("reasoning")
+        if not isinstance(reasoning, str):
+            reasoning = ""
+        reasoning = reasoning.strip()
+
         raw_ids = data.get("layer_ids") or []
         if not isinstance(raw_ids, list):
             raw_ids = []
@@ -53,12 +60,12 @@ class LayerSelector:
         picked = [by_id[i] for i in dict.fromkeys(raw_ids) if i in by_id]
 
         if picked:
-            return LayerSelection(layers=picked)
+            return LayerSelection(layers=picked, reasoning=reasoning)
 
         clarify = data.get("clarify")
         if not isinstance(clarify, str) or not clarify.strip():
             clarify = _FALLBACK_CLARIFY
-        return LayerSelection(clarify=clarify.strip())
+        return LayerSelection(clarify=clarify.strip(), reasoning=reasoning)
 
     @staticmethod
     def _format_catalog(layers: List[LayerMeta]) -> str:
