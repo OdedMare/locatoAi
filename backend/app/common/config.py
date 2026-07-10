@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://localhost:5432/gis"
     """Postgres holding the layer catalog."""
 
+    database_user: str = ""
+    """Optional explicit Postgres user. Overrides credentials in the URL."""
+
+    database_password: str = ""
+    """Optional explicit Postgres password. Never returned by the API."""
+
     layers_table: str = "public.layers"
     """Table with the layer metadata the agent chooses from."""
 

@@ -23,6 +23,8 @@ class SettingsUpdate(BaseModel):
     llm_base_url: Optional[str] = None
     openai_api_key: Optional[str] = None  # empty/omitted = keep current
     database_url: Optional[str] = None
+    database_user: Optional[str] = None
+    database_password: Optional[str] = None  # empty/omitted = keep current
     layers_table: Optional[str] = None
 
 
@@ -38,6 +40,8 @@ class SettingsResponse(BaseModel):
     openai_api_key_set: bool
     openai_api_key_hint: Optional[str]
     database_url: str
+    database_user: str
+    database_password_set: bool
     layers_table: str
     catalog: CatalogStatus
 
@@ -69,6 +73,8 @@ def _to_response(
         openai_api_key_set=bool(settings.openai_api_key),
         openai_api_key_hint=_mask_key(settings.openai_api_key),
         database_url=_mask_db_password(settings.database_url),
+        database_user=settings.database_user,
+        database_password_set=bool(settings.database_password),
         layers_table=settings.layers_table,
         catalog=_catalog_status(repository),
     )
@@ -86,6 +92,8 @@ def update_settings(body: SettingsUpdate, request: Request) -> SettingsResponse:
     patch = body.model_dump(exclude_none=True)
     if patch.get("openai_api_key") == "":
         patch.pop("openai_api_key")  # empty = keep existing key
+    if patch.get("database_password") == "":
+        patch.pop("database_password")  # empty = keep existing password
     try:
         settings = store.update(patch)
     except ValueError as exc:

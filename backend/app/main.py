@@ -24,6 +24,7 @@ from app.dal.providers.arcgis_mock import MockArcgisProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.service import (
     agent_router,
+    catalog_router,
     feedback_router,
     plan_router,
     query_router,
@@ -38,7 +39,14 @@ _ERROR_STATUS = {
     AgentError: 503,
 }
 
-_ROUTERS = (query_router, plan_router, settings_router, agent_router, feedback_router)
+_ROUTERS = (
+    query_router,
+    plan_router,
+    settings_router,
+    agent_router,
+    feedback_router,
+    catalog_router,
+)
 
 
 def _wire_state(app: FastAPI, settings: Settings) -> None:

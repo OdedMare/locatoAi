@@ -13,6 +13,8 @@ export interface AppSettings {
   /** Masked hint like "…abcd" — the real key is never sent back. */
   openai_api_key_hint: string | null;
   database_url: string;
+  database_user: string;
+  database_password_set: boolean;
   layers_table: string;
   catalog: CatalogStatus;
 }
@@ -23,5 +25,7 @@ export interface SettingsUpdate {
   llm_base_url?: string | null;
   openai_api_key?: string;
   database_url?: string;
+  database_user?: string;
+  database_password?: string;
   layers_table?: string;
 }

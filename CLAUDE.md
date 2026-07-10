@@ -55,7 +55,7 @@ Tiers under `backend/app/` — dependency direction is service → bl ← dal (D
 
 **Layer catalog is Postgres**, not a file: table `public.layers` in the local `gis` DB (25 Hebrew layers; columns id/name/description/tags/provider/source_url). Plans reference layers by UUID.
 
-**Settings precedence:** `AILOCATOR_*` env vars / `OPENAI_API_KEY` (`app/common/config.py`) are only DEFAULTS feeding `app/common/runtime_settings.py`; anything saved via the UI settings panel persists to `backend/runtime-settings.json` (gitignored, mounted into the container) and **overrides env**. Consumers read the store per call, so settings changes need no restart. The layers table name is identifier-validated + quoted before entering SQL.
+**Settings precedence:** `AILOCATOR_*` env vars / `OPENAI_API_KEY` (`app/common/config.py`) are only DEFAULTS feeding `app/common/runtime_settings.py`; anything saved via the UI settings panel persists to `backend/runtime-settings.json` (gitignored, mounted into the container) and **overrides env**. Consumers read the store per call, so settings changes need no restart. Postgres username/password can be entered separately and override credentials embedded in `database_url`; passwords are write-only in the API. The layers table name is identifier-validated + quoted before entering SQL.
 
 **Locked decisions** (from the MVP guide — don't relitigate): agent emits plans, never SQL; meters math only after reprojecting to EPSG:2039 (`common/geo.py`), never in WGS84 degrees; provider metadata is untrusted input for prompts; clarify is a first-class response, not a confidence score.
 
@@ -67,15 +67,18 @@ Every request is logged to `backend/logs/requests.jsonl` (JSON lines).
 
 **The UI ↔ backend contract is exactly `{query, boundaries: MultiPolygon | null}`** — mirrored between `frontend/src/types/geo-query.ts` and `backend/app/service/dto.py`. Never change one side without the other. Geography modes (viewport bbox / drawn polygon / rectangle) all collapse into that single MultiPolygon before sending.
 
-**State flow:** `components/AppShell/index.tsx` is the single state owner (query text, geography mode, drawn shape, live map view). It builds the request on Run Query and calls `services/geoQueryService.ts`, which POSTs to `/api/query` (proxied to the backend via the rewrite in `next.config.ts` — no CORS involved).
+**State flow:** `components/AppShell/index.tsx` is the single state owner (query text, geography mode, drawn shape, live map view, last request/response, settings visibility). It builds the request when the composer is submitted and calls `services/geoQueryService.ts`, which POSTs to `/api/query` (proxied to the backend via the rewrite in `next.config.ts` — no CORS involved). “New geo query” resets the conversation and geography state.
 
-**Component convention:** every component lives in its own folder under `src/components/` as `index.tsx`. Keep this pattern. (`SettingsPanel/` is the ⚙ modal; it talks to `/api/settings` via `services/settingsService.ts` and mirrors `types/settings.ts` ↔ `settings_router.py`.)
+**UI layout:** the left workspace follows a ChatGPT-style structure: dark navigation/history sidebar + conversation surface + bottom composer. `QueryPanel` owns the layout only; `AgentTrace`, `ResultsPanel`, and `RequestPreview` render the assistant response, and `GeoQueryInput` remains a controlled input. Geography choices are compact chips above the composer. The right side remains the interactive map. Styling is centralized in `src/styles/globals.css`; icons come from `lucide-react`.
+
+**Component convention:** feature components normally live in their own folder under `src/components/` as `index.tsx`. MapWorkspace is the deliberate exception: its Leaflet-only helpers (`LeafletMap.tsx`, `MapGeoms.tsx`, `MapLayers.tsx`, `LayerPicker.tsx`, `consts.ts`) are colocated because they form one client-only map feature. (`SettingsPanel/` is the settings modal; it talks to `/api/settings` via `services/settingsService.ts` and mirrors `types/settings.ts` ↔ `settings_router.py`.)
 
 **Map specifics** (`components/MapWorkspace/`):
 - Leaflet touches `window` at import time, so `LeafletMap.tsx` is loaded via `next/dynamic` with `ssr: false` from the client component `index.tsx`. Don't import react-leaflet from server components.
 - Coordinate order differs: GeoJSON/request objects use `[lng, lat]`; Leaflet uses `[lat, lng]`. Conversions happen inside the map components — keep them there.
-- Drawing uses the leaflet-draw plugin (`MapGeoms`): rectangle = click-drag, polygon = click points and close on the first point. Basemap switching (orthophoto etc.) is `MapWorkspace/LayerPicker` + `MapLayers`.
-- The query panel is a chat-style layout (sidebar + conversation + composer, lucide-react icons); AgentTrace/ResultsPanel/RequestPreview render inside the assistant message.
+- Drawing uses `leaflet-draw` through `react-leaflet-draw` (`MapGeoms`): selecting polygon/rectangle in the composer automatically enables that draw handler; the Leaflet toolbar remains available for redraws. Rectangle = click-drag; polygon = click points and close on the first point. Completed shapes are GeoJSON Polygons and are wrapped as MultiPolygons by `AppShell` before submission.
+- Basemap switching is split between `LayerPicker`, `MapLayers`, and `consts.ts`. The current options are Esri World Imagery (“Orthophoto”) and OpenStreetMap streets. Tile attribution must stay accurate when adding or changing providers.
+- `leaflet`, `leaflet-draw`, and their CSS must only enter through the dynamically loaded client map path. The drawing wrapper is pinned to `react-leaflet-draw@0.20.6` because the next release requires React 19 while this app uses React 18.
 
 ## Gotchas
 

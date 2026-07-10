@@ -25,6 +25,8 @@ class RuntimeSettings:
     llm_base_url: Optional[str]
     openai_api_key: str
     database_url: str
+    database_user: str
+    database_password: str
     layers_table: str
 
     def quoted_layers_table(self) -> str:
@@ -48,6 +50,8 @@ class RuntimeSettingsStore:
             llm_base_url=env.llm_base_url,
             openai_api_key=env.openai_api_key,
             database_url=env.database_url,
+            database_user=env.database_user,
+            database_password=env.database_password,
             layers_table=env.layers_table,
         )
         if self._path.exists():

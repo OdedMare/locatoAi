@@ -610,6 +610,12 @@ body {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+.settings-input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 .key-hint,
 .optional {
   font-weight: 400;
@@ -765,7 +771,8 @@ body {
   white-space: nowrap;
 }
 
-.chat-settings-button {
+/* First button of the bottom group gets pushed down; the rest stack under it. */
+.chat-sidebar-bottom {
   margin-top: auto;
 }
 
@@ -1081,4 +1088,49 @@ body {
   .map-workspace {
     height: 45vh;
   }
+}
+
+/* ---------- Layers panel (catalog browser) ---------- */
+
+.layers-card {
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+}
+
+.layers-count {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.layers-list {
+  list-style: none;
+  margin-top: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layers-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.layers-item-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.layers-item-description {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.layers-item-tags {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--accent);
 }

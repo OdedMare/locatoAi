@@ -19,6 +19,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [databaseUrl, setDatabaseUrl] = useState("");
+  const [databaseUser, setDatabaseUser] = useState("");
+  const [databasePassword, setDatabasePassword] = useState("");
   const [layersTable, setLayersTable] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setModel(s.llm_model);
         setBaseUrl(s.llm_base_url ?? "");
         setDatabaseUrl(s.database_url);
+        setDatabaseUser(s.database_user);
         setLayersTable(s.layers_table);
       })
       .catch(() => setMessage("Could not load settings — is the backend running?"));
@@ -44,10 +47,13 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         llm_base_url: baseUrl.trim() === "" ? null : baseUrl.trim(),
         openai_api_key: apiKey, // backend ignores empty
         database_url: databaseUrl,
+        database_user: databaseUser.trim(),
+        database_password: databasePassword, // backend ignores empty
         layers_table: layersTable,
       });
       setSettings(saved);
       setApiKey("");
+      setDatabasePassword("");
       setMessage("Saved ✓");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Save failed");
@@ -119,6 +125,36 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={databaseUrl}
             onChange={(e) => setDatabaseUrl(e.target.value)}
           />
+          <div className="settings-input-row">
+            <div>
+              <label className="field-label" htmlFor="set-db-user">User</label>
+              <input
+                id="set-db-user"
+                className="settings-input"
+                autoComplete="username"
+                placeholder="postgres"
+                value={databaseUser}
+                onChange={(e) => setDatabaseUser(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="set-db-password">
+                Password
+                {settings?.database_password_set && (
+                  <span className="key-hint"> (saved)</span>
+                )}
+              </label>
+              <input
+                id="set-db-password"
+                type="password"
+                className="settings-input"
+                autoComplete="current-password"
+                placeholder={settings?.database_password_set ? "Leave empty to keep" : "Password"}
+                value={databasePassword}
+                onChange={(e) => setDatabasePassword(e.target.value)}
+              />
+            </div>
+          </div>
           <label className="field-label" htmlFor="set-table">Layers table</label>
           <input
             id="set-table"

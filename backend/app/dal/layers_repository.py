@@ -25,7 +25,17 @@ class PostgresLayersRepository:
 
     def _connect(self) -> psycopg.Connection:
         # MVP: connection per call. Pooling (psycopg_pool) when load justifies it.
-        return psycopg.connect(self._store.get().database_url, row_factory=dict_row)
+        settings = self._store.get()
+        credentials = {}
+        if settings.database_user:
+            credentials["user"] = settings.database_user
+        if settings.database_password:
+            credentials["password"] = settings.database_password
+        return psycopg.connect(
+            settings.database_url,
+            row_factory=dict_row,
+            **credentials,
+        )
 
     def _select(self) -> str:
         return f"SELECT {_COLUMNS} FROM {self._store.get().quoted_layers_table()}"

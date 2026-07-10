@@ -21,11 +21,18 @@ def test_env_defaults_apply(tmp_path):
 
 def test_update_persists_and_reloads(tmp_path):
     store = make_store(tmp_path)
-    store.update({"llm_model": "gpt-4o-mini", "layers_table": "gis.my_layers"})
+    store.update({
+        "llm_model": "gpt-4o-mini",
+        "layers_table": "gis.my_layers",
+        "database_user": "gis_user",
+        "database_password": "secret",
+    })
 
     reloaded = make_store(tmp_path)  # same file, fresh store
     assert reloaded.get().llm_model == "gpt-4o-mini"
     assert reloaded.get().layers_table == "gis.my_layers"
+    assert reloaded.get().database_user == "gis_user"
+    assert reloaded.get().database_password == "secret"
 
 
 def test_unknown_keys_ignored(tmp_path):

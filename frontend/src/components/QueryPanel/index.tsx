@@ -5,7 +5,7 @@ import GeographyControls from "@/components/GeographyControls";
 import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
-import { Map, MessageSquarePlus, PanelLeft, Settings, Sparkles } from "lucide-react";
+import { Layers, Map, MessageSquarePlus, PanelLeft, Settings, Sparkles } from "lucide-react";
 import type {
   GeographyMode,
   GeoQueryRequest,
@@ -23,6 +23,7 @@ interface QueryPanelProps {
   lastRequest: GeoQueryRequest | null;
   lastResponse: GeoQueryResponse | null;
   onOpenSettings: () => void;
+  onOpenLayers: () => void;
   onNewChat: () => void;
 }
 
@@ -38,6 +39,7 @@ export default function QueryPanel({
   lastRequest,
   lastResponse,
   onOpenSettings,
+  onOpenLayers,
   onNewChat,
 }: QueryPanelProps) {
   const canRun = queryText.trim().length > 0 && !isSubmitting;
@@ -56,6 +58,14 @@ export default function QueryPanel({
         </button>
         <p className="chat-sidebar-label">Today</p>
         {lastRequest && <div className="chat-history-item">{lastRequest.query}</div>}
+        <button
+          type="button"
+          className="chat-settings-button chat-sidebar-bottom"
+          onClick={onOpenLayers}
+        >
+          <Layers size={17} />
+          Available layers
+        </button>
         <button
           type="button"
           className="chat-settings-button"
