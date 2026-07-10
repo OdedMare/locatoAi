@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "LocatoAI — Geo-AI Query",
-  description: "Ask geographic questions in natural language",
+  title: "LocatoAI — שאילתות גיאוגרפיות חכמות",
+  description: "שאלו שאלות גיאוגרפיות בשפה טבעית",
 };
 
 export default function RootLayout({
@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="he" dir="rtl">
       <body>{children}</body>
     </html>
   );

@@ -11,10 +11,10 @@ export default function LayerPicker({
   onLayerChange,
 }: LayerPickerProps) {
   return (
-    <div className="map-layer-picker" aria-label="Map style">
+    <div className="map-layer-picker" aria-label="סגנון מפה">
       <div className="map-layer-picker-label">
         <Layers size={15} aria-hidden="true" />
-        Layers
+        שכבות רקע
       </div>
       <div className="map-layer-options">
         {LAYERS.map((layer) => (

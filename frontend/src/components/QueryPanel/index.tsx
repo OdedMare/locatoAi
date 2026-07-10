@@ -46,7 +46,7 @@ export default function QueryPanel({
 
   return (
     <aside className="query-panel">
-      <nav className="chat-sidebar" aria-label="Application navigation">
+      <nav className="chat-sidebar" aria-label="ניווט באפליקציה">
         <div className="chat-brand">
           <span className="chat-brand-mark"><Map size={18} /></span>
           <span>LocatoAI</span>
@@ -54,9 +54,9 @@ export default function QueryPanel({
         </div>
         <button type="button" className="new-chat-button" onClick={onNewChat}>
           <MessageSquarePlus size={17} />
-          New geo query
+          שאילתה חדשה
         </button>
-        <p className="chat-sidebar-label">Today</p>
+        <p className="chat-sidebar-label">היום</p>
         {lastRequest && <div className="chat-history-item">{lastRequest.query}</div>}
         <button
           type="button"
@@ -64,7 +64,7 @@ export default function QueryPanel({
           onClick={onOpenLayers}
         >
           <Layers size={17} />
-          Available layers
+          שכבות זמינות
         </button>
         <button
           type="button"
@@ -72,20 +72,20 @@ export default function QueryPanel({
           onClick={onOpenSettings}
         >
           <Settings size={17} />
-          Settings
+          הגדרות
         </button>
       </nav>
 
       <section className="chat-main">
         <header className="query-panel-header">
           <div className="header-row">
-            <h1>LocatoAI <span className="model-pill">Geo assistant</span></h1>
+            <h1>LocatoAI <span className="model-pill">עוזר גיאוגרפי</span></h1>
           <button
             type="button"
             className="settings-button"
             onClick={onOpenSettings}
-            aria-label="Open settings"
-            title="Settings"
+            aria-label="פתיחת הגדרות"
+            title="הגדרות"
           >
             <Settings size={18} />
           </button>
@@ -96,8 +96,8 @@ export default function QueryPanel({
           {!lastRequest && !isSubmitting ? (
             <div className="chat-welcome">
               <span className="welcome-mark"><Sparkles size={25} /></span>
-              <h2>How can I help you explore the map?</h2>
-              <p>Ask about places, relationships, distances, or events in natural language.</p>
+              <h2>איך אפשר לעזור לכם לחקור את המפה?</h2>
+              <p>שאלו בשפה טבעית על מקומות, קשרים, מרחקים או אירועים.</p>
             </div>
           ) : (
             <div className="chat-conversation">
@@ -141,12 +141,12 @@ export default function QueryPanel({
               className="run-query-button"
               onClick={onRunQuery}
               disabled={!canRun}
-              aria-label="Send query"
+              aria-label="שליחת שאילתה"
             >
               {isSubmitting ? "…" : "↑"}
             </button>
           </div>
-          <p className="composer-disclaimer">LocatoAI can make mistakes. Check important geographic results.</p>
+          <p className="composer-disclaimer">LocatoAI עלול לטעות. מומלץ לבדוק תוצאות גיאוגרפיות חשובות.</p>
         </div>
       </section>
     </aside>

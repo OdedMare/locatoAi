@@ -10,7 +10,7 @@ export interface LayerOption {
 export const LAYERS: LayerOption[] = [
   {
     id: "orthophoto",
-    name: "Orthophoto",
+    name: "תצלום אוויר",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     previewUrl: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/6/26/38",
     attribution: "Tiles &copy; Esri and imagery providers",
@@ -18,7 +18,7 @@ export const LAYERS: LayerOption[] = [
   },
   {
     id: "streets",
-    name: "Streets",
+    name: "רחובות",
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     previewUrl: "https://a.tile.openstreetmap.org/6/38/26.png",
     attribution:

@@ -15,17 +15,16 @@ export default function ResultsPanel({ response }: ResultsPanelProps) {
   return (
     <section className="results-panel">
       <header className="panel-section-header">
-        <h2>Results</h2>
+        <h2>תוצאות</h2>
       </header>
       {response === null ? (
         <p className="panel-placeholder">
-          Results will appear here in the next stage.
+          התוצאות יופיעו כאן בשלב הבא.
         </p>
       ) : response.status === "clarify" ? (
         response.selected_layers.length > 0 ? (
           <p className="panel-placeholder">
-            Layers are selected — results arrive once plan building
-            (agent call 2) is implemented.
+            השכבות נבחרו — התוצאות יופיעו לאחר השלמת בניית התוכנית.
           </p>
         ) : (
           <p className="panel-placeholder" dir="auto">
@@ -34,12 +33,12 @@ export default function ResultsPanel({ response }: ResultsPanelProps) {
         )
       ) : response.status === "error" ? (
         <p className="panel-placeholder">
-          ⚠️ Request failed{response.clarify ? ` — ${response.clarify}` : ""}.
-          Is the backend running on port 8000?
+          ⚠️ הבקשה נכשלה{response.clarify ? ` — ${response.clarify}` : ""}.
+          האם השרת פועל בפורט 8000?
         </p>
       ) : (
         <p className="panel-placeholder">
-          ✅ {response.features?.features.length ?? 0} features returned.
+          ✅ הוחזרו {response.features?.features.length ?? 0} ישויות.
         </p>
       )}
     </section>

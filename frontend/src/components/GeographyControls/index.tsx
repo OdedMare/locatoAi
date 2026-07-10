@@ -3,10 +3,10 @@
 import type { GeographyMode } from "@/types/geo-query";
 
 const MODES: { value: GeographyMode; label: string; hint: string }[] = [
-  { value: "none", label: "No boundary", hint: "Search everywhere" },
-  { value: "viewport", label: "Map viewport", hint: "Use the visible map area" },
-  { value: "polygon", label: "Draw polygon", hint: "Click points, then the first point" },
-  { value: "rectangle", label: "Draw rectangle", hint: "Click and drag" },
+  { value: "none", label: "ללא גבול", hint: "חיפוש בכל האזור" },
+  { value: "viewport", label: "תצוגת המפה", hint: "שימוש באזור המוצג" },
+  { value: "polygon", label: "ציור פוליגון", hint: "לחצו על נקודות ולסיום על הראשונה" },
+  { value: "rectangle", label: "ציור מלבן", hint: "לחצו וגררו" },
 ];
 
 interface GeographyControlsProps {
@@ -26,8 +26,8 @@ export default function GeographyControls({
 
   return (
     <div className="geography-controls">
-      <span className="field-label">Geographic area</span>
-      <div className="mode-grid" role="radiogroup" aria-label="Geography mode">
+      <span className="field-label">אזור גיאוגרפי</span>
+      <div className="mode-grid" role="radiogroup" aria-label="בחירת אזור גיאוגרפי">
         {MODES.map((m) => (
           <button
             key={m.value}
@@ -45,10 +45,10 @@ export default function GeographyControls({
       {needsDrawing && (
         <p className={`draw-status${hasDrawnGeometry ? " done" : ""}`}>
           {hasDrawnGeometry
-            ? "✓ Shape captured — redraw on the map to replace it."
+            ? "✓ הצורה נשמרה — ציירו שוב במפה כדי להחליף אותה."
             : mode === "polygon"
-              ? "Click points on the map, then click the first point to finish."
-              : "Click and drag across the map to draw a rectangle."}
+              ? "לחצו על נקודות במפה, ולסיום לחצו על הנקודה הראשונה."
+              : "לחצו וגררו על המפה כדי לצייר מלבן."}
         </p>
       )}
     </div>

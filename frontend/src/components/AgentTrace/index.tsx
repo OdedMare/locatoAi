@@ -39,9 +39,9 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
   return (
     <section className="agent-trace">
       <header className="panel-section-header">
-        <h2>Agent</h2>
+        <h2>הסוכן</h2>
         {typeof selectMs === "number" && (
-          <span className="badge">selection {selectMs}ms</span>
+          <span className="badge">בחירה {selectMs} אלפיות שנייה</span>
         )}
         {canVote && (
           <span className="feedback-buttons">
@@ -50,7 +50,7 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
               className={`feedback-button${voted === "up" ? " voted" : ""}`}
               onClick={() => vote("up")}
               disabled={voted !== null}
-              title="Good selection"
+              title="בחירה טובה"
             >
               👍
             </button>
@@ -59,17 +59,17 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
               className={`feedback-button${voted === "down" ? " voted" : ""}`}
               onClick={() => vote("down")}
               disabled={voted !== null}
-              title="Wrong selection"
+              title="בחירה שגויה"
             >
               👎
             </button>
-            {voted && <span className="feedback-thanks">logged</span>}
+            {voted && <span className="feedback-thanks">נשמר</span>}
           </span>
         )}
       </header>
 
       {isSubmitting ? (
-        <p className="agent-step running">🧠 Selecting layers from the catalog…</p>
+        <p className="agent-step running">🧠 בוחר שכבות מהקטלוג…</p>
       ) : response!.selected_layers.length > 0 ? (
         <>
           {response!.reasoning && (
@@ -77,7 +77,7 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
               🧠 {response!.reasoning}
             </p>
           )}
-          <p className="agent-step done">✓ Layers chosen from the catalog:</p>
+          <p className="agent-step done">✓ השכבות שנבחרו מהקטלוג:</p>
           <ul className="layer-chip-list">
             {response!.selected_layers.map((layer) => (
               <li
@@ -103,7 +103,7 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
           </p>
         </>
       ) : (
-        <p className="agent-step">No agent activity for this request.</p>
+        <p className="agent-step">אין פעילות סוכן עבור הבקשה הזו.</p>
       )}
     </section>
   );

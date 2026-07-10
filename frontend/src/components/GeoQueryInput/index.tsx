@@ -1,9 +1,9 @@
 "use client";
 
 const EXAMPLES = [
-  "Find schools near train stations in Tel Aviv",
-  "Show accidents from yesterday on Highway 6",
-  "Give me the northernmost school in Tel Aviv",
+  "מצא בתי ספר ליד תחנות רכבת בתל אביב",
+  "הצג תאונות מאתמול בכביש 6",
+  "מצא את בית הספר הצפוני ביותר בתל אביב",
 ];
 
 interface GeoQueryInputProps {
@@ -21,11 +21,11 @@ export default function GeoQueryInput({
 }: GeoQueryInputProps) {
   return (
     <div className="geo-query-input">
-      <label className="sr-only" htmlFor="geo-query-text">Ask a geographic question</label>
+      <label className="sr-only" htmlFor="geo-query-text">שאלו שאלה גיאוגרפית</label>
       <textarea
         id="geo-query-text"
         className="geo-query-textarea"
-        placeholder="Message LocatoAI"
+        placeholder="כתבו הודעה ל-LocatoAI"
         rows={2}
         value={value}
         onChange={(e) => onChange(e.target.value)}

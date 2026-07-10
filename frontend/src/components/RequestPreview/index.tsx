@@ -15,15 +15,15 @@ export default function RequestPreview({ request, response }: RequestPreviewProp
   return (
     <section className="request-preview">
       <header className="panel-section-header">
-        <h2>Request preview</h2>
-        <span className="badge">debug</span>
+        <h2>תצוגת הבקשה</h2>
+        <span className="badge">ניפוי שגיאות</span>
       </header>
       {request ? (
         <>
           <pre className="json-block">{JSON.stringify(request, null, 2)}</pre>
           {response && (
             <p className={`response-meta status-${response.status}`}>
-              Backend: <strong>{response.status}</strong>
+              שרת: <strong>{response.status}</strong>
               {response.clarify && <> — {response.clarify}</>}
               {response.timing_ms && (
                 <> · {JSON.stringify(response.timing_ms)}</>
@@ -33,7 +33,7 @@ export default function RequestPreview({ request, response }: RequestPreviewProp
         </>
       ) : (
         <p className="panel-placeholder">
-          Run a query to see the structured request object here.
+          הפעילו שאילתה כדי לראות כאן את אובייקט הבקשה המובנה.
         </p>
       )}
     </section>

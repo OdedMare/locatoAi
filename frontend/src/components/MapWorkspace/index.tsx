@@ -7,12 +7,12 @@ import type { LeafletMapProps } from "./LeafletMap";
 // Leaflet touches `window` at import time, so it must only load on the client.
 const LeafletMap = dynamic(() => import("./LeafletMap"), {
   ssr: false,
-  loading: () => <div className="map-loading">Loading map…</div>,
+  loading: () => <div className="map-loading">המפה נטענת…</div>,
 });
 
 const DRAW_HINTS: Partial<Record<GeographyMode, string>> = {
-  polygon: "Click points to draw · click the first point to finish",
-  rectangle: "Click and drag to draw a rectangle",
+  polygon: "לחצו על נקודות לציור · לסיום לחצו על הנקודה הראשונה",
+  rectangle: "לחצו וגררו כדי לצייר מלבן",
 };
 
 /** Map area: central visual element. Hosts the Leaflet map and drawing hints. */
