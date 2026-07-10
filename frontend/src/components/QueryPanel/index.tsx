@@ -5,7 +5,7 @@ import GeographyControls from "@/components/GeographyControls";
 import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
-import { Layers, Map, MessageSquarePlus, PanelLeft, Settings, Sparkles } from "lucide-react";
+import { Layers, Map, MessageSquarePlus, Moon, PanelLeft, Settings, Sparkles, Sun } from "lucide-react";
 import type {
   GeographyMode,
   GeoQueryRequest,
@@ -25,6 +25,8 @@ interface QueryPanelProps {
   onOpenSettings: () => void;
   onOpenLayers: () => void;
   onNewChat: () => void;
+  isDarkMode: boolean;
+  onToggleTheme: () => void;
 }
 
 /** Left-hand panel: query input, geography controls, run button, debug + results. */
@@ -41,6 +43,8 @@ export default function QueryPanel({
   onOpenSettings,
   onOpenLayers,
   onNewChat,
+  isDarkMode,
+  onToggleTheme,
 }: QueryPanelProps) {
   const canRun = queryText.trim().length > 0 && !isSubmitting;
 
@@ -65,6 +69,16 @@ export default function QueryPanel({
         >
           <Layers size={17} />
           שכבות זמינות
+        </button>
+        <button
+          type="button"
+          className="chat-settings-button"
+          onClick={onToggleTheme}
+          aria-label={isDarkMode ? "מעבר למצב בהיר" : "מעבר למצב כהה"}
+          title={isDarkMode ? "מצב בהיר" : "מצב כהה"}
+        >
+          {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
+          {isDarkMode ? "מצב בהיר" : "מצב כהה"}
         </button>
         <button
           type="button"

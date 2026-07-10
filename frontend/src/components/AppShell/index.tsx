@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import QueryPanel from "@/components/QueryPanel";
 import MapWorkspace from "@/components/MapWorkspace";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -37,6 +37,18 @@ export default function AppShell() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayersOpen, setIsLayersOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("locato-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setIsDarkMode(savedTheme ? savedTheme === "dark" : prefersDark);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = isDarkMode ? "dark" : "light";
+    window.localStorage.setItem("locato-theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
 
   const handleModeChange = useCallback((mode: GeographyMode) => {
     setGeographyMode(mode);
@@ -97,6 +109,8 @@ export default function AppShell() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenLayers={() => setIsLayersOpen(true)}
         onNewChat={handleNewChat}
+        isDarkMode={isDarkMode}
+        onToggleTheme={() => setIsDarkMode((dark) => !dark)}
       />
       {isSettingsOpen && (
         <SettingsPanel onClose={() => setIsSettingsOpen(false)} />

@@ -1169,3 +1169,178 @@ body {
   min-height: 70px;
   resize: vertical;
 }
+
+/* ---------- Dark theme ---------- */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #171717;
+  --surface: #212121;
+  --border: #424242;
+  --text: #ececec;
+  --text-muted: #a3a3a3;
+  --accent: #59c6aa;
+  --accent-soft: #173c34;
+  --code-bg: #0d0d0d;
+  --code-text: #e5e5e5;
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .query-panel,
+:root[data-theme="dark"] .chat-main {
+  background: #212121;
+  color: #ececec;
+}
+
+:root[data-theme="dark"] .query-panel {
+  border-color: #383838;
+}
+
+:root[data-theme="dark"] .chat-sidebar {
+  background: #0d0d0d;
+}
+
+:root[data-theme="dark"] .query-panel-header h1,
+:root[data-theme="dark"] .chat-welcome h2,
+:root[data-theme="dark"] .assistant-content .panel-section-header h2,
+:root[data-theme="dark"] .layer-chip-name {
+  color: #ececec;
+}
+
+:root[data-theme="dark"] .model-pill {
+  color: #b4b4b4;
+  border-color: #4a4a4a;
+}
+
+:root[data-theme="dark"] .settings-button,
+:root[data-theme="dark"] .settings-close {
+  color: #b4b4b4;
+}
+
+:root[data-theme="dark"] .settings-button:hover,
+:root[data-theme="dark"] .settings-close:hover {
+  color: #fff;
+  background: #333;
+}
+
+:root[data-theme="dark"] .chat-welcome p,
+:root[data-theme="dark"] .composer-disclaimer,
+:root[data-theme="dark"] .panel-placeholder,
+:root[data-theme="dark"] .agent-step,
+:root[data-theme="dark"] .response-meta {
+  color: #aaa;
+}
+
+:root[data-theme="dark"] .welcome-mark,
+:root[data-theme="dark"] .composer-row .run-query-button {
+  color: #171717;
+  background: #ececec;
+}
+
+:root[data-theme="dark"] .chat-message.user-message {
+  color: #ececec;
+  background: #303030;
+}
+
+:root[data-theme="dark"] .assistant-content .request-preview {
+  border-color: #3b3b3b;
+}
+
+:root[data-theme="dark"] .chat-composer-area {
+  background: linear-gradient(transparent, #212121 18%);
+}
+
+:root[data-theme="dark"] .composer-tools .mode-option {
+  color: #d7d7d7;
+  border-color: #4b4b4b;
+  background: #2b2b2b;
+}
+
+:root[data-theme="dark"] .composer-tools .mode-option:hover {
+  border-color: #707070;
+}
+
+:root[data-theme="dark"] .composer-tools .mode-option.selected {
+  color: #7bd8c1;
+  border-color: #347c6b;
+  background: #173c34;
+}
+
+:root[data-theme="dark"] .composer-row {
+  border-color: #4a4a4a;
+  background: #2f2f2f;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .composer-row .geo-query-textarea {
+  color: #ececec;
+  background: transparent;
+}
+
+:root[data-theme="dark"] .settings-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .results-panel,
+:root[data-theme="dark"] .request-preview,
+:root[data-theme="dark"] .agent-trace {
+  color: #ececec;
+  border-color: #424242;
+  background: #212121;
+}
+
+:root[data-theme="dark"] .settings-input {
+  color: #ececec;
+  border-color: #4a4a4a;
+  background: #2f2f2f;
+}
+
+:root[data-theme="dark"] .settings-input::placeholder,
+:root[data-theme="dark"] .geo-query-textarea::placeholder {
+  color: #858585;
+}
+
+:root[data-theme="dark"] .add-layer-form {
+  border-color: #424242;
+  background: #292929;
+}
+
+:root[data-theme="dark"] .add-layer-toggle {
+  color: #7bd8c1;
+  border-color: #347c6b;
+  background: #173c34;
+}
+
+:root[data-theme="dark"] .layers-item {
+  border-color: #424242;
+  background: #272727;
+}
+
+:root[data-theme="dark"] .agent-reasoning,
+:root[data-theme="dark"] .draw-status,
+:root[data-theme="dark"] .response-meta code {
+  background: #2f2f2f;
+}
+
+:root[data-theme="dark"] .layer-chip {
+  border-color: #347c6b;
+  background: #173c34;
+}
+
+:root[data-theme="dark"] .feedback-button {
+  color: #ddd;
+  border-color: #4a4a4a;
+  background: #2f2f2f;
+}
+
+:root[data-theme="dark"] .catalog-status.ok,
+:root[data-theme="dark"] .draw-status.done {
+  color: #7bd8c1;
+  background: #173c34;
+}
+
+:root[data-theme="dark"] .catalog-status.bad {
+  color: #fca5a5;
+  background: #451a1a;
+}
