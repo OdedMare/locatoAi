@@ -21,9 +21,12 @@ class Settings(BaseSettings):
     layers_table: str = "public.layers"
     """Table with the layer metadata the agent chooses from."""
 
-    llm_model: str = "gpt-3.5-turbo"
-    llm_base_url: Optional[str] = None
-    """Set for OpenAI-compatible servers (Groq, vLLM, Ollama...)."""
+    llm_model: str = "gemma4:31b-cloud"
+    """The main model — Gemma 4 31B served through Ollama."""
+
+    llm_base_url: Optional[str] = "http://localhost:11434/v1"
+    """OpenAI-compatible endpoint. Default: local Ollama. From inside the
+    backend container use http://pghost:11434/v1 (see runtime-settings)."""
 
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
 

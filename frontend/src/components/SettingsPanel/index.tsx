@@ -74,7 +74,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         <section className="settings-section">
           <h3>AI model</h3>
           <label className="field-label" htmlFor="set-api-key">
-            OpenAI API key
+            API key{" "}
+            <span className="optional">(not needed for local servers like Ollama)</span>
             {settings?.openai_api_key_set && (
               <span className="key-hint"> (saved {settings.openai_api_key_hint})</span>
             )}
@@ -83,7 +84,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             id="set-api-key"
             type="password"
             className="settings-input"
-            placeholder={settings?.openai_api_key_set ? "Leave empty to keep current key" : "sk-…"}
+            placeholder={settings?.openai_api_key_set ? "Leave empty to keep current key" : "sk-… (optional)"}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
@@ -91,17 +92,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <input
             id="set-model"
             className="settings-input"
-            placeholder="gpt-3.5-turbo"
+            placeholder="gemma4:31b-cloud"
             value={model}
             onChange={(e) => setModel(e.target.value)}
           />
           <label className="field-label" htmlFor="set-base-url">
-            Base URL <span className="optional">(optional — for OpenAI-compatible servers)</span>
+            Base URL{" "}
+            <span className="optional">(OpenAI-compatible server; empty = OpenAI)</span>
           </label>
           <input
             id="set-base-url"
             className="settings-input"
-            placeholder="https://api.openai.com/v1"
+            placeholder="http://pghost:11434/v1"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
           />

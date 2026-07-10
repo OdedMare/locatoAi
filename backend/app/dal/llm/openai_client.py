@@ -2,10 +2,15 @@
 
 Implements the bl.ports.LLMClient protocol. Model, API key, and base URL
 come from the runtime settings store on EVERY call, so changes saved in
-the UI settings panel apply immediately.
+the UI settings panel apply immediately. Works against OpenAI itself and
+OpenAI-compatible servers (Ollama, vLLM, Groq...) — the main model is
+Gemma 4 31B served through Ollama.
 
 Robustness (ported policy from the MVP guide):
+- no API key required when a custom base_url is set (local servers)
 - asks for JSON mode when the server supports it, falls back if not
+- merges the system prompt into the user turn for servers/models that
+  reject a system role (some Gemma deployments)
 - strips markdown fences from the reply
 - retries once with the parse error appended before giving up
 """
@@ -34,18 +39,31 @@ def extract_json(text: str) -> dict:
         raise
 
 
+def _merge_system_into_user(messages: list) -> list:
+    """Fold system content into the first user message, keep other turns."""
+    system_parts = [m["content"] for m in messages if m["role"] == "system"]
+    rest = [m for m in messages if m["role"] != "system"]
+    if not system_parts or not rest:
+        return rest or messages
+    merged = dict(rest[0])
+    merged["content"] = "\n\n".join(system_parts + [merged["content"]])
+    return [merged] + rest[1:]
+
+
 class OpenAIJsonClient:
     def __init__(self, settings_store: RuntimeSettingsStore):
         self._store = settings_store
 
     def complete_json(self, system: str, user: str) -> dict:
         settings = self._store.get()
-        if not settings.openai_api_key:
+        if not settings.openai_api_key and not settings.llm_base_url:
             raise AgentError(
-                "No API key configured — open Settings and add your OpenAI API key"
+                "No API key configured — open Settings and add an API key, "
+                "or set a base URL for a local server (e.g. Ollama)"
             )
         client = OpenAI(
-            api_key=settings.openai_api_key,
+            # SDK requires a non-empty key; local servers ignore its value.
+            api_key=settings.openai_api_key or "not-needed",
             base_url=settings.llm_base_url or None,
         )
 
@@ -74,23 +92,28 @@ class OpenAIJsonClient:
 
     @staticmethod
     def _complete(client: "OpenAI", model: str, messages: list) -> str:
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=0,
-                response_format={"type": "json_object"},
-            )
-        except BadRequestError:
-            # Some OpenAI-compatible servers reject response_format.
+        # Degradation ladder for OpenAI-compatible servers:
+        # 1. JSON mode → 2. plain → 3. plain with the system prompt merged
+        # into the user turn (some Gemma deployments reject a system role).
+        attempts = [
+            {"messages": messages, "response_format": {"type": "json_object"}},
+            {"messages": messages},
+            {"messages": _merge_system_into_user(messages)},
+        ]
+        last_bad_request = None
+        for kwargs in attempts:
             try:
                 response = client.chat.completions.create(
-                    model=model, messages=messages, temperature=0
+                    model=model, temperature=0, **kwargs
                 )
+                break
+            except BadRequestError as exc:
+                last_bad_request = exc
             except Exception as exc:
                 raise AgentError("LLM request failed: " + str(exc))
-        except Exception as exc:
-            raise AgentError("LLM request failed: " + str(exc))
+        else:
+            raise AgentError("LLM request failed: " + str(last_bad_request))
+
         content = response.choices[0].message.content
         if not content:
             raise AgentError("LLM returned an empty reply")
