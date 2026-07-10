@@ -47,6 +47,11 @@ export interface GeoQueryResponse {
   /** GeoJSON FeatureCollection of results. */
   features: GeoJSON.FeatureCollection | null;
   timing_ms: Record<string, number> | null;
+  token_usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  } | null;
   /** Which catalog layers the agent chose (its "thinking", for review). */
   selected_layers: SelectedLayer[];
   /** The model's short Hebrew reasoning for the choice. */

@@ -28,6 +28,7 @@ class QueryOutcome:
     plan: Optional[GeoQueryPlan] = None
     features: Optional[gpd.GeoDataFrame] = None
     timing_ms: Optional[Dict[str, int]] = None
+    token_usage: Optional[Dict[str, int]] = None
     # Agent trace — what the model chose and why (the UI's "thinking" view).
     selected_layers: List[LayerMeta] = field(default_factory=list)
     reasoning: str = ""
@@ -65,6 +66,7 @@ class QueryOrchestrator:
                 status="clarify",
                 clarify=selection.clarify,
                 timing_ms=timing,
+                token_usage=selection.token_usage,
                 reasoning=selection.reasoning,
             )
 
@@ -75,6 +77,7 @@ class QueryOrchestrator:
             status="clarify",
             clarify="Layers selected: " + names + ". Plan building is the next stage.",
             timing_ms=timing,
+            token_usage=selection.token_usage,
             selected_layers=selection.layers,
             reasoning=selection.reasoning,
         )

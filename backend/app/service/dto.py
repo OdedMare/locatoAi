@@ -49,6 +49,7 @@ class QueryResponse(BaseModel):
     plan: Optional[GeoQueryPlan] = None
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection
     timing_ms: Optional[Dict[str, int]] = None
+    token_usage: Optional[Dict[str, int]] = None
     selected_layers: List[SelectedLayerDto] = []
     reasoning: str = ""
     """The model's short Hebrew 'why' for its layer choice."""
@@ -62,6 +63,7 @@ class QueryResponse(BaseModel):
             plan=outcome.plan,
             features=gdf_to_feature_collection(outcome.features),
             timing_ms=outcome.timing_ms,
+            token_usage=outcome.token_usage,
             selected_layers=[
                 SelectedLayerDto(
                     id=layer.id,

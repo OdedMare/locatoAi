@@ -79,10 +79,16 @@ class OpenAIJsonClient:
             {"role": "user", "content": user},
         ]
         last_error = "unknown"
+        total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         for _attempt in range(_MAX_JSON_ATTEMPTS):
-            content = self._complete(client, settings.llm_model, messages)
+            content, usage = self._complete(client, settings.llm_model, messages)
+            for key in total_usage:
+                total_usage[key] += usage.get(key, 0)
             try:
-                return extract_json(content)
+                data = extract_json(content)
+                if total_usage["total_tokens"] > 0:
+                    data["_usage"] = total_usage
+                return data
             except json.JSONDecodeError as exc:
                 last_error = str(exc)
                 messages = messages + [
@@ -98,7 +104,7 @@ class OpenAIJsonClient:
         raise AgentError("LLM returned unparseable JSON twice: " + last_error)
 
     @staticmethod
-    def _complete(client: "OpenAI", model: str, messages: list) -> str:
+    def _complete(client: "OpenAI", model: str, messages: list):
         # Degradation ladder for OpenAI-compatible servers:
         # 1. JSON mode → 2. plain → 3. plain with the system prompt merged
         # into the user turn (some Gemma deployments reject a system role).
@@ -124,4 +130,10 @@ class OpenAIJsonClient:
         content = response.choices[0].message.content
         if not content:
             raise AgentError("LLM returned an empty reply")
-        return content
+        usage = response.usage
+        token_usage = {
+            "prompt_tokens": usage.prompt_tokens if usage else 0,
+            "completion_tokens": usage.completion_tokens if usage else 0,
+            "total_tokens": usage.total_tokens if usage else 0,
+        }
+        return content, token_usage

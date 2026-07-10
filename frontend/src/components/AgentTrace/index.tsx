@@ -43,6 +43,14 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
         {typeof selectMs === "number" && (
           <span className="badge">בחירה {selectMs} אלפיות שנייה</span>
         )}
+        {response?.token_usage && (
+          <span
+            className="badge token-badge"
+            title={`קלט: ${response.token_usage.prompt_tokens} · פלט: ${response.token_usage.completion_tokens}`}
+          >
+            {response.token_usage.total_tokens} טוקנים
+          </span>
+        )}
         {canVote && (
           <span className="feedback-buttons">
             <button

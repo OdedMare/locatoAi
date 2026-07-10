@@ -26,6 +26,7 @@ export async function submitQuery(
       plan: null,
       features: null,
       timing_ms: null,
+      token_usage: null,
       selected_layers: [],
       reasoning: "",
     };
@@ -39,6 +40,7 @@ export async function submitQuery(
       plan: null,
       features: null,
       timing_ms: null,
+      token_usage: null,
       selected_layers: [],
       reasoning: "",
     };

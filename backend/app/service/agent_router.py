@@ -30,6 +30,7 @@ class SelectLayersResponse(BaseModel):
     clarify: Optional[str] = None
     reasoning: str = ""
     timing_ms: int
+    token_usage: Optional[dict] = None
 
 
 @router.post("/api/select-layers", response_model=SelectLayersResponse)
@@ -46,6 +47,7 @@ def select_layers(body: SelectLayersRequest, request: Request) -> SelectLayersRe
         selected=[layer.name for layer in selection.layers],
         clarify=selection.clarify,
         timing_ms=timing_ms,
+        token_usage=selection.token_usage,
     )
     return SelectLayersResponse(
         layers=[

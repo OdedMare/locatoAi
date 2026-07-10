@@ -8,7 +8,7 @@ the prompt). Output: the chosen LayerMeta objects, or a clarify question.
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.ports import LayerMeta, LLMClient
@@ -32,6 +32,7 @@ class LayerSelection:
     layers: List[LayerMeta] = field(default_factory=list)
     clarify: Optional[str] = None
     reasoning: str = ""
+    token_usage: Optional[Dict[str, int]] = None
     """The model's short Hebrew 'why' — shown in the UI agent panel."""
 
 
@@ -46,6 +47,9 @@ class LayerSelector:
         system = self._template.replace("{catalog}", self._format_catalog(layers))
 
         data = self._llm.complete_json(system=system, user=query.strip())
+        usage = data.get("_usage")
+        if not isinstance(usage, dict):
+            usage = None
 
         reasoning = data.get("reasoning")
         if not isinstance(reasoning, str):
@@ -60,12 +64,16 @@ class LayerSelector:
         picked = [by_id[i] for i in dict.fromkeys(raw_ids) if i in by_id]
 
         if picked:
-            return LayerSelection(layers=picked, reasoning=reasoning)
+            return LayerSelection(
+                layers=picked, reasoning=reasoning, token_usage=usage
+            )
 
         clarify = data.get("clarify")
         if not isinstance(clarify, str) or not clarify.strip():
             clarify = _FALLBACK_CLARIFY
-        return LayerSelection(clarify=clarify.strip(), reasoning=reasoning)
+        return LayerSelection(
+            clarify=clarify.strip(), reasoning=reasoning, token_usage=usage
+        )
 
     @staticmethod
     def _format_catalog(layers: List[LayerMeta]) -> str:
