@@ -30,6 +30,14 @@ export interface GeoQueryRequest {
   boundaries: GeoJSONMultiPolygon | null;
 }
 
+/** Agent trace: one layer the model selected for the query. */
+export interface SelectedLayer {
+  id: string;
+  name: string;
+  tags: string[];
+  description: string;
+}
+
 /** Backend response (backend/app/service/dto.py QueryResponse). */
 export interface GeoQueryResponse {
   status: "ok" | "clarify" | "error";
@@ -39,6 +47,8 @@ export interface GeoQueryResponse {
   /** GeoJSON FeatureCollection of results. */
   features: GeoJSON.FeatureCollection | null;
   timing_ms: Record<string, number> | null;
+  /** Which catalog layers the agent chose (its "thinking", for review). */
+  selected_layers: SelectedLayer[];
 }
 
 /** Live map view state reported by the map component (UI-internal). */

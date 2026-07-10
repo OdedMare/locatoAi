@@ -299,6 +299,62 @@ body {
   border-radius: 4px;
 }
 
+/* ---------- Agent trace ---------- */
+
+.agent-trace {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--surface);
+}
+
+.agent-step {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.agent-step.running {
+  color: var(--accent);
+}
+
+.agent-step.done {
+  color: #15803d;
+  margin-bottom: 8px;
+}
+
+.agent-step.clarify {
+  color: #b45309;
+}
+
+.layer-chip-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.layer-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 10px;
+  cursor: default;
+}
+
+.layer-chip-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.layer-chip-tags {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 /* ---------- Map workspace (right) ---------- */
 
 .map-workspace {

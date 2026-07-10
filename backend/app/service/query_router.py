@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends, Request
 
 from app.bl.query_orchestrator import QueryOrchestrator
 from app.service.deps import get_orchestrator
-from app.service.dto import QueryRequest, QueryResponse, gdf_to_feature_collection
+from app.service.dto import (
+    QueryRequest,
+    QueryResponse,
+    SelectedLayerDto,
+    gdf_to_feature_collection,
+)
 
 router = APIRouter()
 
@@ -35,4 +40,10 @@ def run_query(
         plan=outcome.plan,
         features=gdf_to_feature_collection(outcome.features),
         timing_ms=outcome.timing_ms,
+        selected_layers=[
+            SelectedLayerDto(
+                id=l.id, name=l.name, tags=l.tags, description=l.description
+            )
+            for l in outcome.selected_layers
+        ],
     )

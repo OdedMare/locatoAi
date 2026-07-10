@@ -33,12 +33,22 @@ class ExecutePlanRequest(BaseModel):
     boundaries: Optional[GeoJSONMultiPolygon] = None
 
 
+class SelectedLayerDto(BaseModel):
+    """Agent trace: one layer the model chose (for the UI's agent panel)."""
+
+    id: str
+    name: str
+    tags: List[str] = []
+    description: str = ""
+
+
 class QueryResponse(BaseModel):
     status: Literal["ok", "clarify", "error"]
     clarify: Optional[str] = None
     plan: Optional[GeoQueryPlan] = None
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection
     timing_ms: Optional[Dict[str, int]] = None
+    selected_layers: List[SelectedLayerDto] = []
 
 
 def gdf_to_feature_collection(

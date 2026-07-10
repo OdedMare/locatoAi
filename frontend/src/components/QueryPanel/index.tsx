@@ -2,6 +2,7 @@
 
 import GeoQueryInput from "@/components/GeoQueryInput";
 import GeographyControls from "@/components/GeographyControls";
+import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
 import type {
@@ -80,6 +81,8 @@ export default function QueryPanel({
           {isSubmitting ? "Running…" : "Run Query"}
           {!isSubmitting && <kbd>⌘⏎</kbd>}
         </button>
+
+        <AgentTrace response={lastResponse} isSubmitting={isSubmitting} />
 
         <ResultsPanel response={lastResponse} />
 

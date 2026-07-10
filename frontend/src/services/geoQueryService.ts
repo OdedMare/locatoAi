@@ -26,6 +26,7 @@ export async function submitQuery(
       plan: null,
       features: null,
       timing_ms: null,
+      selected_layers: [],
     };
   }
 
@@ -37,6 +38,7 @@ export async function submitQuery(
       plan: null,
       features: null,
       timing_ms: null,
+      selected_layers: [],
     };
   }
   return res.json();

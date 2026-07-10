@@ -7,8 +7,8 @@ end-to-end from the UI.
 """
 
 import time
-from dataclasses import dataclass
-from typing import Dict, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -18,6 +18,7 @@ from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
 from app.bl.plan.models import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
+from app.bl.ports import LayerMeta
 
 
 @dataclass
@@ -27,6 +28,8 @@ class QueryOutcome:
     plan: Optional[GeoQueryPlan] = None
     features: Optional[gpd.GeoDataFrame] = None
     timing_ms: Optional[Dict[str, int]] = None
+    # Agent trace — what the model chose, so the UI can show its "thinking".
+    selected_layers: List[LayerMeta] = field(default_factory=list)
 
 
 class QueryOrchestrator:
@@ -66,6 +69,7 @@ class QueryOrchestrator:
             status="clarify",
             clarify="Layers selected: " + names + ". Plan building is the next stage.",
             timing_ms=timing,
+            selected_layers=selection.layers,
         )
 
     def execute_plan(
