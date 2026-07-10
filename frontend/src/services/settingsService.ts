@@ -2,7 +2,7 @@ import type { AppSettings, SettingsUpdate } from "@/types/settings";
 
 export async function getSettings(): Promise<AppSettings> {
   const res = await fetch("/api/settings");
-  if (!res.ok) throw new Error(`GET /api/settings failed (${res.status})`);
+  if (!res.ok) throw new Error(`טעינת ההגדרות נכשלה (${res.status})`);
   return res.json();
 }
 
@@ -16,7 +16,7 @@ export async function updateSettings(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `PUT /api/settings failed (${res.status})`);
+    throw new Error(body?.detail ?? `שמירת ההגדרות נכשלה (${res.status})`);
   }
   return res.json();
 }

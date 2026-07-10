@@ -3,7 +3,7 @@ import type { CatalogLayer, CreateLayerRequest, LayersResponse } from "@/types/c
 /** Fetch the layer catalog (metadata only — what users can ask about). */
 export async function getLayers(): Promise<LayersResponse> {
   const res = await fetch("/api/layers");
-  if (!res.ok) throw new Error(`GET /api/layers failed (${res.status})`);
+  if (!res.ok) throw new Error(`טעינת השכבות נכשלה (${res.status})`);
   return res.json();
 }
 
@@ -15,7 +15,7 @@ export async function createLayer(layer: CreateLayerRequest): Promise<CatalogLay
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `POST /api/layers failed (${res.status})`);
+    throw new Error(body?.detail ?? `הוספת השכבה נכשלה (${res.status})`);
   }
   return res.json();
 }

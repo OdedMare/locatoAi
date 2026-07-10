@@ -30,6 +30,7 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  direction: rtl;
 }
 
 /* ---------- App shell layout ---------- */
@@ -284,6 +285,8 @@ body {
   padding: 12px;
   overflow-x: auto;
   white-space: pre;
+  direction: ltr;
+  text-align: left;
 }
 
 .response-meta {
@@ -314,7 +317,7 @@ body {
 }
 
 .feedback-buttons {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -728,7 +731,7 @@ body {
 }
 
 .chat-sidebar-collapse {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: #999;
 }
 
@@ -745,7 +748,7 @@ body {
   background: transparent;
   font: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 

@@ -35,7 +35,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setDatabaseUser(s.database_user);
         setLayersTable(s.layers_table);
       })
-      .catch(() => setMessage("Could not load settings — is the backend running?"));
+      .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
   }, []);
 
   const handleSave = async () => {
@@ -54,9 +54,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       setSettings(saved);
       setApiKey("");
       setDatabasePassword("");
-      setMessage("Saved ✓");
+      setMessage("נשמר ✓");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Save failed");
+      setMessage(err instanceof Error ? err.message : "השמירה נכשלה");
     } finally {
       setSaving(false);
     }
@@ -68,46 +68,49 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         className="settings-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Settings"
+        aria-label="הגדרות"
       >
         <header className="settings-header">
-          <h2>Settings</h2>
+          <h2>הגדרות</h2>
           <button type="button" className="settings-close" onClick={onClose}>
             ✕
           </button>
         </header>
 
         <section className="settings-section">
-          <h3>AI model</h3>
+          <h3>מודל בינה מלאכותית</h3>
           <label className="field-label" htmlFor="set-api-key">
-            API key{" "}
-            <span className="optional">(not needed for local servers like Ollama)</span>
+            מפתח API{" "}
+            <span className="optional">(לא נדרש לשרתים מקומיים כמו Ollama)</span>
             {settings?.openai_api_key_set && (
-              <span className="key-hint"> (saved {settings.openai_api_key_hint})</span>
+              <span className="key-hint"> (נשמר {settings.openai_api_key_hint})</span>
             )}
           </label>
           <input
             id="set-api-key"
+            dir="ltr"
             type="password"
             className="settings-input"
-            placeholder={settings?.openai_api_key_set ? "Leave empty to keep current key" : "sk-… (optional)"}
+            placeholder={settings?.openai_api_key_set ? "השאירו ריק כדי לשמור את המפתח הנוכחי" : "sk-… (אופציונלי)"}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <label className="field-label" htmlFor="set-model">Model</label>
+          <label className="field-label" htmlFor="set-model">מודל</label>
           <input
             id="set-model"
+            dir="ltr"
             className="settings-input"
             placeholder="gemma4:31b-cloud"
             value={model}
             onChange={(e) => setModel(e.target.value)}
           />
           <label className="field-label" htmlFor="set-base-url">
-            Base URL{" "}
-            <span className="optional">(OpenAI-compatible server; empty = OpenAI)</span>
+            כתובת בסיס{" "}
+            <span className="optional">(שרת תואם OpenAI; ריק = OpenAI)</span>
           </label>
           <input
             id="set-base-url"
+            dir="ltr"
             className="settings-input"
             placeholder="http://pghost:11434/v1"
             value={baseUrl}
@@ -116,10 +119,11 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </section>
 
         <section className="settings-section">
-          <h3>Layer catalog (Postgres)</h3>
-          <label className="field-label" htmlFor="set-db-url">Database URL</label>
+          <h3>קטלוג שכבות (PostgreSQL)</h3>
+          <label className="field-label" htmlFor="set-db-url">כתובת מסד הנתונים</label>
           <input
             id="set-db-url"
+            dir="ltr"
             className="settings-input"
             placeholder="postgresql://localhost:5432/gis"
             value={databaseUrl}
@@ -127,9 +131,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           />
           <div className="settings-input-row">
             <div>
-              <label className="field-label" htmlFor="set-db-user">User</label>
+              <label className="field-label" htmlFor="set-db-user">שם משתמש</label>
               <input
                 id="set-db-user"
+                dir="ltr"
                 className="settings-input"
                 autoComplete="username"
                 placeholder="postgres"
@@ -139,25 +144,27 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             </div>
             <div>
               <label className="field-label" htmlFor="set-db-password">
-                Password
+                סיסמה
                 {settings?.database_password_set && (
-                  <span className="key-hint"> (saved)</span>
+                  <span className="key-hint"> (נשמרה)</span>
                 )}
               </label>
               <input
                 id="set-db-password"
+                dir="ltr"
                 type="password"
                 className="settings-input"
                 autoComplete="current-password"
-                placeholder={settings?.database_password_set ? "Leave empty to keep" : "Password"}
+                placeholder={settings?.database_password_set ? "השאירו ריק כדי לשמור" : "סיסמה"}
                 value={databasePassword}
                 onChange={(e) => setDatabasePassword(e.target.value)}
               />
             </div>
           </div>
-          <label className="field-label" htmlFor="set-table">Layers table</label>
+          <label className="field-label" htmlFor="set-table">טבלת שכבות</label>
           <input
             id="set-table"
+            dir="ltr"
             className="settings-input"
             placeholder="public.layers"
             value={layersTable}
@@ -166,7 +173,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           {settings && (
             <p className={`catalog-status ${settings.catalog.ok ? "ok" : "bad"}`}>
               {settings.catalog.ok
-                ? `✓ Connected — ${settings.catalog.layer_count} layers found`
+                ? `✓ מחובר — נמצאו ${settings.catalog.layer_count} שכבות`
                 : `✗ ${settings.catalog.error}`}
             </p>
           )}
@@ -180,7 +187,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             onClick={handleSave}
             disabled={saving || settings === null}
           >
-            {saving ? "Saving…" : "Save settings"}
+            {saving ? "שומר…" : "שמירת הגדרות"}
           </button>
         </footer>
       </div>

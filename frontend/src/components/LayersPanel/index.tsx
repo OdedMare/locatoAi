@@ -28,7 +28,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   useEffect(() => {
     getLayers()
       .then((data) => setLayers(data.layers))
-      .catch(() => setError("Could not load layers — is the backend running?"));
+      .catch(() => setError("לא ניתן לטעון שכבות — האם השרת פועל?"));
   }, []);
 
   const filtered = useMemo(() => {
@@ -60,9 +60,9 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setDescription("");
       setTags("");
       setSourceUrl("");
-      setFormMessage("Layer added to PostgreSQL ✓");
+      setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
     } catch (err) {
-      setFormMessage(err instanceof Error ? err.message : "Could not add layer");
+      setFormMessage(err instanceof Error ? err.message : "לא ניתן להוסיף את השכבה");
     } finally {
       setSaving(false);
     }
@@ -74,11 +74,11 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         className="settings-card layers-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Available layers"
+        aria-label="שכבות זמינות"
       >
         <header className="settings-header">
           <h2>
-            Available layers
+            שכבות זמינות
             {layers && <span className="layers-count"> · {layers.length}</span>}
           </h2>
           <button type="button" className="settings-close" onClick={onClose}>
@@ -88,7 +88,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
 
         <input
           className="settings-input"
-          placeholder="Search layers… (name, tags, description)"
+          placeholder="חיפוש שכבות… (שם, תגיות, תיאור)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           dir="auto"
@@ -99,38 +99,38 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
           className="add-layer-toggle"
           onClick={() => setShowAddForm((open) => !open)}
         >
-          {showAddForm ? "Cancel" : "+ Add layer"}
+          {showAddForm ? "ביטול" : "+ הוספת שכבה"}
         </button>
 
         {showAddForm && (
-          <section className="add-layer-form" aria-label="Add a catalog layer">
-            <h3>Add layer to PostgreSQL</h3>
+          <section className="add-layer-form" aria-label="הוספת שכבה לקטלוג">
+            <h3>הוספת שכבה ל-PostgreSQL</h3>
             <div className="settings-input-row">
               <div>
-                <label className="field-label" htmlFor="layer-name">Name</label>
-                <input id="layer-name" className="settings-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Schools" dir="auto" />
+                <label className="field-label" htmlFor="layer-name">שם</label>
+                <input id="layer-name" className="settings-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="בתי ספר" dir="auto" />
               </div>
               <div>
-                <label className="field-label" htmlFor="layer-provider">Provider</label>
-                <input id="layer-provider" className="settings-input" value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="arcgis" />
+                <label className="field-label" htmlFor="layer-provider">ספק</label>
+                <input id="layer-provider" className="settings-input" value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="arcgis" dir="ltr" />
               </div>
             </div>
-            <label className="field-label" htmlFor="layer-description">Description</label>
-            <textarea id="layer-description" className="settings-input layer-description-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What geographic data this layer contains" dir="auto" />
-            <label className="field-label" htmlFor="layer-tags">Tags <span className="optional">(comma-separated)</span></label>
-            <input id="layer-tags" className="settings-input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="education, school, children" dir="auto" />
-            <label className="field-label" htmlFor="layer-source-url">Source URL</label>
-            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://provider.example/layer" />
+            <label className="field-label" htmlFor="layer-description">תיאור</label>
+            <textarea id="layer-description" className="settings-input layer-description-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="איזה מידע גיאוגרפי השכבה מכילה" dir="auto" />
+            <label className="field-label" htmlFor="layer-tags">תגיות <span className="optional">(מופרדות בפסיקים)</span></label>
+            <input id="layer-tags" className="settings-input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="חינוך, בית ספר, ילדים" dir="auto" />
+            <label className="field-label" htmlFor="layer-source-url">כתובת המקור</label>
+            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://provider.example/layer" dir="ltr" />
             {formMessage && <p className="settings-message">{formMessage}</p>}
             <button type="button" className="run-query-button" onClick={handleAddLayer} disabled={!name.trim() || !sourceUrl.trim() || saving}>
-              {saving ? "Adding…" : "Add layer"}
+              {saving ? "מוסיף…" : "הוספת שכבה"}
             </button>
           </section>
         )}
 
         {error && <p className="panel-placeholder">⚠️ {error}</p>}
         {layers === null && !error && (
-          <p className="panel-placeholder">Loading layers…</p>
+          <p className="panel-placeholder">השכבות נטענות…</p>
         )}
 
         <ul className="layers-list">
@@ -146,7 +146,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
             </li>
           ))}
           {layers !== null && filtered.length === 0 && (
-            <p className="panel-placeholder">No layers match “{search}”.</p>
+            <p className="panel-placeholder">לא נמצאו שכבות התואמות ל״{search}״.</p>
           )}
         </ul>
       </div>

@@ -35,7 +35,7 @@ export async function submitQuery(
     const detail = await res.text().catch(() => "");
     return {
       status: "error",
-      clarify: detail || `Backend returned ${res.status}`,
+      clarify: detail || `השרת החזיר שגיאה ${res.status}`,
       plan: null,
       features: null,
       timing_ms: null,
