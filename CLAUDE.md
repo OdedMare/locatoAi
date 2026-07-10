@@ -43,7 +43,9 @@ Run backend and frontend together for the full flow; the frontend works standalo
 
 ## Backend architecture (N-tier + SOLID)
 
-Tiers under `backend/app/` — dependency direction is service → bl ← dal (DIP: `bl/ports.py` defines `LayersRepository`/`Provider`/`ProviderRegistry` protocols; the DAL implements them; `main.py` is the composition root that wires everything):
+**Full architecture explanation lives in `backend/README.md`** — keep it updated when structure changes. Summary:
+
+Tiers under `backend/app/` — dependency direction is service → bl ← dal (DIP: `bl/ports.py` defines `LayersRepository`/`Provider`/`ProviderRegistry`/`LLMClient` protocols; the DAL implements them; `main.py` is the composition root that wires everything):
 
 - `service/` — routers + DTOs only, no logic. `POST /api/query` (NL entry: runs layer selection, plan building pending), `POST /api/execute-plan` (debug: run a hand-written plan — real, tested), `POST /api/select-layers` (debug: agent call 1 only), `GET/PUT /api/settings` (backs the UI settings panel; secrets masked, responses include live catalog status).
 - `bl/plan/` — **GeoQueryPlan is the core contract**: discriminated union of 6 step types (`load`, `within_geometry`, `attribute_filter`, `near`, `directional`, `temporal_filter`), semantic validation in `validators.py` (refs must point to earlier steps, so list order is execution order).
@@ -71,8 +73,9 @@ Every request is logged to `backend/logs/requests.jsonl` (JSON lines).
 
 **Map specifics** (`components/MapWorkspace/`):
 - Leaflet touches `window` at import time, so `LeafletMap.tsx` is loaded via `next/dynamic` with `ssr: false` from the client component `index.tsx`. Don't import react-leaflet from server components.
-- Coordinate order differs: GeoJSON/request objects use `[lng, lat]`; Leaflet uses `[lat, lng]`. Conversions happen inside `LeafletMap.tsx` — keep them there.
-- Drawing is implemented directly with map click handlers (no leaflet-draw plugin): rectangle = two corner clicks, polygon = clicks + double-click to finish (duplicate points from the double-click are deduped).
+- Coordinate order differs: GeoJSON/request objects use `[lng, lat]`; Leaflet uses `[lat, lng]`. Conversions happen inside the map components — keep them there.
+- Drawing uses the leaflet-draw plugin (`MapGeoms`): rectangle = click-drag, polygon = click points and close on the first point. Basemap switching (orthophoto etc.) is `MapWorkspace/LayerPicker` + `MapLayers`.
+- The query panel is a chat-style layout (sidebar + conversation + composer, lucide-react icons); AgentTrace/ResultsPanel/RequestPreview render inside the assistant message.
 
 ## Gotchas
 

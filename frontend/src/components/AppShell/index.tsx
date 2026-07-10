@@ -47,6 +47,14 @@ export default function AppShell() {
     []
   );
 
+  const handleNewChat = useCallback(() => {
+    setQueryText("");
+    setGeographyMode("none");
+    setDrawnGeometry(null);
+    setLastRequest(null);
+    setLastResponse(null);
+  }, []);
+
   /** Build the backend request — exactly {query, boundaries}. */
   const buildRequest = (): GeoQueryRequest => ({
     query: queryText.trim(),
@@ -85,6 +93,7 @@ export default function AppShell() {
         lastRequest={lastRequest}
         lastResponse={lastResponse}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onNewChat={handleNewChat}
       />
       {isSettingsOpen && (
         <SettingsPanel onClose={() => setIsSettingsOpen(false)} />

@@ -21,14 +21,12 @@ export default function GeoQueryInput({
 }: GeoQueryInputProps) {
   return (
     <div className="geo-query-input">
-      <label className="field-label" htmlFor="geo-query-text">
-        What do you want to find?
-      </label>
+      <label className="sr-only" htmlFor="geo-query-text">Ask a geographic question</label>
       <textarea
         id="geo-query-text"
         className="geo-query-textarea"
-        placeholder='e.g. "Find schools near train stations in Tel Aviv"'
-        rows={4}
+        placeholder="Message LocatoAI"
+        rows={2}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
