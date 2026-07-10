@@ -5,9 +5,12 @@ they know what they can ask about. Metadata only — never features.
 """
 
 from typing import List
+from uuid import uuid4
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
+
+from app.bl.ports import LayerMeta
 
 router = APIRouter()
 
@@ -24,6 +27,14 @@ class LayersResponse(BaseModel):
     count: int
 
 
+class CreateLayerRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    tags: List[str] = []
+    provider: str = Field(default="arcgis", min_length=1, max_length=50)
+    source_url: str = Field(min_length=1, max_length=2000)
+
+
 @router.get("/api/layers", response_model=LayersResponse)
 def list_layers(request: Request) -> LayersResponse:
     layers = request.app.state.catalog.list_layers()
@@ -38,4 +49,27 @@ def list_layers(request: Request) -> LayersResponse:
             for layer in layers
         ],
         count=len(layers),
+    )
+
+
+@router.post("/api/layers", response_model=CatalogLayer, status_code=201)
+def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
+    tags = list(dict.fromkeys(tag.strip() for tag in body.tags if tag.strip()))[:20]
+    layer = LayerMeta(
+        id=str(uuid4()),
+        name=body.name.strip(),
+        description=body.description.strip(),
+        tags=tags,
+        provider=body.provider.strip(),
+        source_url=body.source_url.strip(),
+    )
+    try:
+        created = request.app.state.catalog.add_layer(layer)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return CatalogLayer(
+        id=created.id,
+        name=created.name,
+        description=created.description,
+        tags=created.tags,
     )

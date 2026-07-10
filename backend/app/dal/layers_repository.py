@@ -11,6 +11,7 @@ identifier is validated + quoted by the store (never raw user input).
 from typing import List, Optional
 
 import psycopg
+from psycopg.errors import UniqueViolation
 from psycopg.rows import dict_row
 
 from app.bl.ports import LayerMeta
@@ -51,6 +52,30 @@ class PostgresLayersRepository:
                 self._select() + " WHERE id = %s", (layer_id,)
             ).fetchone()
         return self._to_meta(row) if row else None
+
+    def add_layer(self, layer: LayerMeta) -> LayerMeta:
+        settings = self._store.get()
+        query = (
+            f"INSERT INTO {settings.quoted_layers_table()} "
+            "(id, name, description, tags, provider, source_url) "
+            "VALUES (%s, %s, %s, %s, %s, %s)"
+        )
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    query,
+                    (
+                        layer.id,
+                        layer.name,
+                        layer.description,
+                        layer.tags,
+                        layer.provider,
+                        layer.source_url,
+                    ),
+                )
+        except UniqueViolation as exc:
+            raise ValueError("A layer with this id already exists") from exc
+        return layer
 
     @staticmethod
     def _to_meta(row: dict) -> LayerMeta:

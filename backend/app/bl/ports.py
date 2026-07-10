@@ -47,6 +47,8 @@ class LayersRepository(Protocol):
 
     def get_layer(self, layer_id: str) -> Optional[LayerMeta]: ...
 
+    def add_layer(self, layer: LayerMeta) -> LayerMeta: ...
+
 
 class Provider(Protocol):
     """A GIS data provider (implemented by dal.providers.*).

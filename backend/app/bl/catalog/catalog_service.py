@@ -39,6 +39,10 @@ class CatalogService:
             raise LayerNotFoundError(layer_id)
         return layer
 
+    def add_layer(self, layer: LayerMeta) -> LayerMeta:
+        """Persist a new catalog layer through the repository port."""
+        return self._repository.add_layer(layer)
+
     def get_schema(self, layer_id: str) -> LayerSchema:
         """Fetch a layer schema from its provider, cached with TTL.
 
