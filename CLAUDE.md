@@ -20,7 +20,11 @@ docker build --platform linux/amd64 -t ailocator-backend:py3.8.10 .   # build (a
 docker run -d --name ailocator-backend --platform linux/amd64 -p 8000:8000 \
   --add-host=pghost:host-gateway \
   -e AILOCATOR_DATABASE_URL=postgresql://$(whoami)@pghost:5432/gis \
-  ailocator-backend:py3.8.10                                          # serve API (pghost = host PG; host.docker.internal breaks on IPv6)
+  -v "$PWD/runtime-settings.json:/srv/backend/runtime-settings.json" \
+  ailocator-backend:py3.8.10   # serve API (pghost = host PG; host.docker.internal breaks on IPv6)
+# runtime-settings.json (UI-saved settings incl. API key) overrides env vars —
+# it is mounted so settings survive container restarts. Its database_url must
+# use pghost, not localhost.
 docker run --rm --platform linux/amd64 ailocator-backend:py3.8.10 python -m pytest -q                 # run tests
 docker run --rm --platform linux/amd64 ailocator-backend:py3.8.10 python -m pytest tests/test_executor.py::test_near_uses_meters_not_degrees  # single test
 # quick iteration without rebuild: add -v "$PWD/app:/srv/backend/app" to the run command

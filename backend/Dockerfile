@@ -12,6 +12,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY data ./data
 COPY tests ./tests
+COPY scripts ./scripts
 
 RUN pip install --no-cache-dir -e ".[dev]"
 
