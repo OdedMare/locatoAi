@@ -11,8 +11,8 @@ const LeafletMap = dynamic(() => import("./LeafletMap"), {
 });
 
 const DRAW_HINTS: Partial<Record<GeographyMode, string>> = {
-  polygon: "Click to add points · double-click to finish",
-  rectangle: "Click two opposite corners",
+  polygon: "Click points to draw · click the first point to finish",
+  rectangle: "Click and drag to draw a rectangle",
 };
 
 /** Map area: central visual element. Hosts the Leaflet map and drawing hints. */

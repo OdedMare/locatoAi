@@ -1,19 +1,14 @@
 """POST /api/query — the natural-language entry point.
 
-Day 1: the orchestrator's agent step is stubbed, so this returns a
-clarify response. The endpoint, contract, and logging are final.
+Current stage: layer selection is live; plan building is next, so a
+successful selection returns a clarify naming the chosen layers.
 """
 
 from fastapi import APIRouter, Depends, Request
 
 from app.bl.query_orchestrator import QueryOrchestrator
 from app.service.deps import get_orchestrator
-from app.service.dto import (
-    QueryRequest,
-    QueryResponse,
-    SelectedLayerDto,
-    gdf_to_feature_collection,
-)
+from app.service.dto import QueryRequest, QueryResponse
 
 router = APIRouter()
 
@@ -32,19 +27,7 @@ def run_query(
         query=body.query,
         has_boundaries=boundaries is not None,
         status=outcome.status,
+        selected=[layer.name for layer in outcome.selected_layers],
         timing_ms=outcome.timing_ms,
     )
-    return QueryResponse(
-        status=outcome.status,
-        clarify=outcome.clarify,
-        plan=outcome.plan,
-        features=gdf_to_feature_collection(outcome.features),
-        timing_ms=outcome.timing_ms,
-        selected_layers=[
-            SelectedLayerDto(
-                id=l.id, name=l.name, tags=l.tags, description=l.description
-            )
-            for l in outcome.selected_layers
-        ],
-        reasoning=outcome.reasoning,
-    )
+    return QueryResponse.from_outcome(outcome)

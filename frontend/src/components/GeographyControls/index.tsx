@@ -5,8 +5,8 @@ import type { GeographyMode } from "@/types/geo-query";
 const MODES: { value: GeographyMode; label: string; hint: string }[] = [
   { value: "none", label: "No boundary", hint: "Search everywhere" },
   { value: "viewport", label: "Map viewport", hint: "Use the visible map area" },
-  { value: "polygon", label: "Draw polygon", hint: "Click points on the map" },
-  { value: "rectangle", label: "Draw rectangle", hint: "Click two corners" },
+  { value: "polygon", label: "Draw polygon", hint: "Click points, then the first point" },
+  { value: "rectangle", label: "Draw rectangle", hint: "Click and drag" },
 ];
 
 interface GeographyControlsProps {
@@ -47,8 +47,8 @@ export default function GeographyControls({
           {hasDrawnGeometry
             ? "✓ Shape captured — redraw on the map to replace it."
             : mode === "polygon"
-              ? "Click points on the map, double-click to finish."
-              : "Click two opposite corners on the map."}
+              ? "Click points on the map, then click the first point to finish."
+              : "Click and drag across the map to draw a rectangle."}
         </p>
       )}
     </div>

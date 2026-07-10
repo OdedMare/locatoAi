@@ -5,6 +5,8 @@ from pathlib import Path
 
 import structlog
 
+_REQUEST_LOGGER_NAME = "ailocator.requests"
+
 
 def configure_logging(request_log_path: str) -> structlog.stdlib.BoundLogger:
     """Configure structlog to append JSON lines to the request log file."""
@@ -14,7 +16,7 @@ def configure_logging(request_log_path: str) -> structlog.stdlib.BoundLogger:
     handler = logging.FileHandler(log_file, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(message)s"))
 
-    file_logger = logging.getLogger("ailocator.requests")
+    file_logger = logging.getLogger(_REQUEST_LOGGER_NAME)
     file_logger.setLevel(logging.INFO)
     file_logger.handlers = [handler]
     file_logger.propagate = False

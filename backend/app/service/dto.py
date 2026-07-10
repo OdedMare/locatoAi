@@ -9,6 +9,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.plan.models import GeoQueryPlan
+from app.bl.query_orchestrator import QueryOutcome
 
 
 class GeoJSONMultiPolygon(BaseModel):
@@ -51,6 +52,27 @@ class QueryResponse(BaseModel):
     selected_layers: List[SelectedLayerDto] = []
     reasoning: str = ""
     """The model's short Hebrew 'why' for its layer choice."""
+
+    @classmethod
+    def from_outcome(cls, outcome: QueryOutcome) -> "QueryResponse":
+        """The single BL-outcome → HTTP-response translation."""
+        return cls(
+            status=outcome.status,
+            clarify=outcome.clarify,
+            plan=outcome.plan,
+            features=gdf_to_feature_collection(outcome.features),
+            timing_ms=outcome.timing_ms,
+            selected_layers=[
+                SelectedLayerDto(
+                    id=layer.id,
+                    name=layer.name,
+                    tags=layer.tags,
+                    description=layer.description,
+                )
+                for layer in outcome.selected_layers
+            ],
+            reasoning=outcome.reasoning,
+        )
 
 
 def gdf_to_feature_collection(
