@@ -4,11 +4,13 @@ the service routers. The only module that knows every tier."""
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.bl.agent.select_layers import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
 from app.bl.query_orchestrator import QueryOrchestrator
 from app.common.config import get_settings
 from app.common.errors import (
+    AgentError,
     ExecutionError,
     LayerNotFoundError,
     PlanValidationError,

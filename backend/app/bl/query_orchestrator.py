@@ -1,12 +1,9 @@
 """The full /api/query flow: select → describe → plan → validate → execute.
 
-Day 1: the agent steps are stubbed — the orchestrator returns a clarify
-response explaining the agent isn't wired yet. The validate → execute
-path is fully real and exercised via /api/execute-plan.
-
-Day 2 replaces `_run_agent` with the two agent calls and inherits the
-retry-once-on-invalid-plan + clarify-fallback policy without touching
-the service or DAL tiers.
+Current stage: layer selection is LIVE (agent call 1). Plan building
+(agent call 2) is next — until it lands, a successful selection returns
+a clarify response naming the chosen layers so the flow is testable
+end-to-end from the UI.
 """
 
 import time
@@ -16,6 +13,7 @@ from typing import Dict, Optional
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
+from app.bl.agent.select_layers import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
 from app.bl.plan.models import GeoQueryPlan
@@ -32,20 +30,42 @@ class QueryOutcome:
 
 
 class QueryOrchestrator:
-    def __init__(self, catalog: CatalogService, executor: PlanExecutor):
+    def __init__(
+        self,
+        catalog: CatalogService,
+        executor: PlanExecutor,
+        layer_selector: Optional[LayerSelector] = None,
+    ):
         self._catalog = catalog
         self._executor = executor
+        self._selector = layer_selector
 
     def run_query(self, query: str, boundaries: Optional[BaseGeometry]) -> QueryOutcome:
-        """Natural-language entry point. Agent-backed from Day 2."""
-        # DAY 2: select_layers → get_schema per layer → build_plan →
-        #        validate_plan (retry once on failure) → execute_plan.
+        """Natural-language entry point."""
+        if self._selector is None:
+            return QueryOutcome(
+                status="clarify",
+                clarify=(
+                    "The AI agent is not wired up yet. "
+                    "Use POST /api/execute-plan to run a hand-written plan."
+                ),
+            )
+
+        started = time.perf_counter()
+        selection = self._selector.select(query)
+        select_ms = int((time.perf_counter() - started) * 1000)
+        timing = {"select": select_ms}
+
+        if selection.clarify:
+            return QueryOutcome(status="clarify", clarify=selection.clarify, timing_ms=timing)
+
+        # NEXT STAGE: build_plan(query, schemas of selected layers) →
+        # validate (retry once) → execute. Until then, report the selection.
+        names = ", ".join(layer.name for layer in selection.layers)
         return QueryOutcome(
             status="clarify",
-            clarify=(
-                "The AI agent is not wired up yet (Day 2). "
-                "Use POST /api/execute-plan to run a hand-written plan."
-            ),
+            clarify="Layers selected: " + names + ". Plan building is the next stage.",
+            timing_ms=timing,
         )
 
     def execute_plan(

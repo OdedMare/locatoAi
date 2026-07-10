@@ -62,3 +62,12 @@ class ProviderRegistry(Protocol):
     """Resolves a catalog `provider` name to a Provider instance."""
 
     def get(self, provider_name: str) -> Provider: ...
+
+
+class LLMClient(Protocol):
+    """JSON-mode LLM completion (implemented by dal.llm.*).
+
+    Returns the parsed JSON object or raises common.errors.AgentError.
+    """
+
+    def complete_json(self, system: str, user: str) -> dict: ...

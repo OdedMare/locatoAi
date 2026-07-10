@@ -21,3 +21,7 @@ class ProviderError(AiLocatorError):
 
 class ExecutionError(AiLocatorError):
     """A plan step failed at execution time (bad field, empty input...)."""
+
+
+class AgentError(AiLocatorError):
+    """The LLM call failed (missing key, network, unparseable output)."""
