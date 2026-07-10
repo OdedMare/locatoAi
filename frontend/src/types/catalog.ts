@@ -11,3 +11,11 @@ export interface LayersResponse {
   layers: CatalogLayer[];
   count: number;
 }
+
+export interface CreateLayerRequest {
+  name: string;
+  description: string;
+  tags: string[];
+  provider: string;
+  source_url: string;
+}
