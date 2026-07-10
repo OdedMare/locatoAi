@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "גימנסיה הרצליה", "city": "תל אביב", "city_en": "Tel Aviv", "type": "high" }, "geometry": { "type": "Point", "coordinates": [34.7712, 32.0629] } },
+    { "type": "Feature", "properties": { "name": "בית ספר גרץ", "city": "תל אביב", "city_en": "Tel Aviv", "type": "elementary" }, "geometry": { "type": "Point", "coordinates": [34.7818, 32.0824] } },
+    { "type": "Feature", "properties": { "name": "אליאנס תל אביב", "city": "תל אביב", "city_en": "Tel Aviv", "type": "high" }, "geometry": { "type": "Point", "coordinates": [34.7771, 32.0721] } },
+    { "type": "Feature", "properties": { "name": "עירוני ד'", "city": "תל אביב", "city_en": "Tel Aviv", "type": "high" }, "geometry": { "type": "Point", "coordinates": [34.7869, 32.0871] } },
+    { "type": "Feature", "properties": { "name": "בית ספר בלפור", "city": "תל אביב", "city_en": "Tel Aviv", "type": "elementary" }, "geometry": { "type": "Point", "coordinates": [34.7758, 32.0668] } },
+    { "type": "Feature", "properties": { "name": "עירוני א' רמת אביב", "city": "תל אביב", "city_en": "Tel Aviv", "type": "high" }, "geometry": { "type": "Point", "coordinates": [34.7842, 32.1131] } },
+    { "type": "Feature", "properties": { "name": "בית ספר גבריאלי", "city": "תל אביב", "city_en": "Tel Aviv", "type": "elementary" }, "geometry": { "type": "Point", "coordinates": [34.7752, 32.0871] } },
+    { "type": "Feature", "properties": { "name": "בית ספר דיזנגוף", "city": "תל אביב", "city_en": "Tel Aviv", "type": "elementary" }, "geometry": { "type": "Point", "coordinates": [34.7749, 32.0787] } },
+    { "type": "Feature", "properties": { "name": "בית ספר יהלום", "city": "רמת גן", "city_en": "Ramat Gan", "type": "elementary" }, "geometry": { "type": "Point", "coordinates": [34.8121, 32.0823] } },
+    { "type": "Feature", "properties": { "name": "תיכון בליך", "city": "רמת גן", "city_en": "Ramat Gan", "type": "high" }, "geometry": { "type": "Point", "coordinates": [34.8095, 32.0908] } },
+    { "type": "Feature", "properties": { "name": "בית ספר שרת חולון", "city": "חולון", "city_en": "Holon", "type": "elementary" }, "geometry": { "type": "Point", "coordinates": [34.7722, 32.0158] } },
+    { "type": "Feature", "properties": { "name": "בית ספר קציר חולון", "city": "חולון", "city_en": "Holon", "type": "high" }, "geometry": { "type": "Point", "coordinates": [34.7794, 32.0189] } }
+  ]
+}

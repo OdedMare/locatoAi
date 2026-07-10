@@ -1,0 +1,11 @@
+{
+  "explanation": "Northernmost Tel Aviv school within 300m of a square",
+  "steps": [
+    { "id": "s1", "op": "load", "layer": "schools" },
+    { "id": "s2", "op": "attribute_filter", "input": "s1", "field": "city_en", "operator": "eq", "value": "Tel Aviv" },
+    { "id": "s3", "op": "near", "input": "s2", "target_layer": "roundabouts", "distance_m": 300 },
+    { "id": "s4", "op": "directional", "input": "s3", "direction": "north", "count": 1 }
+  ],
+  "output": "s4",
+  "context_layers": ["roundabouts"]
+}

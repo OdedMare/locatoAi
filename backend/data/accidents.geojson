@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "name": "תאונה - איילון צפון", "road": "איילון", "road_en": "Ayalon", "severity": 2, "timestamp_offset_hours": -20 }, "geometry": { "type": "Point", "coordinates": [34.7959, 32.0813] } },
+    { "type": "Feature", "properties": { "name": "תאונה - מחלף השלום", "road": "איילון", "road_en": "Ayalon", "severity": 1, "timestamp_offset_hours": -26 }, "geometry": { "type": "Point", "coordinates": [34.7947, 32.0733] } },
+    { "type": "Feature", "properties": { "name": "תאונה - מחלף רוקח", "road": "איילון", "road_en": "Ayalon", "severity": 3, "timestamp_offset_hours": -30 }, "geometry": { "type": "Point", "coordinates": [34.7972, 32.0912] } },
+    { "type": "Feature", "properties": { "name": "תאונה - מחלף קיבוץ גלויות", "road": "איילון", "road_en": "Ayalon", "severity": 2, "timestamp_offset_hours": -75 }, "geometry": { "type": "Point", "coordinates": [34.7930, 32.0541] } },
+    { "type": "Feature", "properties": { "name": "תאונה - איילון דרום", "road": "איילון", "road_en": "Ayalon", "severity": 1, "timestamp_offset_hours": -3 }, "geometry": { "type": "Point", "coordinates": [34.7941, 32.0662] } },
+    { "type": "Feature", "properties": { "name": "תאונה - כביש 6 מחלף עירון", "road": "כביש 6", "road_en": "Highway 6", "severity": 2, "timestamp_offset_hours": -22 }, "geometry": { "type": "Point", "coordinates": [35.0119, 32.4712] } },
+    { "type": "Feature", "properties": { "name": "תאונה - כביש 6 מחלף בן שמן", "road": "כביש 6", "road_en": "Highway 6", "severity": 3, "timestamp_offset_hours": -28 }, "geometry": { "type": "Point", "coordinates": [34.9276, 31.9541] } },
+    { "type": "Feature", "properties": { "name": "תאונה - כביש 6 מחלף שורק", "road": "כביש 6", "road_en": "Highway 6", "severity": 1, "timestamp_offset_hours": -100 }, "geometry": { "type": "Point", "coordinates": [34.9077, 31.8419] } },
+    { "type": "Feature", "properties": { "name": "תאונה - נתיבי איילון חולון", "road": "איילון", "road_en": "Ayalon", "severity": 2, "timestamp_offset_hours": -50 }, "geometry": { "type": "Point", "coordinates": [34.7899, 32.0335] } },
+    { "type": "Feature", "properties": { "name": "תאונה - כביש 6 מחלף קסם", "road": "כביש 6", "road_en": "Highway 6", "severity": 2, "timestamp_offset_hours": -8 }, "geometry": { "type": "Point", "coordinates": [34.9481, 32.1093] } }
+  ]
+}

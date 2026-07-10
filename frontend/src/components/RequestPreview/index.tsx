@@ -8,8 +8,8 @@ interface RequestPreviewProps {
 }
 
 /**
- * Debug panel showing the exact request JSON sent to the geo-query service.
- * This is the payload the future backend (`POST /api/geo-query`) will receive.
+ * Debug panel: the exact JSON sent to POST /api/query, and the backend's
+ * response status (clarify text / timings) once it answers.
  */
 export default function RequestPreview({ request, response }: RequestPreviewProps) {
   return (
@@ -22,8 +22,12 @@ export default function RequestPreview({ request, response }: RequestPreviewProp
         <>
           <pre className="json-block">{JSON.stringify(request, null, 2)}</pre>
           {response && (
-            <p className="response-meta">
-              Mock service accepted · <code>{response.requestId}</code>
+            <p className={`response-meta status-${response.status}`}>
+              Backend: <strong>{response.status}</strong>
+              {response.clarify && <> — {response.clarify}</>}
+              {response.timing_ms && (
+                <> · {JSON.stringify(response.timing_ms)}</>
+              )}
             </p>
           )}
         </>
