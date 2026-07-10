@@ -37,14 +37,18 @@ export default function MapGeoms({ mode, value, onChange }: MapGeomsProps) {
       fillOpacity: 0.3,
     };
 
+    // leaflet-draw's published types incorrectly model its augmented Map as a
+    // subclass. At runtime this is the same Leaflet map instance.
+    const drawMap = map as unknown as L.DrawMap;
+
     if (mode === "polygon") {
-      activeDrawRef.current = new L.Draw.Polygon(map, {
+      activeDrawRef.current = new L.Draw.Polygon(drawMap, {
         allowIntersection: false,
         showArea: true,
         shapeOptions,
       });
     } else if (mode === "rectangle") {
-      activeDrawRef.current = new L.Draw.Rectangle(map, { shapeOptions });
+      activeDrawRef.current = new L.Draw.Rectangle(drawMap, { shapeOptions });
     }
 
     activeDrawRef.current?.enable();
