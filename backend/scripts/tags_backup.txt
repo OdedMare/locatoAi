@@ -1,0 +1,30 @@
+BACKUP {"c62525af-09cb-4ecc-99da-aafaa01e1d27": ["education", "school", "children"], "d76801ed-6e59-434a-86c6-3b8d6af3d9ff": ["education", "kindergarten", "children"], "9a4bc345-8f33-4b03-86b6-8f12c5c42190": ["education", "university", "college"], "acfab842-c4c9-4877-8b71-68265c1c93b1": ["health", "hospital", "medical"], "faedf45c-1a02-42be-b509-145dda518edb": ["health", "clinic"], "fe8cd72e-a7be-4121-8060-8bdab325ae7a": ["police", "security"], "666cbd03-f3ba-48da-91fe-37b8eff61c90": ["fire", "emergency"], "e80779d8-7db3-41f2-9208-55df60501b5b": ["medical", "emergency", "ambulance"], "52c9bd68-8460-4d4b-bbe1-4a58e630191f": ["transport", "train"], "eda68d20-8d55-46d9-8058-f14eb503e983": ["transport", "bus"], "dcd64cd9-556b-4b4b-a186-3a9cb4d424e7": ["roads", "transport"], "64f4d31b-ee92-47ab-97f8-a6cfb59a18bc": ["roads", "junction"], "d95d82b6-5fa2-4434-81e8-e64fcb610315": ["roads", "roundabout"], "a90d4865-7dc5-4a20-9ab2-2f20a303310f": ["park", "nature", "recreation"], "3356e77b-25f0-499c-bb72-2e1b9822e8b9": ["playground", "children"], "2669e883-6dba-4da4-8374-8916cc723fed": ["beach", "sea", "tourism"], "117a7453-c65e-4b4c-bbf2-aaf72c3f3e02": ["nature", "reserve"], "9d78715d-825b-449e-96a2-ebb5cefa85d2": ["city", "settlement", "boundary"], "5cebf54c-78be-4cad-be2f-009a8dcb8ad7": ["neighborhood", "boundary"], "3ce89316-adc3-48e9-8aa2-79c33e88832b": ["government", "public"], "c6b881cf-8477-4dfb-afa1-d33863e0f10f": ["parking", "transport"], "78ac6b5f-0302-44c3-a17b-9eb9cd1e7d66": ["ev", "charging", "transport"], "dea5f273-9420-43a3-9700-c4f53578b95f": ["traffic", "accident", "event"], "75395927-69fd-4fcb-89f0-77e70f9cab3b": ["crime", "security", "event"], "7ad396bc-9ddd-499e-8177-0897ee08d806": ["event", "protest", "crowd"], "2ee0cd7f-d181-44ce-bd71-87a9ed7f8913": ["cinema", "movie", "culture", "entertainment"]}
+
+✓ בתי ספר                      + בית ספר, מוסד חינוך, לימודים, schools, education centers, learning, academy, בתי ספר
+✓ גני ילדים                    + גן ילדים, גנים, חינוך, pre-school, nursery, early childhood
+✓ אוניברסיטאות                 + אוניברסיטה, מוסדות להשכלה גבוהה, לימודים אקדמיים, קמפוס, academic, higher education, institute, campus
+✓ בתי חולים                    + בית חולים, מרכז רפואי, בתי חולים, מיון, hospitalization, clinic, healthcare, medical center
+✓ מרפאות                       + מרפאה, קופת חולים, בריאות, medical, clinics, healthcare, doctor, doctor's office
+✓ תחנות משטרה                  + משטרה, תחנת משטרה, police station, israel police, security station, מישטרה, police office, law enforcement
+✓ תחנות כיבוי אש               + כיבוי אש, כבאים, תחנת כיבוי, fire station, firefighter, fire service
+✗ תחנות מד"א                   ERROR: LLM returned unparseable JSON twice: Expecting ',' delimiter: line 1 column 15 (char 14)
+✓ תחנות רכבת                   + רכבת, תחנה, מסילה, railway, station, rail, pt, israel railways
+✓ תחנות אוטובוס                + bus stop, stops, תחנה, תחנת אוטובוס, תחבורה ציבורית, public transport, transit
+✓ כבישים                       + כביש, תשתיות, נסיעה, תחבורה, street, highway, route, network
+✓ צמתים                        + צומת, מפגש דרכים, צמתים, nodes, intersections, crossroads, traffic junction, road junction
+✓ כיכרות                       + כיכר, כיכר עירונית, מעגל, צומת מעגלי, roundabouts, traffic circle, urban circle
+✓ פארקים                       + פארק, גן, גנים, שטחים פתוחים, public park, garden, green area, leisure
+✓ גני משחקים                   + גני ילדים, מתקני שעשועים, מגרש משחקים, שעשועים, park, playgrounds, kids, recreation
+✓ חופי רחצה                    + חוף, חופים, רחצה, חוף רחצה, coast, shore, bathing beach, swimming beach
+✓ שמורות טבע                   + שמורה, גנים לאומיים, גן לאומי, טבע, national parks, nature reserves, parks
+✓ יישובים                      + ערים, שכונות, מועצות, יישוב, boundaries, towns, villages, locality
+✓ שכונות                       + שכונה, גבול, שכונות, districts, neighborhoods, boundaries, area, sector
+✓ מבני ציבור                   + מוסדות, מבנה ציבורי, רשויות, שירותים, public buildings, government offices, municipal, authorities
+✓ חניונים                      + חניה, חנייה, חניון, חניונים, parking lot, car park, public parking, parking area
+✓ עמדות טעינה לרכב חשמלי       + טעינה, רכב חשמלי, עמדות טעינה, electric vehicle, ev charging, charger, תשתיות טעינה, electric car
+✓ אירועי תאונות                + תאונה, תאונות, דרכים, אירוע, בטיחות, road accident, crash, car crash
+✓ אירועי פשיעה                 + פשיעה, פלילי, ביטחון, אירועים, דיווחים, criminal, offense, police
+✓ הפגנות ואירועים              + הפגנה, אירוע, מחאה, התקהלות, מיקום, demonstration, rally, gathering
+✓ בתי קולנוע                   + סרט, קולנוע, בתי קולנוע, theaters, cinema theater, movies
+
+applied 25 updates

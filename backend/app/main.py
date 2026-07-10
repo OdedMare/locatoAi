@@ -22,7 +22,13 @@ from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.arcgis_mock import MockArcgisProvider
 from app.dal.providers.registry import ProviderRegistryImpl
-from app.service import agent_router, plan_router, query_router, settings_router
+from app.service import (
+    agent_router,
+    feedback_router,
+    plan_router,
+    query_router,
+    settings_router,
+)
 
 _ERROR_STATUS = {
     LayerNotFoundError: 404,
@@ -62,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(plan_router.router)
     app.include_router(settings_router.router)
     app.include_router(agent_router.router)
+    app.include_router(feedback_router.router)
 
     @app.get("/health")
     def health() -> dict:

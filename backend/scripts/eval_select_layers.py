@@ -53,6 +53,23 @@ CASES = [
      {"בתי קולנוע"}, {"יישובים"}),
     ("תמצא לי מסעדות כשרות",
      {CLARIFY}, set()),
+    # --- hard cases: typos, slang, indirect phrasing ---
+    ("בתיספר בסביבה",  # typo: missing space
+     {"בתי ספר"}, {"יישובים", "שכונות"}),
+    ("מקומות לשחות",  # indirect: swimming → beaches
+     {"חופי רחצה"}, {"פארקים", "שמורות טבע"}),
+    ("kindergartens near the sea",
+     {"גני ילדים", "חופי רחצה"}, set()),
+    ("where can I charge my tesla",  # brand name → EV charging
+     {"עמדות טעינה לרכב חשמלי"}, {"חניונים"}),
+    ("איפה אפשר להחנות את האוטו ליד הים?",  # slang, indirect
+     {"חניונים", "חופי רחצה"}, set()),
+    ("מוסדות אקדמיים",  # formal register
+     {"אוניברסיטאות"}, {"בתי ספר"}),
+    ("תאונות קשות השבוע",
+     {"אירועי תאונות"}, set()),
+    ("מגרשי כדורגל",  # nothing fits — must not guess playgrounds
+     {CLARIFY}, set()),
 ]
 
 

@@ -14,6 +14,7 @@ Usage:
 """
 
 import json
+import re
 import sys
 
 import psycopg
@@ -36,6 +37,9 @@ Respond ONLY with JSON: {"tags": ["...", "..."]}"""
 _MAX_TAGS = 15
 _MAX_TAG_CHARS = 24
 
+# Hebrew or Latin letters, digits, spaces, hyphens, Hebrew quote marks.
+_VALID_TAG = re.compile(r"^[A-Za-z0-9֐-׿\s\-'\"׳״]+$")
+
 
 def clean(tags):
     out = []
@@ -43,7 +47,7 @@ def clean(tags):
         if not isinstance(tag, str):
             continue
         tag = " ".join(tag.split())[:_MAX_TAG_CHARS].strip()
-        if tag and tag not in out:
+        if tag and _VALID_TAG.match(tag) and tag not in out:
             out.append(tag)
     return out
 
