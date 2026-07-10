@@ -4,6 +4,7 @@ the service routers. The only module that knows every tier."""
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.bl.agent.build_plan import PlanBuilder
 from app.bl.agent.select_layers import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
@@ -61,14 +62,16 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
         repository, providers, schema_ttl_seconds=settings.schema_cache_ttl_seconds
     )
     executor = PlanExecutor(catalog, providers)
-    layer_selector = LayerSelector(OpenAIJsonClient(settings_store), catalog)
+    llm = OpenAIJsonClient(settings_store)
+    layer_selector = LayerSelector(llm, catalog)
+    plan_builder = PlanBuilder(llm, catalog)
 
     app.state.settings_store = settings_store
     app.state.repository = repository
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.orchestrator = QueryOrchestrator(
-        catalog, executor, layer_selector=layer_selector
+        catalog, executor, layer_selector=layer_selector, plan_builder=plan_builder
     )
     app.state.request_log = configure_logging(settings.request_log_path)
 

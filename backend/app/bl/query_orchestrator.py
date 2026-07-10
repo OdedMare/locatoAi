@@ -1,18 +1,19 @@
-"""The full /api/query flow: select → describe → plan → validate → execute.
+"""The full /api/query flow: select → build plan → validate → execute.
 
-Current stage: layer selection is LIVE (agent call 1). Plan building
-(agent call 2) is next — until it lands, a successful selection returns
-a clarify response naming the chosen layers so the flow is testable
-end-to-end from the UI.
+Both agent calls are LIVE. Clarify can come from either call (always
+Hebrew); validation failures inside plan building retry once with the
+error appended before falling back to clarify.
 """
 
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
+from app.bl.agent.build_plan import PlanBuilder
 from app.bl.agent.select_layers import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
@@ -34,50 +35,95 @@ class QueryOutcome:
     reasoning: str = ""
 
 
+def _sum_usage(*usages) -> Optional[Dict[str, int]]:
+    total: Optional[Dict[str, int]] = None
+    for usage in usages:
+        if not isinstance(usage, dict):
+            continue
+        if total is None:
+            total = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        for key in total:
+            total[key] += int(usage.get(key, 0))
+    return total
+
+
+class _StageTimer:
+    """Collects per-stage elapsed milliseconds."""
+
+    def __init__(self) -> None:
+        self.timing: Dict[str, int] = {}
+        self._started = time.perf_counter()
+
+    def mark(self, stage: str) -> None:
+        now = time.perf_counter()
+        self.timing[stage] = int((now - self._started) * 1000)
+        self._started = now
+
+
 class QueryOrchestrator:
     def __init__(
         self,
         catalog: CatalogService,
         executor: PlanExecutor,
         layer_selector: Optional[LayerSelector] = None,
+        plan_builder: Optional[PlanBuilder] = None,
     ):
         self._catalog = catalog
         self._executor = executor
         self._selector = layer_selector
+        self._builder = plan_builder
 
     def run_query(self, query: str, boundaries: Optional[BaseGeometry]) -> QueryOutcome:
-        """Natural-language entry point."""
-        if self._selector is None:
+        """Natural-language entry point: the full agent pipeline."""
+        if self._selector is None or self._builder is None:
             return QueryOutcome(
                 status="clarify",
-                clarify=(
-                    "The AI agent is not wired up yet. "
-                    "Use POST /api/execute-plan to run a hand-written plan."
-                ),
+                clarify="הסוכן אינו מחובר — השתמש ב-POST /api/execute-plan.",
             )
 
-        started = time.perf_counter()
-        selection = self._selector.select(query)
-        select_ms = int((time.perf_counter() - started) * 1000)
-        timing = {"select": select_ms}
+        now = datetime.now(timezone.utc)
+        timer = _StageTimer()
 
+        # 1. Layer selection (agent call 1)
+        selection = self._selector.select(query)
+        timer.mark("select")
         if selection.clarify:
             return QueryOutcome(
                 status="clarify",
                 clarify=selection.clarify,
-                timing_ms=timing,
+                timing_ms=timer.timing,
                 token_usage=selection.token_usage,
                 reasoning=selection.reasoning,
             )
 
-        # NEXT STAGE: build_plan(query, schemas of selected layers) →
-        # validate (retry once) → execute. Until then, report the selection.
-        names = ", ".join(layer.name for layer in selection.layers)
+        # 2. Plan building (agent call 2) — validate → retry once → clarify
+        build = self._builder.build(
+            query, selection.layers, has_boundaries=boundaries is not None, now=now
+        )
+        timer.mark("plan")
+        usage = _sum_usage(selection.token_usage, build.token_usage)
+        if build.plan is None:
+            return QueryOutcome(
+                status="clarify",
+                clarify=build.clarify,
+                timing_ms=timer.timing,
+                token_usage=usage,
+                selected_layers=selection.layers,
+                reasoning=selection.reasoning,
+            )
+
+        # 3. Execution
+        features = self._executor.execute(
+            build.plan, user_geometry=boundaries, now=now
+        )
+        timer.mark("execute")
+
         return QueryOutcome(
-            status="clarify",
-            clarify="Layers selected: " + names + ". Plan building is the next stage.",
-            timing_ms=timing,
-            token_usage=selection.token_usage,
+            status="ok",
+            plan=build.plan,
+            features=features,
+            timing_ms=timer.timing,
+            token_usage=usage,
             selected_layers=selection.layers,
             reasoning=selection.reasoning,
         )
@@ -85,17 +131,17 @@ class QueryOrchestrator:
     def execute_plan(
         self, plan: GeoQueryPlan, boundaries: Optional[BaseGeometry]
     ) -> QueryOutcome:
-        """Validate and execute an explicit plan (debug path, real logic)."""
+        """Validate and execute an explicit plan (debug path)."""
         known_ids = {layer.id for layer in self._catalog.list_layers()}
         validate_plan(plan, known_ids, has_user_geometry=boundaries is not None)
 
-        started = time.perf_counter()
+        timer = _StageTimer()
         features = self._executor.execute(plan, user_geometry=boundaries)
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        timer.mark("execute")
 
         return QueryOutcome(
             status="ok",
             plan=plan,
             features=features,
-            timing_ms={"execute": elapsed_ms},
+            timing_ms=timer.timing,
         )
