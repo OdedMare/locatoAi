@@ -313,6 +313,43 @@ body {
   color: var(--text-muted);
 }
 
+.feedback-buttons {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.feedback-button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.feedback-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.feedback-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.feedback-button.voted {
+  opacity: 1;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.feedback-thanks {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .agent-reasoning {
   font-size: 13px;
   font-style: italic;

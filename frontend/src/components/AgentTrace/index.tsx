@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { submitFeedback } from "@/services/feedbackService";
 import type { GeoQueryResponse } from "@/types/geo-query";
 
 interface AgentTraceProps {
   response: GeoQueryResponse | null;
   isSubmitting: boolean;
+  /** The query text that produced `response` (for feedback logging). */
+  query: string;
 }
 
 /**
@@ -12,10 +16,25 @@ interface AgentTraceProps {
  * (with tags + timing) or the clarification it asked instead — so
  * selection quality can be judged at a glance.
  */
-export default function AgentTrace({ response, isSubmitting }: AgentTraceProps) {
+export default function AgentTrace({ response, isSubmitting, query }: AgentTraceProps) {
+  const [voted, setVoted] = useState<"up" | "down" | null>(null);
+
+  // A new response resets the vote state.
+  useEffect(() => setVoted(null), [response]);
+
   if (!isSubmitting && response === null) return null;
 
   const selectMs = response?.timing_ms?.select;
+  const canVote =
+    !isSubmitting &&
+    response !== null &&
+    (response.selected_layers.length > 0 || response.status === "clarify");
+
+  const vote = (verdict: "up" | "down") => {
+    if (!response || voted) return;
+    setVoted(verdict);
+    void submitFeedback(query, response, verdict);
+  };
 
   return (
     <section className="agent-trace">
@@ -23,6 +42,29 @@ export default function AgentTrace({ response, isSubmitting }: AgentTraceProps) 
         <h2>Agent</h2>
         {typeof selectMs === "number" && (
           <span className="badge">selection {selectMs}ms</span>
+        )}
+        {canVote && (
+          <span className="feedback-buttons">
+            <button
+              type="button"
+              className={`feedback-button${voted === "up" ? " voted" : ""}`}
+              onClick={() => vote("up")}
+              disabled={voted !== null}
+              title="Good selection"
+            >
+              👍
+            </button>
+            <button
+              type="button"
+              className={`feedback-button${voted === "down" ? " voted" : ""}`}
+              onClick={() => vote("down")}
+              disabled={voted !== null}
+              title="Wrong selection"
+            >
+              👎
+            </button>
+            {voted && <span className="feedback-thanks">logged</span>}
+          </span>
         )}
       </header>
 

@@ -82,7 +82,11 @@ export default function QueryPanel({
           {!isSubmitting && <kbd>⌘⏎</kbd>}
         </button>
 
-        <AgentTrace response={lastResponse} isSubmitting={isSubmitting} />
+        <AgentTrace
+          response={lastResponse}
+          isSubmitting={isSubmitting}
+          query={lastRequest?.query ?? ""}
+        />
 
         <ResultsPanel response={lastResponse} />
 
