@@ -37,8 +37,8 @@ QUERIES = [
 def main() -> int:
     settings = get_settings()
     store = RuntimeSettingsStore(settings)
-    if not store.get().openai_api_key:
-        print("No API key configured (settings panel / OPENAI_API_KEY). Aborting.")
+    if not store.get().openai_api_key and not store.get().llm_base_url:
+        print("No API key and no base_url configured (settings panel). Aborting.")
         return 1
 
     providers = ProviderRegistryImpl()

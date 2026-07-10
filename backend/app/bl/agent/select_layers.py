@@ -15,9 +15,8 @@ from app.bl.ports import LayerMeta, LLMClient
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "select_layers.md"
 
-_FALLBACK_CLARIFY = (
-    "I couldn't match any data layer to this request — can you rephrase it?"
-)
+# Clarify questions are ALWAYS Hebrew (product decision, see prompt).
+_FALLBACK_CLARIFY = "לא הצלחתי להתאים שכבת מידע לבקשה — אפשר לנסח מחדש?"
 
 # Locked decision: provider/catalog text is untrusted input for prompts.
 _MAX_DESCRIPTION_CHARS = 200
