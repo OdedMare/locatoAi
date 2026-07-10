@@ -20,7 +20,7 @@ from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.arcgis_mock import MockArcgisProvider
-from app.dal.providers.registry import ProviderRegistryImpl
+from app.dal.providers.registry import InMemoryProviderRegistry
 
 CLARIFY = "CLARIFY"
 
@@ -101,7 +101,7 @@ def main() -> int:
         print("No API key and no base_url configured (settings panel). Aborting.")
         return 1
 
-    providers = ProviderRegistryImpl()
+    providers = InMemoryProviderRegistry()
     providers.register("arcgis", MockArcgisProvider(settings.data_dir))
     catalog = CatalogService(PostgresLayersRepository(store), providers)
     selector = LayerSelector(OpenAIJsonClient(store), catalog)

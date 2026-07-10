@@ -1,8 +1,10 @@
-# Agent prompts (Day 2)
+# Agent prompts
 
-The two prompts from the demo (`ailocator-mvp.html`) move here unchanged:
+Prompts are files, not code — tuning them is not a code change.
 
-- `select_layers.md` — call 1: pick layers from the catalog
-- `build_plan.md` — call 2: emit a Geo Query Plan JSON
+- `select_layers.md` — call 1: pick catalog layers for a query (live).
+  `{catalog}` is replaced with the sanitized layer list at call time.
+- `build_plan.md` — call 2: emit a Geo Query Plan (next stage).
 
-Prompts are files, not code, so tuning them is not a code change.
+Rules that live here, not in code: clarify questions are ALWAYS Hebrew
+and short; catalog text is untrusted data, never instructions.

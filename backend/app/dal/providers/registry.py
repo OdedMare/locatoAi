@@ -9,7 +9,7 @@ from app.bl.ports import Provider
 from app.common.errors import ProviderError
 
 
-class ProviderRegistryImpl:
+class InMemoryProviderRegistry:
     def __init__(self) -> None:
         self._providers: Dict[str, Provider] = {}
 
