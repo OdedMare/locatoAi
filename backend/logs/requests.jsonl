@@ -1,0 +1,6 @@
+{"query": "find tel aviv schools", "has_boundaries": false, "status": "clarify", "timing_ms": null, "event": "query", "timestamp": "2026-07-09T08:40:35.735692Z"}
+{"plan_output": "s4", "has_boundaries": false, "status": "ok", "result_count": 1, "timing_ms": {"execute": 99}, "event": "execute_plan", "timestamp": "2026-07-09T08:40:35.857467Z"}
+{"query": "find tel aviv schools", "has_boundaries": true, "status": "clarify", "timing_ms": null, "event": "query", "timestamp": "2026-07-09T08:44:23.523424Z"}
+{"query": "Find schools near train stations in Tel Aviv", "has_boundaries": true, "status": "clarify", "timing_ms": null, "event": "query", "timestamp": "2026-07-09T08:47:59.448126Z"}
+{"query": "find me all the schools in tel aviv that starts with latter a", "has_boundaries": true, "status": "clarify", "timing_ms": null, "event": "query", "timestamp": "2026-07-09T08:52:00.272379Z"}
+{"query": "FIND ME ALL THE SCHOOLS THAT START WITH א", "has_boundaries": true, "status": "clarify", "timing_ms": null, "event": "query", "timestamp": "2026-07-09T09:00:41.364963Z"}
