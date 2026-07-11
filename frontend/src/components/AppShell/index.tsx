@@ -122,6 +122,9 @@ export default function AppShell() {
       <MapWorkspace
         mode={geographyMode}
         drawnGeometry={drawnGeometry}
+        resultFeatures={
+          lastResponse?.status === "ok" ? lastResponse.features : null
+        }
         onViewChange={setMapView}
         onGeometryDrawn={handleGeometryDrawn}
         initialView={INITIAL_VIEW}
