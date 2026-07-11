@@ -1447,3 +1447,33 @@ body {
   color: #fca5a5;
   background: #451a1a;
 }
+
+/* ---------- Plan trace + results list ---------- */
+
+.plan-trace {
+  margin-top: 10px;
+}
+
+.plan-steps {
+  margin: 6px 0 4px;
+  padding-inline-start: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.plan-explanation {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.results-name-list {
+  margin-top: 6px;
+  padding-inline-start: 20px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
