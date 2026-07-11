@@ -38,12 +38,37 @@ export interface SelectedLayer {
   description: string;
 }
 
+/** One step of a Geo Query Plan (discriminated by `op` on the backend). */
+export interface GeoPlanStep {
+  id: string;
+  op: "load" | "within_geometry" | "attribute_filter" | "near" | "directional" | "temporal_filter";
+  input?: string;
+  layer?: string;
+  target_layer?: string;
+  field?: string;
+  operator?: string;
+  value?: string | number;
+  distance_m?: number;
+  direction?: "north" | "south" | "east" | "west";
+  count?: number;
+  from?: string;
+  to?: string;
+}
+
+/** The plan the agent built (mirrors backend GeoQueryPlan). */
+export interface GeoQueryPlanDto {
+  explanation: string;
+  steps: GeoPlanStep[];
+  output: string;
+  context_layers: string[];
+}
+
 /** Backend response (backend/app/service/dto.py QueryResponse). */
 export interface GeoQueryResponse {
   status: "ok" | "clarify" | "error";
   clarify: string | null;
-  /** The Geo Query Plan the agent built (Day 2+). */
-  plan: unknown | null;
+  /** The Geo Query Plan the agent built and executed. */
+  plan: GeoQueryPlanDto | null;
   /** GeoJSON FeatureCollection of results. */
   features: GeoJSON.FeatureCollection | null;
   timing_ms: Record<string, number> | null;

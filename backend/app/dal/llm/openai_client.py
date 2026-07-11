@@ -103,6 +103,22 @@ class OpenAIJsonClient:
                 ]
         raise AgentError("LLM returned unparseable JSON twice: " + last_error)
 
+    def list_models(self):
+        """Return model ids exposed by the configured compatible API."""
+        settings = self._store.get()
+        if not settings.openai_api_key and not settings.llm_base_url:
+            raise AgentError(
+                "No API key configured — add an API key or a compatible base URL"
+            )
+        client = OpenAI(
+            api_key=settings.openai_api_key or _LOCAL_SERVER_KEY_PLACEHOLDER,
+            base_url=settings.llm_base_url or None,
+        )
+        try:
+            return sorted({model.id for model in client.models.list().data})
+        except Exception as exc:
+            raise AgentError("Could not list LLM models: " + str(exc))
+
     @staticmethod
     def _complete(client: "OpenAI", model: str, messages: list):
         # Degradation ladder for OpenAI-compatible servers:

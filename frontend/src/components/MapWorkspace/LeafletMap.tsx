@@ -8,6 +8,7 @@ import "leaflet-draw/dist/leaflet.draw.css";
 import LayerPicker from "./LayerPicker";
 import MapGeoms from "./MapGeoms";
 import MapLayers from "./MapLayers";
+import MapResults from "./MapResults";
 import type {
   BBox,
   GeographyMode,
@@ -19,6 +20,8 @@ export interface LeafletMapProps {
   mode: GeographyMode;
   drawnGeometry: GeoJSONPolygon | null;
   initialView: MapViewState;
+  /** Query results to draw + zoom to (null = nothing to show). */
+  resultFeatures: GeoJSON.FeatureCollection | null;
   /** Reports center/zoom/bbox whenever the user pans or zooms. */
   onViewChange: (view: MapViewState) => void;
   /** Called when the user finishes drawing a polygon or rectangle. */
@@ -55,6 +58,7 @@ export default function LeafletMap({
   mode,
   drawnGeometry,
   initialView,
+  resultFeatures,
   onViewChange,
   onGeometryDrawn,
 }: LeafletMapProps) {
@@ -77,6 +81,7 @@ export default function LeafletMap({
         value={drawnGeometry}
         onChange={onGeometryDrawn}
       />
+      <MapResults features={resultFeatures} />
       <LayerPicker activeLayer={activeLayerId} onLayerChange={setActiveLayerId} />
       <ZoomControl position="bottomleft" />
     </MapContainer>

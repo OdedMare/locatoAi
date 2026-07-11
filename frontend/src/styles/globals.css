@@ -619,6 +619,40 @@ body {
   gap: 12px;
 }
 
+.model-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.models-refresh {
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.models-refresh:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.models-status {
+  margin: -7px 0 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.models-status.error {
+  color: #b91c1c;
+}
+
 .key-hint,
 .optional {
   font-weight: 400;

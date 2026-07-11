@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSettings, updateSettings } from "@/services/settingsService";
+import { getModels, getSettings, updateSettings } from "@/services/settingsService";
 import type { AppSettings } from "@/types/settings";
 
 interface SettingsPanelProps {
@@ -27,6 +27,21 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [layersTable, setLayersTable] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const loadModels = async () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      setAvailableModels(await getModels());
+    } catch (err) {
+      setModelsError(err instanceof Error ? err.message : "טעינת המודלים נכשלה");
+    } finally {
+      setModelsLoading(false);
+    }
+  };
 
   useEffect(() => {
     getSettings()
@@ -40,6 +55,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setDatabasePort(s.database_port?.toString() ?? "");
         setDatabaseName(s.database_name ?? "");
         setLayersTable(s.layers_table ?? "");
+        void loadModels();
       })
       .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
   }, []);
@@ -104,15 +120,28 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <label className="field-label" htmlFor="set-model">מודל</label>
+          <div className="model-field-header">
+            <label className="field-label" htmlFor="set-model">מודל</label>
+            <button type="button" className="models-refresh" onClick={loadModels} disabled={modelsLoading}>
+              {modelsLoading ? "טוען…" : "רענון רשימת מודלים"}
+            </button>
+          </div>
           <input
             id="set-model"
             dir="ltr"
             className="settings-input"
+            list="available-models"
             placeholder="gemma4:31b-cloud"
             value={model}
             onChange={(e) => setModel(e.target.value)}
           />
+          <datalist id="available-models">
+            {availableModels.map((modelId) => <option key={modelId} value={modelId} />)}
+          </datalist>
+          {availableModels.length > 0 && (
+            <p className="models-status">נמצאו {availableModels.length} מודלים זמינים</p>
+          )}
+          {modelsError && <p className="models-status error" dir="auto">{modelsError}</p>}
           <label className="field-label" htmlFor="set-base-url">
             כתובת בסיס{" "}
             <span className="optional">(שרת תואם OpenAI; ריק = OpenAI)</span>

@@ -20,3 +20,13 @@ export async function updateSettings(
   }
   return res.json();
 }
+
+export async function getModels(): Promise<string[]> {
+  const res = await fetch("/api/models");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `טעינת המודלים נכשלה (${res.status})`);
+  }
+  const body = await res.json();
+  return Array.isArray(body.models) ? body.models : [];
+}

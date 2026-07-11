@@ -2,7 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { submitFeedback } from "@/services/feedbackService";
-import type { GeoQueryResponse } from "@/types/geo-query";
+import type { GeoPlanStep, GeoQueryResponse } from "@/types/geo-query";
+
+const DIRECTION_HE: Record<string, string> = {
+  north: "הצפוני ביותר",
+  south: "הדרומי ביותר",
+  east: "המזרחי ביותר",
+  west: "המערבי ביותר",
+};
+
+/** One Hebrew line per plan step, with layer ids resolved to names. */
+function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): string {
+  switch (step.op) {
+    case "load":
+      return `טעינת השכבה ${layerName(step.layer)}`;
+    case "within_geometry":
+      return "סינון לאזור שסומן על המפה";
+    case "attribute_filter":
+      return `סינון לפי ${step.field} ${step.operator} "${step.value}"`;
+    case "near":
+      return `בקרבת ${layerName(step.target_layer)} (עד ${step.distance_m} מ')`;
+    case "directional":
+      return `${DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
+    case "temporal_filter":
+      return `סינון זמן: ${step.from} עד ${step.to}`;
+  }
+}
 
 interface AgentTraceProps {
   response: GeoQueryResponse | null;
@@ -35,6 +60,9 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
     setVoted(verdict);
     void submitFeedback(query, response, verdict);
   };
+
+  const layerName = (id?: string) =>
+    response?.selected_layers.find((layer) => layer.id === id)?.name ?? "שכבה";
 
   return (
     <section className="agent-trace">
@@ -98,6 +126,19 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
               </li>
             ))}
           </ul>
+          {response!.plan && (
+            <div className="plan-trace" dir="auto">
+              <p className="agent-step done">✓ תוכנית השאילתה שנבנתה:</p>
+              <ol className="plan-steps">
+                {response!.plan.steps.map((step) => (
+                  <li key={step.id} className="plan-step">
+                    {describeStep(step, layerName)}
+                  </li>
+                ))}
+              </ol>
+              <p className="plan-explanation">{response!.plan.explanation}</p>
+            </div>
+          )}
         </>
       ) : response!.clarify && response!.status === "clarify" ? (
         <>

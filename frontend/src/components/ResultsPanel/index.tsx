@@ -11,6 +11,31 @@ interface ResultsPanelProps {
  * backend; rich result rendering (lists, map highlights) comes with the
  * agent in the next stage.
  */
+const MAX_LISTED = 8;
+
+function ResultsList({ response }: { response: GeoQueryResponse }) {
+  const features = response.features?.features ?? [];
+  if (features.length === 0) {
+    return (
+      <p className="panel-placeholder">לא נמצאו תוצאות מתאימות לשאילתה.</p>
+    );
+  }
+  const names = features
+    .map((f) => (f.properties as Record<string, unknown> | null)?.name)
+    .filter((n): n is string => typeof n === "string");
+  return (
+    <div dir="auto">
+      <p className="panel-placeholder">✅ נמצאו {features.length} תוצאות (מסומנות על המפה):</p>
+      <ul className="results-name-list">
+        {names.slice(0, MAX_LISTED).map((name, i) => (
+          <li key={`${name}-${i}`}>{name}</li>
+        ))}
+        {names.length > MAX_LISTED && <li>ועוד {names.length - MAX_LISTED}…</li>}
+      </ul>
+    </div>
+  );
+}
+
 export default function ResultsPanel({ response }: ResultsPanelProps) {
   return (
     <section className="results-panel">
@@ -37,9 +62,7 @@ export default function ResultsPanel({ response }: ResultsPanelProps) {
           האם השרת פועל בפורט 8000?
         </p>
       ) : (
-        <p className="panel-placeholder">
-          ✅ הוחזרו {response.features?.features.length ?? 0} ישויות.
-        </p>
+        <ResultsList response={response} />
       )}
     </section>
   );

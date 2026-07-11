@@ -27,6 +27,7 @@ from app.service import (
     agent_router,
     catalog_router,
     feedback_router,
+    models_router,
     plan_router,
     query_router,
     settings_router,
@@ -47,6 +48,7 @@ _ROUTERS = (
     agent_router,
     feedback_router,
     catalog_router,
+    models_router,
 )
 
 
@@ -70,6 +72,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     app.state.repository = repository
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
+    app.state.llm_client = llm
     app.state.orchestrator = QueryOrchestrator(
         catalog, executor, layer_selector=layer_selector, plan_builder=plan_builder
     )
