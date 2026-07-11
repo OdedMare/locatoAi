@@ -32,14 +32,14 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     getSettings()
       .then((s) => {
         setSettings(s);
-        setModel(s.llm_model);
+        setModel(s.llm_model ?? "");
         setBaseUrl(s.llm_base_url ?? "");
-        setDatabaseUrl(s.database_url);
-        setDatabaseUser(s.database_user);
-        setDatabaseHost(s.database_host);
+        setDatabaseUrl(s.database_url ?? "");
+        setDatabaseUser(s.database_user ?? "");
+        setDatabaseHost(s.database_host ?? "");
         setDatabasePort(s.database_port?.toString() ?? "");
-        setDatabaseName(s.database_name);
-        setLayersTable(s.layers_table);
+        setDatabaseName(s.database_name ?? "");
+        setLayersTable(s.layers_table ?? "");
       })
       .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
   }, []);
@@ -50,14 +50,14 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     try {
       const saved = await updateSettings({
         llm_model: model,
-        llm_base_url: baseUrl.trim() === "" ? null : baseUrl.trim(),
+        llm_base_url: (baseUrl ?? "").trim() === "" ? null : (baseUrl ?? "").trim(),
         openai_api_key: apiKey, // backend ignores empty
         database_url: databaseUrl,
-        database_user: databaseUser.trim(),
+        database_user: (databaseUser ?? "").trim(),
         database_password: databasePassword, // backend ignores empty
-        database_host: databaseHost.trim(),
-        database_port: databasePort.trim() ? Number(databasePort) : null,
-        database_name: databaseName.trim(),
+        database_host: (databaseHost ?? "").trim(),
+        database_port: (databasePort ?? "").trim() ? Number(databasePort) : null,
+        database_name: (databaseName ?? "").trim(),
         layers_table: layersTable,
       });
       setSettings(saved);
