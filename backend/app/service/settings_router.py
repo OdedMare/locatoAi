@@ -103,6 +103,8 @@ def update_settings(body: SettingsUpdate, request: Request) -> SettingsResponse:
         patch.pop("openai_api_key")  # empty = keep existing key
     if patch.get("database_password") == "":
         patch.pop("database_password")  # empty = keep existing password
+    if not (patch.get("llm_model") or "").strip() and "llm_model" in patch:
+        patch.pop("llm_model")  # a model is always required — keep existing
     try:
         settings = store.update(patch)
     except ValueError as exc:

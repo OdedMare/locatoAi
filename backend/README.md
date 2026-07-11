@@ -131,9 +131,11 @@ name/description/tags) goes into [`prompts/select_layers.md`](app/bl/agent/promp
 the model reasons first (short Hebrew `reasoning`, shown in the UI), then returns layer ids.
 Hallucinated ids are dropped; no match → short Hebrew clarify question.
 
-**Call 2 — plan building (next).** Query + selected layers' schemas → GeoQueryPlan JSON →
-validate (retry once with the error appended) → execute. The insertion point is marked
-`NEXT STAGE` in [`query_orchestrator.py`](app/bl/query_orchestrator.py).
+**Call 2 — plan building (live).** Query + selected layers' schemas (field names/types +
+sample values, so filters match the data's language) → GeoQueryPlan JSON → semantic
+validation → on failure retry once with the error appended → Hebrew clarify fallback.
+Prompt: [`prompts/build_plan.md`](app/bl/agent/prompts/build_plan.md). The orchestrator
+returns per-stage timings (`select`/`plan`/`execute`) and summed token usage.
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
@@ -196,6 +198,6 @@ generated relative to `now`, which tests freeze (`frozen_now` fixture). Golden p
 
 ## Roadmap
 
-1. **Plan building (call 2)** — the `NEXT STAGE` marker in the orchestrator.
-2. Multi-turn clarify (conversation state), `client_now`/timezone in the request.
-3. SSE status streaming; real ArcGIS provider; PostGIS.
+1. Multi-turn clarify (conversation state), `client_now`/timezone in the request.
+2. SSE status streaming; real ArcGIS provider; PostGIS.
+3. End-to-end scored eval for plan building (selection already has one).
