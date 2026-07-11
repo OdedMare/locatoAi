@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     database_password: str = ""
     """Optional explicit Postgres password. Never returned by the API."""
 
+    database_host: str = ""
+    """Optional explicit Postgres host. Overrides the host in the URL."""
+
+    database_port: Optional[int] = None
+    """Optional explicit Postgres port. Overrides the port in the URL."""
+
+    database_name: str = ""
+    """Optional explicit database name. Overrides the database in the URL."""
+
     layers_table: str = "public.layers"
     """Table with the layer metadata the agent chooses from."""
 

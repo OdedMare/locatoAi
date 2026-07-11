@@ -32,6 +32,12 @@ class PostgresLayersRepository:
             credentials["user"] = settings.database_user
         if settings.database_password:
             credentials["password"] = settings.database_password
+        if settings.database_host:
+            credentials["host"] = settings.database_host
+        if settings.database_port is not None:
+            credentials["port"] = settings.database_port
+        if settings.database_name:
+            credentials["dbname"] = settings.database_name
         return psycopg.connect(
             settings.database_url,
             row_factory=dict_row,

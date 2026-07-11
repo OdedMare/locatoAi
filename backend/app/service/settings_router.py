@@ -10,7 +10,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.bl.ports import LayersRepository
 from app.common.runtime_settings import RuntimeSettings, RuntimeSettingsStore
@@ -25,6 +25,9 @@ class SettingsUpdate(BaseModel):
     database_url: Optional[str] = None
     database_user: Optional[str] = None
     database_password: Optional[str] = None  # empty/omitted = keep current
+    database_host: Optional[str] = None
+    database_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    database_name: Optional[str] = None
     layers_table: Optional[str] = None
 
 
@@ -42,6 +45,9 @@ class SettingsResponse(BaseModel):
     database_url: str
     database_user: str
     database_password_set: bool
+    database_host: str
+    database_port: Optional[int]
+    database_name: str
     layers_table: str
     catalog: CatalogStatus
 
@@ -75,6 +81,9 @@ def _to_response(
         database_url=_mask_db_password(settings.database_url),
         database_user=settings.database_user,
         database_password_set=bool(settings.database_password),
+        database_host=settings.database_host,
+        database_port=settings.database_port,
+        database_name=settings.database_name,
         layers_table=settings.layers_table,
         catalog=_catalog_status(repository),
     )

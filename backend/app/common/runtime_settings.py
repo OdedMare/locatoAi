@@ -27,6 +27,9 @@ class RuntimeSettings:
     database_url: str
     database_user: str
     database_password: str
+    database_host: str
+    database_port: Optional[int]
+    database_name: str
     layers_table: str
 
     def quoted_layers_table(self) -> str:
@@ -52,6 +55,9 @@ class RuntimeSettingsStore:
             database_url=env.database_url,
             database_user=env.database_user,
             database_password=env.database_password,
+            database_host=env.database_host,
+            database_port=env.database_port,
+            database_name=env.database_name,
             layers_table=env.layers_table,
         )
         if self._path.exists():
