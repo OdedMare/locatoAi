@@ -31,7 +31,7 @@ export interface SettingsUpdate {
   database_user?: string;
   database_password?: string;
   database_host?: string;
-  database_port?: number;
+  database_port?: number | null;
   database_name?: string;
   layers_table?: string;
 }

@@ -79,7 +79,12 @@ class RuntimeSettingsStore:
     def _apply(self, patch: dict) -> None:
         known = {f.name for f in fields(RuntimeSettings)}
         for key, value in patch.items():
-            if key not in known or value is None:
+            if key not in known:
+                continue
+            if key == "database_port" and value is None:
+                self._settings.database_port = None
+                continue
+            if value is None:
                 continue
             if key == "layers_table":
                 validate_layers_table(value)

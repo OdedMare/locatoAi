@@ -98,7 +98,7 @@ def get_settings(request: Request) -> SettingsResponse:
 @router.put("/api/settings", response_model=SettingsResponse)
 def update_settings(body: SettingsUpdate, request: Request) -> SettingsResponse:
     store: RuntimeSettingsStore = request.app.state.settings_store
-    patch = body.model_dump(exclude_none=True)
+    patch = body.model_dump(exclude_unset=True)
     if patch.get("openai_api_key") == "":
         patch.pop("openai_api_key")  # empty = keep existing key
     if patch.get("database_password") == "":

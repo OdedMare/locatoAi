@@ -56,7 +56,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         database_user: databaseUser.trim(),
         database_password: databasePassword, // backend ignores empty
         database_host: databaseHost.trim(),
-        ...(databasePort.trim() ? { database_port: Number(databasePort) } : {}),
+        database_port: databasePort.trim() ? Number(databasePort) : null,
         database_name: databaseName.trim(),
         layers_table: layersTable,
       });
