@@ -26,6 +26,9 @@ def test_update_persists_and_reloads(tmp_path):
         "layers_table": "gis.my_layers",
         "database_user": "gis_user",
         "database_password": "secret",
+        "database_host": "db.internal",
+        "database_port": 5433,
+        "database_name": "geo_catalog",
     })
 
     reloaded = make_store(tmp_path)  # same file, fresh store
@@ -33,6 +36,9 @@ def test_update_persists_and_reloads(tmp_path):
     assert reloaded.get().layers_table == "gis.my_layers"
     assert reloaded.get().database_user == "gis_user"
     assert reloaded.get().database_password == "secret"
+    assert reloaded.get().database_host == "db.internal"
+    assert reloaded.get().database_port == 5433
+    assert reloaded.get().database_name == "geo_catalog"
 
 
 def test_unknown_keys_ignored(tmp_path):

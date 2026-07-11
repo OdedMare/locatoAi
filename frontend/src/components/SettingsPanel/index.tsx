@@ -21,6 +21,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databaseUser, setDatabaseUser] = useState("");
   const [databasePassword, setDatabasePassword] = useState("");
+  const [databaseHost, setDatabaseHost] = useState("");
+  const [databasePort, setDatabasePort] = useState("");
+  const [databaseName, setDatabaseName] = useState("");
   const [layersTable, setLayersTable] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -33,6 +36,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setBaseUrl(s.llm_base_url ?? "");
         setDatabaseUrl(s.database_url);
         setDatabaseUser(s.database_user);
+        setDatabaseHost(s.database_host);
+        setDatabasePort(s.database_port?.toString() ?? "");
+        setDatabaseName(s.database_name);
         setLayersTable(s.layers_table);
       })
       .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
@@ -49,6 +55,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         database_url: databaseUrl,
         database_user: databaseUser.trim(),
         database_password: databasePassword, // backend ignores empty
+        database_host: databaseHost.trim(),
+        ...(databasePort.trim() ? { database_port: Number(databasePort) } : {}),
+        database_name: databaseName.trim(),
         layers_table: layersTable,
       });
       setSettings(saved);
@@ -120,7 +129,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         <section className="settings-section">
           <h3>קטלוג שכבות (PostgreSQL)</h3>
-          <label className="field-label" htmlFor="set-db-url">כתובת מסד הנתונים</label>
+          <label className="field-label" htmlFor="set-db-url">
+            כתובת חיבור מלאה <span className="optional">(ברירת מחדל לשדות הריקים)</span>
+          </label>
           <input
             id="set-db-url"
             dir="ltr"
@@ -128,6 +139,42 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             placeholder="postgresql://localhost:5432/gis"
             value={databaseUrl}
             onChange={(e) => setDatabaseUrl(e.target.value)}
+          />
+          <div className="settings-input-row">
+            <div>
+              <label className="field-label" htmlFor="set-db-host">שרת</label>
+              <input
+                id="set-db-host"
+                dir="ltr"
+                className="settings-input"
+                placeholder="localhost"
+                value={databaseHost}
+                onChange={(e) => setDatabaseHost(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="set-db-port">פורט</label>
+              <input
+                id="set-db-port"
+                dir="ltr"
+                type="number"
+                min="1"
+                max="65535"
+                className="settings-input"
+                placeholder="5432"
+                value={databasePort}
+                onChange={(e) => setDatabasePort(e.target.value)}
+              />
+            </div>
+          </div>
+          <label className="field-label" htmlFor="set-db-name">שם מסד הנתונים</label>
+          <input
+            id="set-db-name"
+            dir="ltr"
+            className="settings-input"
+            placeholder="gis"
+            value={databaseName}
+            onChange={(e) => setDatabaseName(e.target.value)}
           />
           <div className="settings-input-row">
             <div>

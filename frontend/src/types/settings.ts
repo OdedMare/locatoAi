@@ -15,6 +15,9 @@ export interface AppSettings {
   database_url: string;
   database_user: string;
   database_password_set: boolean;
+  database_host: string;
+  database_port: number | null;
+  database_name: string;
   layers_table: string;
   catalog: CatalogStatus;
 }
@@ -27,5 +30,8 @@ export interface SettingsUpdate {
   database_url?: string;
   database_user?: string;
   database_password?: string;
+  database_host?: string;
+  database_port?: number;
+  database_name?: string;
   layers_table?: string;
 }
