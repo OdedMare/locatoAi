@@ -35,7 +35,13 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setModelsLoading(true);
     setModelsError(null);
     try {
-      setAvailableModels(await getModels());
+      // Send what's typed in the form — tests the values BEFORE saving.
+      setAvailableModels(
+        await getModels({
+          llm_base_url: baseUrl.trim() || undefined,
+          openai_api_key: apiKey.trim() || undefined,
+        })
+      );
     } catch (err) {
       setModelsError(err instanceof Error ? err.message : "טעינת המודלים נכשלה");
     } finally {

@@ -125,22 +125,26 @@ class OpenAIJsonClient:
                 ]
         raise AgentError("LLM returned unparseable JSON twice: " + last_error)
 
-    def list_models(self):
+    def list_models(self, base_url_override=None, api_key_override=None):
         """Return model ids exposed by the configured compatible API.
 
-        Fetches /models raw and tolerates the response shapes seen in the
-        wild: OpenAI's {"data": [{"id": ...}]}, gateways' {"models": [...]},
-        bare lists, and items keyed by id/name/model or plain strings.
+        Overrides let the settings panel test values typed in the form
+        BEFORE saving them. Fetches /models raw and tolerates the response
+        shapes seen in the wild: OpenAI's {"data": [{"id": ...}]},
+        gateways' {"models": [...]}, bare lists, and items keyed by
+        id/name/model or plain strings.
         """
         settings = self._store.get()
-        if not settings.openai_api_key and not settings.llm_base_url:
+        effective_base = base_url_override or settings.llm_base_url
+        effective_key = api_key_override or settings.openai_api_key
+        if not effective_key and not effective_base:
             raise AgentError(
                 "No API key configured — add an API key or a compatible base URL"
             )
-        base_url = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/")
+        base_url = (effective_base or "https://api.openai.com/v1").rstrip("/")
         headers = {
             "Authorization": "Bearer "
-            + (settings.openai_api_key or _LOCAL_SERVER_KEY_PLACEHOLDER)
+            + (effective_key or _LOCAL_SERVER_KEY_PLACEHOLDER)
         }
         try:
             response = httpx.get(base_url + "/models", headers=headers, timeout=30)
