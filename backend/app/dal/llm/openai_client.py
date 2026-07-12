@@ -29,8 +29,9 @@ from app.common.runtime_settings import RuntimeSettingsStore
 _MAX_JSON_ATTEMPTS = 2
 # Deterministic output — the agent emits structured JSON, not prose.
 _TEMPERATURE = 0
-# The SDK requires a non-empty key; local servers (Ollama...) ignore it.
-_LOCAL_SERVER_KEY_PLACEHOLDER = "not-needed"
+# The SDK requires a non-empty key; local servers/gateways ignore it.
+# "null" is the value spear_presenton uses against the same gateways.
+_LOCAL_SERVER_KEY_PLACEHOLDER = "null"
 
 
 def extract_json(text: str) -> dict:
