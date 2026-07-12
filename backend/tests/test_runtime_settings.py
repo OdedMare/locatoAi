@@ -47,6 +47,27 @@ def test_unknown_keys_ignored(tmp_path):
     assert not hasattr(store.get(), "nope")
 
 
+def test_jdbc_database_url_is_normalized(tmp_path):
+    store = make_store(tmp_path)
+    store.update({"database_url": "jdbc:postgresql://rnd619-nv-prd1:5324/spear"})
+    assert store.get().database_url == "postgresql://rnd619-nv-prd1:5324/spear"
+
+
+def test_non_postgres_database_url_rejected(tmp_path):
+    store = make_store(tmp_path)
+    for bad in ["mysql://host/db", "host=x dbname=y", "rnd619-nv-prd1:5324/spear"]:
+        with pytest.raises(ValueError, match="postgresql://"):
+            store.update({"database_url": bad})
+
+
+def test_bad_saved_database_url_skipped_on_startup(tmp_path):
+    store = make_store(tmp_path)
+    # simulate a bad value persisted by an older version
+    store._path.write_text('{"database_url": "not-a-url"}', encoding="utf-8")
+    reloaded = make_store(tmp_path)
+    assert reloaded.get().database_url.startswith("postgresql://")  # env default kept
+
+
 def test_table_identifier_validation(tmp_path):
     store = make_store(tmp_path)
     for bad in ["a;drop table x", "a.b.c", "1abc", 'x"y', "a b"]:

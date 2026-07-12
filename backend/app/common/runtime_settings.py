@@ -18,6 +18,26 @@ from app.common.config import Settings
 # SQL, so it must never accept arbitrary strings.
 _TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
 
+_JDBC_PREFIX = re.compile(r"^jdbc:", re.IGNORECASE)
+_PG_SCHEMES = ("postgresql://", "postgres://")
+
+
+def normalize_database_url(url: str) -> str:
+    """Accept URLs pasted from Java tools (DataGrip/DBeaver) and validate.
+
+    'jdbc:postgresql://host:5432/db' → 'postgresql://host:5432/db'.
+    Anything without a postgres scheme would make libpq parse it as a
+    key=value DSN and fail with a cryptic 'missing \"=\"' error — reject
+    it here with a clear message instead.
+    """
+    cleaned = _JDBC_PREFIX.sub("", url.strip())
+    if not cleaned.lower().startswith(_PG_SCHEMES):
+        raise ValueError(
+            "database_url must start with postgresql:// "
+            "(jdbc:postgresql://... is accepted and converted automatically)"
+        )
+    return cleaned
+
 
 @dataclass
 class RuntimeSettings:
@@ -62,21 +82,22 @@ class RuntimeSettingsStore:
         )
         if self._path.exists():
             saved = json.loads(self._path.read_text(encoding="utf-8"))
-            self._apply(saved)
+            # Lenient on startup: a bad saved value must not prevent boot.
+            self._apply(saved, strict=False)
 
     def get(self) -> RuntimeSettings:
         return self._settings
 
     def update(self, patch: dict) -> RuntimeSettings:
         """Apply a partial update, validate, and persist."""
-        self._apply(patch)
+        self._apply(patch, strict=True)
         self._path.write_text(
             json.dumps(asdict(self._settings), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         return self._settings
 
-    def _apply(self, patch: dict) -> None:
+    def _apply(self, patch: dict, strict: bool) -> None:
         known = {f.name for f in fields(RuntimeSettings)}
         for key, value in patch.items():
             if key not in known:
@@ -86,6 +107,13 @@ class RuntimeSettingsStore:
                 continue
             if value is None:
                 continue
-            if key == "layers_table":
-                validate_layers_table(value)
+            try:
+                if key == "layers_table":
+                    validate_layers_table(value)
+                elif key == "database_url":
+                    value = normalize_database_url(value)
+            except ValueError:
+                if strict:
+                    raise
+                continue  # startup: skip the bad saved value, keep the default
             setattr(self._settings, key, value)
