@@ -74,3 +74,18 @@ def test_extract_json_with_prose():
 def test_extract_json_garbage_raises():
     with pytest.raises(json.JSONDecodeError):
         extract_json("no json here")
+
+
+def test_extract_model_ids_handles_all_shapes():
+    from app.dal.llm.openai_client import extract_model_ids
+
+    openai_shape = {"data": [{"id": "gpt-4o"}, {"id": "gpt-4o-mini"}]}
+    gateway_shape = {"models": [{"name": "llama3"}, {"model": "qwen"}]}
+    bare_list = ["m1", {"id": "m2"}]
+    assert extract_model_ids(openai_shape) == ["gpt-4o", "gpt-4o-mini"]
+    assert extract_model_ids(gateway_shape) == ["llama3", "qwen"]
+    assert extract_model_ids(bare_list) == ["m1", "m2"]
+    # the shapes that crashed before: data=None / non-list / empty
+    assert extract_model_ids({"data": None}) == []
+    assert extract_model_ids({"object": "list"}) == []
+    assert extract_model_ids(None) == []

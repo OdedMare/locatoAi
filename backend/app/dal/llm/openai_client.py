@@ -18,6 +18,7 @@ Robustness (ported policy from the MVP guide):
 import json
 import re
 
+import httpx
 from openai import BadRequestError, OpenAI
 
 from app.common.errors import AgentError
@@ -45,6 +46,26 @@ def extract_json(text: str) -> dict:
         if start != -1 and end > start:
             return json.loads(cleaned[start : end + 1])
         raise
+
+
+def extract_model_ids(payload) -> list:
+    """Model ids from any common /models response shape."""
+    items = payload
+    if isinstance(payload, dict):
+        items = payload.get("data")
+        if items is None:
+            items = payload.get("models")
+    if not isinstance(items, list):
+        return []
+    ids = set()
+    for item in items:
+        if isinstance(item, str):
+            ids.add(item)
+        elif isinstance(item, dict):
+            model_id = item.get("id") or item.get("name") or item.get("model")
+            if model_id:
+                ids.add(str(model_id))
+    return sorted(ids)
 
 
 def _merge_system_into_user(messages: list) -> list:
@@ -104,18 +125,26 @@ class OpenAIJsonClient:
         raise AgentError("LLM returned unparseable JSON twice: " + last_error)
 
     def list_models(self):
-        """Return model ids exposed by the configured compatible API."""
+        """Return model ids exposed by the configured compatible API.
+
+        Fetches /models raw and tolerates the response shapes seen in the
+        wild: OpenAI's {"data": [{"id": ...}]}, gateways' {"models": [...]},
+        bare lists, and items keyed by id/name/model or plain strings.
+        """
         settings = self._store.get()
         if not settings.openai_api_key and not settings.llm_base_url:
             raise AgentError(
                 "No API key configured — add an API key or a compatible base URL"
             )
-        client = OpenAI(
-            api_key=settings.openai_api_key or _LOCAL_SERVER_KEY_PLACEHOLDER,
-            base_url=settings.llm_base_url or None,
-        )
+        base_url = (settings.llm_base_url or "https://api.openai.com/v1").rstrip("/")
+        headers = {
+            "Authorization": "Bearer "
+            + (settings.openai_api_key or _LOCAL_SERVER_KEY_PLACEHOLDER)
+        }
         try:
-            return sorted({model.id for model in client.models.list().data})
+            response = httpx.get(base_url + "/models", headers=headers, timeout=30)
+            response.raise_for_status()
+            return extract_model_ids(response.json())
         except Exception as exc:
             raise AgentError("Could not list LLM models: " + str(exc))
 
