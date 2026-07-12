@@ -22,14 +22,21 @@ _JDBC_PREFIX = re.compile(r"^jdbc:", re.IGNORECASE)
 _PG_SCHEMES = ("postgresql://", "postgres://")
 
 
-def normalize_database_url(url: str) -> str:
-    """Accept URLs pasted from Java tools (DataGrip/DBeaver) and validate.
+def normalize_llm_base_url(url: str) -> str:
+    cleaned = url.strip().rstrip("/")
+    for suffix in ("/chat/completions", "/completions", "/models"):
+        if cleaned.lower().endswith(suffix):
+            cleaned = cleaned[: -len(suffix)]
+            break
+    if not cleaned.lower().startswith(("http://", "https://")):
+        raise ValueError(
+            "llm_base_url must start with http:// or https:// "
+            "(e.g. https://my-server/openai/v1)"
+        )
+    return cleaned
 
-    'jdbc:postgresql://host:5432/db' → 'postgresql://host:5432/db'.
-    Anything without a postgres scheme would make libpq parse it as a
-    key=value DSN and fail with a cryptic 'missing \"=\"' error — reject
-    it here with a clear message instead.
-    """
+
+def normalize_database_url(url: str) -> str:
     cleaned = _JDBC_PREFIX.sub("", url.strip())
     if not cleaned.lower().startswith(_PG_SCHEMES):
         raise ValueError(
@@ -97,13 +104,16 @@ class RuntimeSettingsStore:
         )
         return self._settings
 
+    # Fields where None/empty means "clear the value", not "keep current".
+    _NULLABLE = ("database_port", "llm_base_url")
+
     def _apply(self, patch: dict, strict: bool) -> None:
         known = {f.name for f in fields(RuntimeSettings)}
         for key, value in patch.items():
             if key not in known:
                 continue
-            if key == "database_port" and value is None:
-                self._settings.database_port = None
+            if key in self._NULLABLE and (value is None or value == ""):
+                setattr(self._settings, key, None)
                 continue
             if value is None:
                 continue
@@ -112,6 +122,8 @@ class RuntimeSettingsStore:
                     validate_layers_table(value)
                 elif key == "database_url":
                     value = normalize_database_url(value)
+                elif key == "llm_base_url":
+                    value = normalize_llm_base_url(value)
             except ValueError:
                 if strict:
                     raise

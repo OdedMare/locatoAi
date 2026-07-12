@@ -60,6 +60,37 @@ def test_non_postgres_database_url_rejected(tmp_path):
             store.update({"database_url": bad})
 
 
+def test_llm_base_url_with_path_is_preserved(tmp_path):
+    store = make_store(tmp_path)
+    store.update({"llm_base_url": "https://my-gateway/openai/v1"})
+    assert store.get().llm_base_url == "https://my-gateway/openai/v1"
+
+
+def test_llm_base_url_normalization(tmp_path):
+    store = make_store(tmp_path)
+    # trailing slash + pasted endpoint suffix are cleaned off
+    store.update({"llm_base_url": "https://h/openai/v1/chat/completions"})
+    assert store.get().llm_base_url == "https://h/openai/v1"
+    store.update({"llm_base_url": "http://h:11434/v1/"})
+    assert store.get().llm_base_url == "http://h:11434/v1"
+
+
+def test_llm_base_url_requires_scheme(tmp_path):
+    store = make_store(tmp_path)
+    with pytest.raises(ValueError, match="http"):
+        store.update({"llm_base_url": "my-gateway/openai/v1"})
+
+
+def test_llm_base_url_can_be_cleared(tmp_path):
+    store = make_store(tmp_path)
+    store.update({"llm_base_url": "https://h/v1"})
+    store.update({"llm_base_url": None})
+    assert store.get().llm_base_url is None
+    store.update({"llm_base_url": "https://h/v1"})
+    store.update({"llm_base_url": ""})
+    assert store.get().llm_base_url is None
+
+
 def test_bad_saved_database_url_skipped_on_startup(tmp_path):
     store = make_store(tmp_path)
     # simulate a bad value persisted by an older version
