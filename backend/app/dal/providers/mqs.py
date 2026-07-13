@@ -44,7 +44,10 @@ _MAX_FEATURES = 50000
 _MAX_SAMPLES = 5
 _MAX_SAMPLE_CHARS = 40
 
-_ENTITY_LIST_KEYS = ("features", "entities", "data", "results", "items", "layers")
+_ENTITY_LIST_KEYS = (
+    "features", "Features", "entities", "Entities", "data", "Data",
+    "results", "Results", "items", "Items", "layers", "Layers",
+)
 _FIELD_LIST_KEYS = ("fields", "attributes", "columns", "Fields")
 _FIELD_NAME_KEYS = ("name", "Name", "field", "fieldName")
 _FIELD_TYPE_KEYS = ("type", "Type", "dataType")
@@ -81,16 +84,33 @@ def _first_key(entity: dict, keys: Tuple[str, ...]) -> Optional[object]:
     return None
 
 
-def _extract_entities(payload: object) -> List[dict]:
-    """Lenient list extraction — the real MQS response envelope is unknown."""
+def _find_entity_list(payload: object) -> Optional[List[dict]]:
+    """Find a list in common MQS/ASP.NET response envelopes.
+
+    MQS deployments do not all use the same casing and some wrap the result,
+    for example ``{"data": {"items": [...]}}``.  Returning ``None`` (rather
+    than ``[]``) lets inventory calls distinguish an unknown response shape
+    from a valid, empty inventory.
+    """
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
     if isinstance(payload, dict):
         for key in _ENTITY_LIST_KEYS:
-            value = payload.get(key)
+            if key not in payload:
+                continue
+            value = payload[key]
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]
-    return []
+            if isinstance(value, dict):
+                nested = _find_entity_list(value)
+                if nested is not None:
+                    return nested
+    return None
+
+
+def _extract_entities(payload: object) -> List[dict]:
+    """Lenient list extraction for feature/schema best-effort callers."""
+    return _find_entity_list(payload) or []
 
 
 def _parse_geometry(value: object) -> Optional[BaseGeometry]:
@@ -297,7 +317,14 @@ class MqsProvider:
 
     def list_remote_layers(self) -> List[dict]:
         """Raw layer dicts from GET /MoriaProject/Layers, for catalog sync."""
-        return _extract_entities(self._get_json("/MoriaProject/Layers"))
+        payload = self._get_json("/MoriaProject/Layers")
+        layers = _find_entity_list(payload)
+        if layers is None:
+            raise ProviderError(
+                "MQS returned an unrecognized layer-list response from "
+                "/MoriaProject/Layers"
+            )
+        return layers
 
     # -- helpers -------------------------------------------------------------
 

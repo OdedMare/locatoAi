@@ -260,3 +260,16 @@ def test_list_remote_layers(tmp_path):
     layers = provider.list_remote_layers()
     assert [layer["name"] for layer in layers] == ["roads", "parks"]
     assert handler.requests[0].url.path == "/MoriaProject/Layers"
+
+
+def test_list_remote_layers_accepts_nested_pascal_case_envelope(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "Data": {"Items": [{"Id": 1, "Name": "roads"}]}
+    })
+    assert provider.list_remote_layers() == [{"Id": 1, "Name": "roads"}]
+
+
+def test_list_remote_layers_rejects_unknown_200_response(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {"success": True})
+    with pytest.raises(ProviderError, match="unrecognized layer-list response"):
+        provider.list_remote_layers()

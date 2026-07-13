@@ -114,3 +114,14 @@ def test_browse_endpoint_does_not_insert():
         "provider": "mqs", "source_url": "mqs://layer/4",
     }
     assert repository.list_layers() == []
+
+
+def test_browse_endpoint_unknown_provider_payload_is_502():
+    class UnknownPayloadProvider:
+        def list_remote_layers(self):
+            raise ProviderError("MQS returned an unrecognized layer-list response")
+
+    app = make_app(FakeLayersRepository([]), UnknownPayloadProvider())
+    response = TestClient(app, raise_server_exceptions=False).get("/api/layers/mqs")
+    assert response.status_code == 502
+    assert "unrecognized" in response.json()["detail"]
