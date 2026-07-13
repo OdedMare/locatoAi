@@ -29,6 +29,7 @@ export async function submitQuery(
       token_usage: null,
       selected_layers: [],
       reasoning: "",
+      tool_calls: [],
     };
   }
 
@@ -43,6 +44,7 @@ export async function submitQuery(
       token_usage: null,
       selected_layers: [],
       reasoning: "",
+      tool_calls: [],
     };
   }
   return res.json();

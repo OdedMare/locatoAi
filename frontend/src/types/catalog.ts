@@ -19,3 +19,10 @@ export interface CreateLayerRequest {
   provider: string;
   source_url: string;
 }
+
+export interface MqsSyncResponse {
+  added: number;
+  updated: number;
+  skipped: number;
+  total: number;
+}

@@ -22,6 +22,7 @@ from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.arcgis_mock import MockArcgisProvider
+from app.dal.providers.mqs import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.service import (
     agent_router,
@@ -59,6 +60,8 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     repository = PostgresLayersRepository(settings_store)
     providers = InMemoryProviderRegistry()
     providers.register("arcgis", MockArcgisProvider(settings.data_dir))
+    mqs_provider = MqsProvider(settings_store)
+    providers.register("mqs", mqs_provider)
 
     catalog = CatalogService(
         repository, providers, schema_ttl_seconds=settings.schema_cache_ttl_seconds
@@ -70,6 +73,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
 
     app.state.settings_store = settings_store
     app.state.repository = repository
+    app.state.mqs_provider = mqs_provider  # catalog_router's sync endpoint
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.llm_client = llm
