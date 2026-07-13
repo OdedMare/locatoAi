@@ -98,6 +98,60 @@ def test_within_geometry_rejected_without_boundaries_then_corrected(catalog):
     assert result.attempts == 2
 
 
+SAMPLE_TOOL_CALL = {"tool": "sample_field", "layer_id": "schools", "field": "city_en"}
+
+
+def test_sample_field_tool_round_then_plan(catalog):
+    llm = SequenceLLM([SAMPLE_TOOL_CALL, VALID_PLAN])
+    result = PlanBuilder(llm, catalog).build(
+        "q", [SCHOOLS, ROUNDABOUTS], has_boundaries=False, now=NOW
+    )
+    assert result.plan is not None
+    assert result.attempts == 1  # the tool round does not consume an attempt
+    assert result.tool_calls == [{"layer_id": "schools", "field": "city_en"}]
+    # the second prompt carries the sampled values
+    second_user = llm.calls[1]["user"]
+    assert "Field values for layer schools field city_en" in second_user
+    assert "Tel Aviv" in second_user
+
+
+def test_sample_field_unknown_field_is_soft(catalog):
+    llm = SequenceLLM([
+        {"tool": "sample_field", "layer_id": "schools", "field": "no_such_field"},
+        VALID_PLAN,
+    ])
+    result = PlanBuilder(llm, catalog).build(
+        "q", [SCHOOLS, ROUNDABOUTS], has_boundaries=False, now=NOW
+    )
+    assert result.plan is not None
+    assert "No values available" in llm.calls[1]["user"]
+
+
+def test_sample_field_unselected_layer_gets_no_values(catalog):
+    llm = SequenceLLM([
+        {"tool": "sample_field", "layer_id": "accidents", "field": "road"},
+        VALID_PLAN,
+    ])
+    result = PlanBuilder(llm, catalog).build(
+        "q", [SCHOOLS, ROUNDABOUTS], has_boundaries=False, now=NOW
+    )
+    assert result.plan is not None
+    assert "No values available" in llm.calls[1]["user"]
+
+
+def test_sample_field_budget_exhausted_falls_back_to_retry_policy(catalog):
+    # 2 tool rounds allowed; the 3rd tool response is treated as a bad plan
+    # (consumes the validation retry), the 4th still asks → fallback clarify.
+    llm = SequenceLLM([SAMPLE_TOOL_CALL] * 4)
+    result = PlanBuilder(llm, catalog).build(
+        "q", [SCHOOLS, ROUNDABOUTS], has_boundaries=False, now=NOW
+    )
+    assert result.plan is None
+    assert result.clarify == _FALLBACK_CLARIFY
+    assert len(result.tool_calls) == 2
+    assert len(llm.calls) == 4
+
+
 def test_orchestrator_full_flow_returns_features(catalog, executor):
     selection_response = {
         "reasoning": "בתי ספר ליד כיכרות",

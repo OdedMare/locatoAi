@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from itertools import count
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -50,6 +51,26 @@ class FakeLayersRepository:
 
     def get_layer(self, layer_id: str) -> Optional[LayerMeta]:
         return self._layers.get(layer_id)
+
+    _ids = count(1)
+
+    def add_layer(self, layer: LayerMeta) -> LayerMeta:
+        created = layer.model_copy(update={"id": f"gen-{next(self._ids)}"})
+        self._layers[created.id] = created
+        return created
+
+    def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
+        for existing in self._layers.values():
+            if (
+                existing.provider == layer.provider
+                and existing.source_url == layer.source_url
+            ):
+                updated = existing.model_copy(
+                    update={"name": layer.name, "description": layer.description}
+                )  # tags preserved, like the Postgres repository
+                self._layers[existing.id] = updated
+                return updated, False
+        return self.add_layer(layer), True
 
 
 @pytest.fixture

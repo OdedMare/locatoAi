@@ -10,6 +10,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.bl.catalog.mqs_sync import sync_mqs_layers
 from app.bl.ports import LayerMeta
 
 router = APIRouter()
@@ -25,6 +26,13 @@ class CatalogLayer(BaseModel):
 class LayersResponse(BaseModel):
     layers: List[CatalogLayer]
     count: int
+
+
+class MqsSyncResponse(BaseModel):
+    added: int
+    updated: int
+    skipped: int
+    total: int
 
 
 class CreateLayerRequest(BaseModel):
@@ -49,6 +57,21 @@ def list_layers(request: Request) -> LayersResponse:
             for layer in layers
         ],
         count=len(layers),
+    )
+
+
+@router.post("/api/layers/sync-mqs", response_model=MqsSyncResponse)
+def sync_mqs(request: Request) -> MqsSyncResponse:
+    """Pull the MQS layer inventory into the catalog (upsert by source_url).
+    A ProviderError (e.g. mqs_base_url unset) maps to 502 via main.py."""
+    result = sync_mqs_layers(
+        request.app.state.repository, request.app.state.mqs_provider
+    )
+    return MqsSyncResponse(
+        added=result.added,
+        updated=result.updated,
+        skipped=result.skipped,
+        total=result.total,
     )
 
 

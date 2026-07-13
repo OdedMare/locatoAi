@@ -81,6 +81,8 @@ export interface GeoQueryResponse {
   selected_layers: SelectedLayer[];
   /** The model's short Hebrew reasoning for the choice. */
   reasoning: string;
+  /** sample_field rounds the plan builder ran ({layer_id, field} each). */
+  tool_calls: { layer_id: string; field: string }[];
 }
 
 /** Live map view state reported by the map component (UI-internal). */

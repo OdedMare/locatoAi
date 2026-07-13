@@ -53,6 +53,8 @@ class QueryResponse(BaseModel):
     selected_layers: List[SelectedLayerDto] = []
     reasoning: str = ""
     """The model's short Hebrew 'why' for its layer choice."""
+    tool_calls: List[Dict[str, str]] = []
+    """sample_field rounds the plan builder ran ({layer_id, field} each)."""
 
     @classmethod
     def from_outcome(cls, outcome: QueryOutcome) -> "QueryResponse":
@@ -74,6 +76,7 @@ class QueryResponse(BaseModel):
                 for layer in outcome.selected_layers
             ],
             reasoning=outcome.reasoning,
+            tool_calls=outcome.tool_calls,
         )
 
 

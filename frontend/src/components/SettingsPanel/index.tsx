@@ -18,6 +18,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState(""); // empty = keep existing
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [mqsBaseUrl, setMqsBaseUrl] = useState("");
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databaseUser, setDatabaseUser] = useState("");
   const [databasePassword, setDatabasePassword] = useState("");
@@ -55,6 +56,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setSettings(s);
         setModel(s.llm_model ?? "");
         setBaseUrl(s.llm_base_url ?? "");
+        setMqsBaseUrl(s.mqs_base_url ?? "");
         setDatabaseUrl(s.database_url ?? "");
         setDatabaseUser(s.database_user ?? "");
         setDatabaseHost(s.database_host ?? "");
@@ -74,6 +76,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         llm_model: model,
         llm_base_url: (baseUrl ?? "").trim() === "" ? null : (baseUrl ?? "").trim(),
         openai_api_key: apiKey, // backend ignores empty
+        mqs_base_url: (mqsBaseUrl ?? "").trim() === "" ? null : (mqsBaseUrl ?? "").trim(),
         database_url: databaseUrl,
         database_user: (databaseUser ?? "").trim(),
         database_password: databasePassword, // backend ignores empty
@@ -159,6 +162,22 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             placeholder="http://pghost:11434/v1"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
+          />
+        </section>
+
+        <section className="settings-section">
+          <h3>שרת MQS (מוריה)</h3>
+          <label className="field-label" htmlFor="set-mqs-url">
+            כתובת בסיס MQS{" "}
+            <span className="optional">(ריק = ספק MQS לא פעיל)</span>
+          </label>
+          <input
+            id="set-mqs-url"
+            dir="ltr"
+            className="settings-input"
+            placeholder="https://mqs.example/api"
+            value={mqsBaseUrl}
+            onChange={(e) => setMqsBaseUrl(e.target.value)}
           />
         </section>
 

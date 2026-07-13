@@ -42,6 +42,7 @@ app/
 │   ├── query_router.py      # POST /api/query           (NL entry point)
 │   ├── plan_router.py       # POST /api/execute-plan    (debug: run a raw plan)
 │   ├── agent_router.py      # POST /api/select-layers   (debug: LLM call 1 only)
+│   ├── catalog_router.py    # GET/POST /api/layers + POST /api/layers/sync-mqs
 │   ├── settings_router.py   # GET/PUT /api/settings     (backs the UI ⚙ panel)
 │   ├── feedback_router.py   # POST /api/feedback        (👍/👎 → feedback.jsonl)
 │   └── deps.py              # FastAPI dependency accessors (app.state)
@@ -52,7 +53,7 @@ app/
 │   ├── query_orchestrator.py# the select → plan → validate → execute flow + retry policy
 │   ├── agent/
 │   │   ├── select_layers.py # call 1: catalog → prompt → layer ids (drops hallucinated ids)
-│   │   ├── build_plan.py    # call 2: stub — the next stage
+│   │   ├── build_plan.py    # call 2: query+schemas → plan (+ sample_field tool rounds)
 │   │   └── prompts/         # prompts are FILES; tuning ≠ code change
 │   ├── plan/
 │   │   ├── models.py        # GeoQueryPlan: discriminated union of 6 step types
@@ -61,12 +62,14 @@ app/
 │   │   ├── engine.py        # runs steps in order, dispatches via the op registry
 │   │   └── ops/             # ONE module per op, self-registering (@register_op)
 │   └── catalog/
-│       └── catalog_service.py # layer lookup + schema cache (TTL; stale beats failed)
+│       ├── catalog_service.py # layer lookup + schema cache (TTL; stale beats failed)
+│       └── mqs_sync.py      # MQS layer inventory → catalog upserts (tags preserved)
 │
 ├── dal/                     # ── Data access tier (implements bl.ports) ──
 │   ├── layers_repository.py # Postgres public.layers — the ONLY module with SQL
 │   ├── providers/
 │   │   ├── arcgis_mock.py   # serves data/*.geojson picked by source_url's last segment
+│   │   ├── mqs.py           # MQS (Moria Query Service) REST adapter — real provider
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
 │       └── openai_client.py # OpenAI-compatible JSON-mode client (Ollama/Gemma today)
@@ -85,7 +88,7 @@ app/
 |---|---|
 | SRP | routers translate HTTP only; each executor op is one module; the repository only speaks SQL |
 | OCP | new op = new file in `executor/ops/` (engine untouched); new provider = one `register()` call |
-| LSP/ISP | `Provider` is two methods (`describe_schema`, `fetch_features`) — any adapter drops in |
+| LSP/ISP | `Provider` is three methods (`describe_schema`, `fetch_features`, `sample_field_values`) — any adapter drops in |
 | DIP | BL imports nothing from DAL; it depends on `bl/ports.py` Protocols, wired in `main.py` |
 
 ---
@@ -137,6 +140,13 @@ validation → on failure retry once with the error appended → Hebrew clarify 
 Prompt: [`prompts/build_plan.md`](app/bl/agent/prompts/build_plan.md). The orchestrator
 returns per-stage timings (`select`/`plan`/`execute`) and summed token usage.
 
+**sample_field tool.** Before committing to a plan, the model may answer
+`{"tool": "sample_field", "layer_id": ..., "field": ...}` to receive up to 20 distinct
+values of that field (JSON-protocol tool — the client is JSON-mode-only). Max 2 rounds
+per query, separate from the validation retry; rounds are reported as `tool_calls` in
+the response and listed in the UI agent panel. Backed by `Provider.sample_field_values`
+(mock: distinct GeoJSON values; MQS: `ValueList`, falling back to an entities page).
+
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
 `base_url` is set, with a degradation ladder: JSON mode → plain → system-merged-into-user.
@@ -148,6 +158,32 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 - UI 👍/👎 → `POST /api/feedback` → `logs/feedback.jsonl` — mine downvotes for new cases.
 - `scripts/enrich_layer_tags.py` — LLM-generated bilingual alias tags for the catalog
   (dry-run by default; `--apply` writes; previous tags in `scripts/tags_backup.txt`).
+
+---
+
+## Providers
+
+The catalog's `provider` column routes each layer to a registered adapter
+([`registry.py`](app/dal/providers/registry.py), wired in `main.py`):
+
+- **`arcgis`** — [`arcgis_mock.py`](app/dal/providers/arcgis_mock.py): local
+  `data/*.geojson`, file picked by the source_url's last path segment; converts
+  `timestamp_offset_hours` to concrete timestamps relative to `now`.
+- **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
+  REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
+  independent; the live base URL is the `mqs_base_url` setting, read per call —
+  unset means the provider errors with a clear message → HTTP 502). Fetching is
+  fetch-all-filter-locally: `GET /MoriaProject/{id}/Entities` paginated
+  (`geo_type=GeoJSON`, page 1000, hard cap 50k → error, never silent truncation);
+  the executor does all spatial ops locally. Schemas come from
+  `GET /MoriaProject/Layers/{id}` + best-effort `ValueList/{id}` samples. Response
+  parsing is deliberately lenient (candidate-key lists) — no live MQS existed when
+  written; adapting to a real instance stays inside `mqs.py`.
+
+**Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
+`GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —
+re-syncs update name/description in place and **preserve tags** (rerun
+`scripts/enrich_layer_tags.py` after syncing new layers).
 
 ---
 

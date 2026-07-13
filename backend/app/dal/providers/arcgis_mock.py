@@ -30,7 +30,7 @@ _MAX_SAMPLES = 5
 _MAX_SAMPLE_CHARS = 40
 
 
-def _sample_values(features: list, field_name: str) -> list:
+def _sample_values(features: list, field_name: str, limit: int = _MAX_SAMPLES) -> list:
     """Up to N distinct values for a field (truncated — untrusted text)."""
     seen = []
     for feature in features:
@@ -40,7 +40,7 @@ def _sample_values(features: list, field_name: str) -> list:
         text = str(value)[:_MAX_SAMPLE_CHARS]
         if text not in seen:
             seen.append(text)
-        if len(seen) >= _MAX_SAMPLES:
+        if len(seen) >= limit:
             break
     return seen
 
@@ -84,6 +84,16 @@ class MockArcgisProvider:
             geometry_type=first.get("geometry", {}).get("type", "unknown"),
             fields=fields,
         )
+
+    def sample_field_values(
+        self, layer: LayerMeta, field: str, limit: int = 20
+    ) -> list:
+        """Distinct values of one field, for the agent's sample_field tool."""
+        path = self._file_for(layer)
+        if not path.exists():
+            return []
+        collection = json.loads(path.read_text(encoding="utf-8"))
+        return _sample_values(collection.get("features", []), field, limit=limit)
 
     def fetch_features(
         self, layer: LayerMeta, now: Optional[datetime] = None

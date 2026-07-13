@@ -33,6 +33,8 @@ class QueryOutcome:
     # Agent trace — what the model chose and why (the UI's "thinking" view).
     selected_layers: List[LayerMeta] = field(default_factory=list)
     reasoning: str = ""
+    tool_calls: List[Dict[str, str]] = field(default_factory=list)
+    """sample_field rounds the plan builder ran ({layer_id, field} each)."""
 
 
 def _sum_usage(*usages) -> Optional[Dict[str, int]]:
@@ -110,6 +112,7 @@ class QueryOrchestrator:
                 token_usage=usage,
                 selected_layers=selection.layers,
                 reasoning=selection.reasoning,
+                tool_calls=build.tool_calls,
             )
 
         # 3. Execution
@@ -126,6 +129,7 @@ class QueryOrchestrator:
             token_usage=usage,
             selected_layers=selection.layers,
             reasoning=selection.reasoning,
+            tool_calls=build.tool_calls,
         )
 
     def execute_plan(

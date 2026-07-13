@@ -91,6 +91,45 @@ def test_llm_base_url_can_be_cleared(tmp_path):
     assert store.get().llm_base_url is None
 
 
+def test_mqs_base_url_defaults_to_none(tmp_path):
+    store = make_store(tmp_path)
+    assert store.get().mqs_base_url is None
+
+
+def test_mqs_base_url_normalization(tmp_path):
+    store = make_store(tmp_path)
+    # trailing slash + pasted discovery suffixes are cleaned off
+    store.update({"mqs_base_url": "https://mqs.example/api/"})
+    assert store.get().mqs_base_url == "https://mqs.example/api"
+    store.update({"mqs_base_url": "https://mqs.example/api/Services"})
+    assert store.get().mqs_base_url == "https://mqs.example/api"
+    store.update({"mqs_base_url": "https://mqs.example/api/MoriaProject/"})
+    assert store.get().mqs_base_url == "https://mqs.example/api"
+
+
+def test_mqs_base_url_requires_scheme(tmp_path):
+    store = make_store(tmp_path)
+    with pytest.raises(ValueError, match="http"):
+        store.update({"mqs_base_url": "mqs.example/api"})
+
+
+def test_mqs_base_url_can_be_cleared(tmp_path):
+    store = make_store(tmp_path)
+    store.update({"mqs_base_url": "https://mqs.example/api"})
+    store.update({"mqs_base_url": None})
+    assert store.get().mqs_base_url is None
+    store.update({"mqs_base_url": "https://mqs.example/api"})
+    store.update({"mqs_base_url": ""})
+    assert store.get().mqs_base_url is None
+
+
+def test_mqs_base_url_persists(tmp_path):
+    store = make_store(tmp_path)
+    store.update({"mqs_base_url": "https://mqs.example/api"})
+    reloaded = make_store(tmp_path)
+    assert reloaded.get().mqs_base_url == "https://mqs.example/api"
+
+
 def test_bad_saved_database_url_skipped_on_startup(tmp_path):
     store = make_store(tmp_path)
     # simulate a bad value persisted by an older version

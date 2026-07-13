@@ -45,6 +45,10 @@ class Settings(BaseSettings):
 
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
 
+    mqs_base_url: Optional[str] = None
+    """Base URL of the MQS (Moria Query Service) GIS server. Unset = the
+    'mqs' provider is unavailable until configured in the settings panel."""
+
     runtime_settings_file: str = "runtime-settings.json"
     """UI-edited settings are persisted here, overriding the env defaults."""
 

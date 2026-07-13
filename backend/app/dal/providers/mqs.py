@@ -1,0 +1,325 @@
+"""MQS (Moria Query Service) provider: fetches layers over the MQS REST API.
+
+Catalog rows route here with provider='mqs'; their source_url stores the
+MQS layer id as "mqs://layer/{layerId}" (base-URL-independent — the live
+base URL is the mqs_base_url runtime setting, read on every call). The
+last path segment is the layer id, so a bare id or a pasted full URL
+also work.
+
+Fetch strategy is fetch-all-filter-locally: GET /MoriaProject/{id}/Entities
+pages through every feature and the executor does spatial ops locally.
+Switching to the POST /MoriaProject/All/Entities search endpoint later
+only changes _entities_request.
+
+No live MQS instance existed when this was written, so every parse point
+is a small helper with candidate-key lists — adapting to a real instance
+means adjusting _extract_entities / _entity_to_record / _entities_request /
+_ensure_wgs84 only. Coordinates from geo_type=GeoJSON are assumed WGS84;
+if a real instance returns ITM (EPSG:2039), fix it inside _ensure_wgs84.
+"""
+
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
+import geopandas as gpd
+import httpx
+from shapely import wkt
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
+
+from app.bl.ports import LayerField, LayerMeta, LayerSchema
+from app.common.errors import ProviderError
+from app.common.geo import WGS84, empty_features_gdf
+from app.common.runtime_settings import RuntimeSettingsStore
+
+logger = logging.getLogger(__name__)
+
+_TIMEOUT_SECONDS = 30
+_PAGE_SIZE = 1000
+_MAX_FEATURES = 50000
+
+# Same truncation policy as the mock provider: sample values are untrusted
+# text that ends up in LLM prompts.
+_MAX_SAMPLES = 5
+_MAX_SAMPLE_CHARS = 40
+
+_ENTITY_LIST_KEYS = ("features", "entities", "data", "results", "items", "layers")
+_FIELD_LIST_KEYS = ("fields", "attributes", "columns", "Fields")
+_FIELD_NAME_KEYS = ("name", "Name", "field", "fieldName")
+_FIELD_TYPE_KEYS = ("type", "Type", "dataType")
+_FIELD_DESC_KEYS = ("alias", "description", "Description")
+_GEOMETRY_TYPE_KEYS = ("geometryType", "geometry_type", "geomType")
+_GEOMETRY_VALUE_KEYS = ("geometry", "geom", "shape", "location")
+_ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
+
+_MQS_TO_SCHEMA_TYPE = {
+    "string": "string", "text": "string", "str": "string",
+    "int": "number", "integer": "number", "long": "number",
+    "float": "number", "double": "number", "number": "number", "decimal": "number",
+    "bool": "boolean", "boolean": "boolean",
+    "date": "date", "datetime": "date", "timestamp": "date",
+}
+
+
+def mqs_layer_id(layer: LayerMeta) -> str:
+    """The MQS layer id is the last non-empty path segment of source_url
+    (mqs://layer/42, bare "42" and https://host/MoriaProject/42/ all work)."""
+    layer_id = layer.source_url.strip().rstrip("/").rsplit("/", 1)[-1]
+    if not layer_id:
+        raise ProviderError(
+            f"Layer {layer.id} has no MQS layer id in its source_url "
+            f"({layer.source_url!r}) — expected mqs://layer/<id>"
+        )
+    return layer_id
+
+
+def _first_key(entity: dict, keys: Tuple[str, ...]) -> Optional[object]:
+    for key in keys:
+        if key in entity:
+            return entity[key]
+    return None
+
+
+def _extract_entities(payload: object) -> List[dict]:
+    """Lenient list extraction — the real MQS response envelope is unknown."""
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        for key in _ENTITY_LIST_KEYS:
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def _parse_geometry(value: object) -> Optional[BaseGeometry]:
+    try:
+        if isinstance(value, dict):
+            return shape(value)
+        if isinstance(value, str) and value.strip():
+            return wkt.loads(value)
+    except Exception:
+        return None
+    return None
+
+
+def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
+    """One MQS entity → (geometry, attributes), or None if no usable geometry.
+
+    Accepts a GeoJSON Feature ({"geometry", "properties"}) or a flat dict
+    with the geometry under one of several candidate keys.
+    """
+    if isinstance(entity.get("properties"), dict):
+        geometry = _parse_geometry(entity.get("geometry"))
+        if geometry is None:
+            return None
+        attributes = dict(entity["properties"])
+        entity_id = _first_key(entity, _ENTITY_ID_KEYS)
+        if entity_id is not None and "id" not in attributes:
+            attributes["id"] = entity_id
+        return geometry, attributes
+
+    geometry = None
+    geometry_key = None
+    for key in _GEOMETRY_VALUE_KEYS:
+        if key in entity:
+            geometry = _parse_geometry(entity[key])
+            geometry_key = key
+            if geometry is not None:
+                break
+    if geometry is None:
+        return None
+    attributes = {k: v for k, v in entity.items() if k != geometry_key}
+    return geometry, attributes
+
+
+def _ensure_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """MQS geo_type=GeoJSON is assumed to be WGS84. If a live instance
+    turns out to serve ITM, change this to set_crs(ISRAEL_TM).to_crs(WGS84)."""
+    if gdf.crs is None:
+        gdf = gdf.set_crs(WGS84)
+    return gdf
+
+
+class MqsProvider:
+    """bl.ports.Provider implementation backed by the MQS REST API."""
+
+    def __init__(
+        self,
+        settings_store: RuntimeSettingsStore,
+        transport: Optional[httpx.BaseTransport] = None,
+    ):
+        self._store = settings_store
+        self._transport = transport  # tests inject httpx.MockTransport
+
+    # -- HTTP plumbing -----------------------------------------------------
+
+    def _base_url(self) -> str:
+        base_url = self._store.get().mqs_base_url
+        if not base_url:
+            raise ProviderError(
+                "MQS base URL is not configured — set mqs_base_url in the "
+                "settings panel"
+            )
+        return base_url
+
+    def _get_json(self, path: str, params: Optional[dict] = None) -> object:
+        base_url = self._base_url()
+        try:
+            with httpx.Client(
+                base_url=base_url,
+                timeout=_TIMEOUT_SECONDS,
+                transport=self._transport,
+            ) as client:
+                response = client.get(path, params=params)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"MQS request failed ({path}): {exc}")
+        except ValueError as exc:
+            raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
+
+    def _entities_request(self, layer_id: str, offset: int) -> Tuple[str, dict]:
+        # from/to are documented as offset/limit; if a live instance treats
+        # "to" as an end index, change it to offset + _PAGE_SIZE here.
+        path = f"/MoriaProject/{layer_id}/Entities"
+        params = {
+            "geo_type": "GeoJSON",
+            "result_type": "data",
+            "from": offset,
+            "to": _PAGE_SIZE,
+        }
+        return path, params
+
+    # -- Provider protocol ---------------------------------------------------
+
+    def describe_schema(self, layer: LayerMeta) -> LayerSchema:
+        layer_id = mqs_layer_id(layer)
+        payload = self._get_json(f"/MoriaProject/Layers/{layer_id}")
+        if not isinstance(payload, dict):
+            return LayerSchema(layer_id=layer.id, geometry_type="unknown", fields=[])
+
+        samples = self._value_list(layer_id)
+        fields = []
+        raw_fields = _first_key(payload, _FIELD_LIST_KEYS)
+        if isinstance(raw_fields, list):
+            for raw in raw_fields:
+                if not isinstance(raw, dict):
+                    continue
+                name = _first_key(raw, _FIELD_NAME_KEYS)
+                if not isinstance(name, str) or not name:
+                    continue
+                raw_type = _first_key(raw, _FIELD_TYPE_KEYS)
+                field_type = _MQS_TO_SCHEMA_TYPE.get(
+                    str(raw_type).lower() if raw_type is not None else "", "string"
+                )
+                description = _first_key(raw, _FIELD_DESC_KEYS)
+                fields.append(
+                    LayerField(
+                        name=name,
+                        type=field_type,
+                        description=description if isinstance(description, str) else "",
+                        samples=samples.get(name, [])[:_MAX_SAMPLES],
+                    )
+                )
+
+        geometry_type = _first_key(payload, _GEOMETRY_TYPE_KEYS)
+        return LayerSchema(
+            layer_id=layer.id,  # the catalog id, not the MQS id
+            geometry_type=geometry_type if isinstance(geometry_type, str) else "unknown",
+            fields=fields,
+        )
+
+    def fetch_features(
+        self, layer: LayerMeta, now: Optional[datetime] = None
+    ) -> gpd.GeoDataFrame:
+        # `now` is part of the Provider protocol (mock temporal synthesis);
+        # MQS serves real data, so it is ignored.
+        layer_id = mqs_layer_id(layer)
+        geometries: List[BaseGeometry] = []
+        attribute_rows: List[dict] = []
+        skipped = 0
+        offset = 0
+        while True:
+            path, params = self._entities_request(layer_id, offset)
+            entities = _extract_entities(self._get_json(path, params))
+            for entity in entities:
+                record = _entity_to_record(entity)
+                if record is None:
+                    skipped += 1
+                    continue
+                geometries.append(record[0])
+                attribute_rows.append(record[1])
+            if len(entities) < _PAGE_SIZE:
+                break
+            offset += _PAGE_SIZE
+            if offset >= _MAX_FEATURES:
+                raise ProviderError(
+                    f"MQS layer {layer_id} exceeds the {_MAX_FEATURES} feature "
+                    "limit — narrow the layer or raise the cap"
+                )
+        if skipped:
+            logger.warning(
+                "MQS layer %s: skipped %d entities without parseable geometry",
+                layer_id, skipped,
+            )
+        if not geometries:
+            return empty_features_gdf()
+        gdf = gpd.GeoDataFrame(attribute_rows, geometry=geometries, crs=WGS84)
+        return _ensure_wgs84(gdf)
+
+    def sample_field_values(
+        self, layer: LayerMeta, field: str, limit: int = 20
+    ) -> List[str]:
+        """Distinct values of one field, for the agent's sample_field tool.
+        Prefers the ValueList (domain values) endpoint; falls back to one
+        entities page. Values are untrusted text — truncated."""
+        layer_id = mqs_layer_id(layer)
+        values = self._value_list(layer_id).get(field)
+        if not values:
+            values = []
+            path, params = self._entities_request(layer_id, 0)
+            for entity in _extract_entities(self._get_json(path, params)):
+                properties = entity.get("properties")
+                source = properties if isinstance(properties, dict) else entity
+                value = source.get(field)
+                if value is None:
+                    continue
+                text = str(value)[:_MAX_SAMPLE_CHARS]
+                if text not in values:
+                    values.append(text)
+                if len(values) >= limit:
+                    break
+        return values[:limit]
+
+    # -- Sync support (beyond the Provider protocol) -------------------------
+
+    def list_remote_layers(self) -> List[dict]:
+        """Raw layer dicts from GET /MoriaProject/Layers, for catalog sync."""
+        return _extract_entities(self._get_json("/MoriaProject/Layers"))
+
+    # -- helpers -------------------------------------------------------------
+
+    def _value_list(self, layer_id: str) -> Dict[str, List[str]]:
+        """Best-effort domain values per field from /MoriaProject/ValueList.
+        Accepts {field: [values]} or [{"field"/"name": ..., "values": [...]}].
+        Any failure → no samples; the schema/sampling still succeeds."""
+        try:
+            payload = self._get_json(f"/MoriaProject/ValueList/{layer_id}")
+        except ProviderError:
+            return {}
+        result: Dict[str, List[str]] = {}
+        if isinstance(payload, dict) and all(
+            isinstance(v, list) for v in payload.values()
+        ):
+            items = [{"field": k, "values": v} for k, v in payload.items()]
+        else:
+            items = _extract_entities(payload)
+        for item in items:
+            name = _first_key(item, ("field", "name", "fieldName", "Field"))
+            values = item.get("values") or item.get("Values")
+            if not isinstance(name, str) or not isinstance(values, list):
+                continue
+            result[name] = [str(v)[:_MAX_SAMPLE_CHARS] for v in values if v is not None]
+        return result

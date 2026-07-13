@@ -6,7 +6,7 @@ must not touch any BL module.
 """
 
 from datetime import datetime
-from typing import List, Optional, Protocol
+from typing import List, Optional, Protocol, Tuple
 
 import geopandas as gpd
 from pydantic import BaseModel
@@ -49,6 +49,11 @@ class LayersRepository(Protocol):
 
     def add_layer(self, layer: LayerMeta) -> LayerMeta: ...
 
+    def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
+        """Insert or update by (provider, source_url); returns (layer, created).
+        Updates touch name/description only — tags may be LLM-enriched."""
+        ...
+
 
 class Provider(Protocol):
     """A GIS data provider (implemented by dal.providers.*).
@@ -61,6 +66,13 @@ class Provider(Protocol):
     def fetch_features(
         self, layer: LayerMeta, now: Optional[datetime] = None
     ) -> gpd.GeoDataFrame: ...
+
+    def sample_field_values(
+        self, layer: LayerMeta, field: str, limit: int = 20
+    ) -> List[str]:
+        """Distinct example values of one field — backs the plan agent's
+        on-demand sample_field tool. Values are untrusted text."""
+        ...
 
 
 class ProviderRegistry(Protocol):

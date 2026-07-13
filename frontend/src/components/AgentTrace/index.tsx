@@ -113,6 +113,12 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
               🧠 {response!.reasoning}
             </p>
           )}
+          {(response!.tool_calls ?? []).map((call, index) => (
+            <p key={`${call.layer_id}-${call.field}-${index}`} className="agent-step done" dir="auto">
+              🔍 דגימת ערכים: {layerName(call.layer_id)}
+              <span dir="ltr"> ({call.field})</span>
+            </p>
+          ))}
           <p className="agent-step done">✓ השכבות שנבחרו מהקטלוג:</p>
           <ul className="layer-chip-list">
             {response!.selected_layers.map((layer) => (

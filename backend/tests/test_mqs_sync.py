@@ -1,0 +1,92 @@
+from typing import List
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.bl.catalog.mqs_sync import sync_mqs_layers
+from app.common.errors import ProviderError
+from app.main import _register_error_handlers
+from app.service import catalog_router
+from tests.conftest import FakeLayersRepository
+
+
+class FakeMqsProvider:
+    def __init__(self, layers: List[dict]):
+        self._layers = layers
+
+    def list_remote_layers(self) -> List[dict]:
+        if isinstance(self._layers, Exception):
+            raise self._layers
+        return self._layers
+
+
+def test_first_sync_adds_all():
+    repository = FakeLayersRepository([])
+    provider = FakeMqsProvider([
+        {"id": 1, "name": "כבישים", "description": "רשת הכבישים"},
+        {"layerId": "2", "title": "פארקים", "tags": ["nature", "park", "nature"]},
+    ])
+    result = sync_mqs_layers(repository, provider)
+    assert (result.added, result.updated, result.skipped) == (2, 0, 0)
+    layers = repository.list_layers()
+    assert all(layer.provider == "mqs" for layer in layers)
+    by_url = {layer.source_url: layer for layer in layers}
+    assert by_url["mqs://layer/1"].name == "כבישים"
+    assert by_url["mqs://layer/2"].name == "פארקים"
+    assert by_url["mqs://layer/2"].tags == ["nature", "park"]  # deduped
+
+
+def test_resync_updates_in_place_and_preserves_tags():
+    repository = FakeLayersRepository([])
+    sync_mqs_layers(repository, FakeMqsProvider([{"id": 1, "name": "old"}]))
+    layer = repository.list_layers()[0]
+    # simulate LLM tag enrichment after the first sync
+    repository._layers[layer.id] = layer.model_copy(update={"tags": ["enriched"]})
+
+    result = sync_mqs_layers(
+        repository, FakeMqsProvider([{"id": 1, "name": "new name", "tags": ["raw"]}])
+    )
+    assert (result.added, result.updated) == (0, 1)
+    layers = repository.list_layers()
+    assert len(layers) == 1
+    assert layers[0].name == "new name"
+    assert layers[0].tags == ["enriched"]  # update must not clobber tags
+
+
+def test_entry_without_id_is_skipped():
+    repository = FakeLayersRepository([])
+    result = sync_mqs_layers(
+        repository, FakeMqsProvider([{"name": "no id"}, {"id": 7}])
+    )
+    assert (result.added, result.skipped) == (1, 1)
+    layer = repository.list_layers()[0]
+    assert layer.name == "MQS layer 7"  # name fallback
+
+
+def make_app(repository, provider) -> FastAPI:
+    app = FastAPI()
+    _register_error_handlers(app)
+    app.include_router(catalog_router.router)
+    app.state.repository = repository
+    app.state.mqs_provider = provider
+    return app
+
+
+def test_sync_endpoint_returns_counts():
+    app = make_app(FakeLayersRepository([]), FakeMqsProvider([{"id": 1}, {"id": 2}]))
+    client = TestClient(app)
+    response = client.post("/api/layers/sync-mqs")
+    assert response.status_code == 200
+    assert response.json() == {"added": 2, "updated": 0, "skipped": 0, "total": 2}
+
+
+def test_sync_endpoint_provider_error_is_502():
+    app = make_app(
+        FakeLayersRepository([]),
+        FakeMqsProvider(ProviderError("MQS base URL is not configured")),
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post("/api/layers/sync-mqs")
+    assert response.status_code == 502
+    assert "not configured" in response.json()["detail"]

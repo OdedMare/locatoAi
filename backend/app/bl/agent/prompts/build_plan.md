@@ -18,6 +18,12 @@ Request has drawn boundaries: {has_boundaries}
 - {"id": "s6", "op": "temporal_filter", "input": "s5", "from": "<ISO 8601>", "to": "<ISO 8601>"}
   Only for layers with a timestamp field. "אתמול"/"yesterday" = the full previous calendar day relative to the current time above.
 
+## Tool: sample field values (optional)
+
+If the sample values shown for a field are not enough to understand its meaning or value format, you MAY first respond with exactly:
+{"tool": "sample_field", "layer_id": "<layer-id>", "field": "<field-name>"}
+You will receive up to 20 distinct values of that field and be asked again. At most 2 tool requests per query — after that you MUST return a plan or a clarify.
+
 ## Rules
 
 - steps run in order; every "input" must reference an EARLIER step's id. Use ids s1, s2, s3...

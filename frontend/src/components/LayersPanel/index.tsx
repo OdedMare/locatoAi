@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createLayer, getLayers } from "@/services/catalogService";
+import { createLayer, getLayers, syncMqsLayers } from "@/services/catalogService";
 import type { CatalogLayer } from "@/types/catalog";
 
 interface LayersPanelProps {
@@ -25,6 +25,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [sourceUrl, setSourceUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getLayers()
@@ -93,6 +95,25 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     }
   };
 
+  const handleSyncMqs = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await syncMqsLayers();
+      const refreshed = await getLayers();
+      setLayers(refreshed.layers);
+      setSyncMessage(
+        `סונכרן ✓ — נוספו ${result.added}, עודכנו ${result.updated}` +
+          (result.skipped ? `, דולגו ${result.skipped}` : "")
+      );
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : "סנכרון שכבות MQS נכשל");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div
@@ -126,6 +147,16 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         >
           {showAddForm ? "ביטול" : "+ הוספת שכבה"}
         </button>
+
+        <button
+          type="button"
+          className="add-layer-toggle"
+          onClick={handleSyncMqs}
+          disabled={syncing}
+        >
+          {syncing ? "מסנכרן…" : "סנכרון שכבות MQS"}
+        </button>
+        {syncMessage && <p className="settings-message" dir="auto">{syncMessage}</p>}
 
         {showAddForm && (
           <section className="add-layer-form" aria-label="הוספת שכבה לקטלוג">

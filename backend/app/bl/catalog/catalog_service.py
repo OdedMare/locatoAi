@@ -43,6 +43,14 @@ class CatalogService:
         """Persist a new catalog layer through the repository port."""
         return self._repository.add_layer(layer)
 
+    def sample_field(self, layer_id: str, field: str, limit: int = 20) -> List[str]:
+        """Distinct example values of one field, straight from the provider
+        (no cache — the agent asks on demand when the schema samples are
+        not enough to grasp a field's meaning)."""
+        layer = self.get_layer(layer_id)
+        provider = self._providers.get(layer.provider)
+        return provider.sample_field_values(layer, field, limit=limit)
+
     def get_schema(self, layer_id: str) -> LayerSchema:
         """Fetch a layer schema from its provider, cached with TTL.
 
