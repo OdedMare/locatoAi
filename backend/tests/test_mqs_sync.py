@@ -76,6 +76,34 @@ def test_browse_normalizes_without_inserting():
     assert layers[0].tags == ["green"]
 
 
+def test_browse_uses_mqs_display_name():
+    layers, skipped = browse_mqs_layers(FakeMqsProvider([
+        {"layer_id": 7, "display_name": "כבישים ודרכים"},
+    ]))
+    assert skipped == 0
+    assert layers[0].id == "7"
+    assert layers[0].name == "כבישים ודרכים"
+
+
+def test_sync_saves_full_mqs_object_id_and_name():
+    repository = FakeLayersRepository([])
+    result = sync_mqs_layers(repository, FakeMqsProvider([{
+        "display_name": "כבישים ודרכים",
+        "unclassified_description": "שכבת פרויקט אזרחי",
+        "name": "T_ROADS",
+        "exclusive_id": {
+            "data_store_name": "MoriaProject",
+            "layer_id": "110",
+        },
+    }]))
+    assert (result.added, result.skipped) == (1, 0)
+    saved = repository.list_layers()[0]
+    assert saved.name == "כבישים ודרכים"
+    assert saved.description == "שכבת פרויקט אזרחי"
+    assert saved.provider == "mqs"
+    assert saved.source_url == "mqs://layer/110"
+
+
 def make_app(repository, provider) -> FastAPI:
     app = FastAPI()
     _register_error_handlers(app)

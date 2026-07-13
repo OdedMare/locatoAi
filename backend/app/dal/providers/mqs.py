@@ -47,11 +47,19 @@ _MAX_SAMPLE_CHARS = 40
 _ENTITY_LIST_KEYS = (
     "features", "Features", "entities", "Entities", "data", "Data",
     "results", "Results", "items", "Items", "layers", "Layers",
+    "layers_list", "LayersList",
 )
-_FIELD_LIST_KEYS = ("fields", "attributes", "columns", "Fields")
-_FIELD_NAME_KEYS = ("name", "Name", "field", "fieldName")
-_FIELD_TYPE_KEYS = ("type", "Type", "dataType")
-_FIELD_DESC_KEYS = ("alias", "description", "Description")
+_FIELD_LIST_KEYS = (
+    "fields_list", "FieldsList", "fields", "attributes", "columns", "Fields"
+)
+_FIELD_NAME_KEYS = (
+    "name", "Name", "field", "fieldName", "field_name"
+)
+_FIELD_TYPE_KEYS = ("type", "Type", "dataType", "data_type", "field_type")
+_FIELD_DESC_KEYS = (
+    "alias", "display_name", "unclassified_description",
+    "description", "Description",
+)
 _GEOMETRY_TYPE_KEYS = ("geometryType", "geometry_type", "geomType")
 _GEOMETRY_VALUE_KEYS = ("geometry", "geom", "shape", "location")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
@@ -113,9 +121,34 @@ def _extract_entities(payload: object) -> List[dict]:
     return _find_entity_list(payload) or []
 
 
+def _normalize_fields(raw_fields: object) -> List[dict]:
+    """Normalize MQS fields_list arrays or {field_name: metadata} maps."""
+    if isinstance(raw_fields, list):
+        return [field for field in raw_fields if isinstance(field, dict)]
+    if not isinstance(raw_fields, dict):
+        return []
+    normalized = []
+    for key, value in raw_fields.items():
+        if isinstance(value, dict):
+            field = dict(value)
+            if _first_key(field, _FIELD_NAME_KEYS) in (None, ""):
+                field["name"] = str(key)
+        else:
+            # Also accept compact maps such as {"ROAD_NAME": "string"}.
+            field = {"name": str(key), "type": value}
+        normalized.append(field)
+    return normalized
+
+
 def _parse_geometry(value: object) -> Optional[BaseGeometry]:
     try:
         if isinstance(value, dict):
+            # Live MQS entities wrap both representations under geometry:
+            # {"wkt": "POINT(...) ", "geo_json": "Point"}.  geo_json is
+            # only the geometry type in that response, so WKT is authoritative.
+            nested_wkt = value.get("wkt") or value.get("WKT")
+            if isinstance(nested_wkt, str) and nested_wkt.strip():
+                return wkt.loads(nested_wkt)
             return shape(value)
         if isinstance(value, str) and value.strip():
             return wkt.loads(value)
@@ -138,6 +171,23 @@ def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
         entity_id = _first_key(entity, _ENTITY_ID_KEYS)
         if entity_id is not None and "id" not in attributes:
             attributes["id"] = entity_id
+        return geometry, attributes
+
+    # Live MQS shape: attributes are in properties_list, geometry contains WKT,
+    # and the entity id is nested in exclusive_id.
+    if isinstance(entity.get("properties_list"), dict):
+        geometry = _parse_geometry(entity.get("geometry"))
+        if geometry is None:
+            return None
+        attributes = dict(entity["properties_list"])
+        exclusive_id = entity.get("exclusive_id")
+        if isinstance(exclusive_id, dict):
+            entity_id = _first_key(exclusive_id, _ENTITY_ID_KEYS)
+            if entity_id is not None and "id" not in attributes:
+                attributes["id"] = entity_id
+        for key in ("date", "link", "classification"):
+            if key in entity and key not in attributes:
+                attributes[key] = entity[key]
         return geometry, attributes
 
     geometry = None
@@ -223,26 +273,23 @@ class MqsProvider:
         samples = self._value_list(layer_id)
         fields = []
         raw_fields = _first_key(payload, _FIELD_LIST_KEYS)
-        if isinstance(raw_fields, list):
-            for raw in raw_fields:
-                if not isinstance(raw, dict):
-                    continue
-                name = _first_key(raw, _FIELD_NAME_KEYS)
-                if not isinstance(name, str) or not name:
-                    continue
-                raw_type = _first_key(raw, _FIELD_TYPE_KEYS)
-                field_type = _MQS_TO_SCHEMA_TYPE.get(
-                    str(raw_type).lower() if raw_type is not None else "", "string"
+        for raw in _normalize_fields(raw_fields):
+            name = _first_key(raw, _FIELD_NAME_KEYS)
+            if not isinstance(name, str) or not name:
+                continue
+            raw_type = _first_key(raw, _FIELD_TYPE_KEYS)
+            field_type = _MQS_TO_SCHEMA_TYPE.get(
+                str(raw_type).lower() if raw_type is not None else "", "string"
+            )
+            description = _first_key(raw, _FIELD_DESC_KEYS)
+            fields.append(
+                LayerField(
+                    name=name,
+                    type=field_type,
+                    description=description if isinstance(description, str) else "",
+                    samples=samples.get(name, [])[:_MAX_SAMPLES],
                 )
-                description = _first_key(raw, _FIELD_DESC_KEYS)
-                fields.append(
-                    LayerField(
-                        name=name,
-                        type=field_type,
-                        description=description if isinstance(description, str) else "",
-                        samples=samples.get(name, [])[:_MAX_SAMPLES],
-                    )
-                )
+            )
 
         geometry_type = _first_key(payload, _GEOMETRY_TYPE_KEYS)
         return LayerSchema(

@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from app.bl.ports import LayerMeta
+from app.bl.catalog.mqs_sync import browse_mqs_layers
 from app.common.config import Settings
 from app.common.errors import ProviderError
 from app.common.geo import WGS84
@@ -104,6 +105,31 @@ def test_fetch_features_flat_entities(tmp_path):
     assert gdf.iloc[0]["id"] == 1
 
 
+def test_fetch_features_parses_live_mqs_entity_shape(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "entities": [{
+            "exclusive_id": {
+                "data_store_name": "MoriaProject",
+                "layer_id": "10",
+                "entity_id": "{GUID}",
+                "history_id": 0,
+            },
+            "classification": {"triangle": "678588", "clearence_level": 0},
+            "date": "2026-07-13",
+            "link": "https://mqs.test/entity/GUID",
+            "geometry": {"wkt": "POINT (34.78 32.08)", "geo_json": "Point"},
+            "properties_list": {"ROAD_NAME": "הרצל", "LANES": 2},
+        }],
+    })
+    gdf = provider.fetch_features(mqs_layer("10"))
+    assert len(gdf) == 1
+    assert gdf.iloc[0]["id"] == "{GUID}"
+    assert gdf.iloc[0]["ROAD_NAME"] == "הרצל"
+    assert gdf.iloc[0]["LANES"] == 2
+    assert gdf.iloc[0]["date"] == "2026-07-13"
+    assert gdf.iloc[0].geometry.wkt == "POINT (34.78 32.08)"
+
+
 def test_fetch_features_paginates(tmp_path):
     def responses(request):
         offset = int(dict(request.url.params)["from"])
@@ -200,6 +226,39 @@ def test_describe_schema_fields_and_samples(tmp_path):
     assert by_name["size"].samples == ["1", "2", "3"]
 
 
+def test_describe_schema_parses_live_fields_list_map(tmp_path):
+    def responses(request):
+        if request.url.path == "/MoriaProject/Layers/42":
+            return {
+                "display_name": "כבישים ודרכים",
+                "unclassified_description": "שכבת פרויקט אזרחי",
+                "name": "T_ROADS",
+                "is_dynamic": True,
+                "fields_list": {
+                    "ROAD_NAME": {
+                        "data_type": "string",
+                        "display_name": "שם רחוב",
+                    },
+                    "LANES": {"field_type": "integer"},
+                    "IS_OPEN": "boolean",
+                },
+                "exclusive_id": {"layer_id": "42"},
+                "date": {},
+            }
+        if request.url.path == "/MoriaProject/ValueList/42":
+            return {"ROAD_NAME": ["הרצל", "בגין"]}
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    provider, _ = make_provider(tmp_path, responses)
+    schema = provider.describe_schema(mqs_layer())
+    by_name = {field.name: field for field in schema.fields}
+    assert by_name["ROAD_NAME"].type == "string"
+    assert by_name["ROAD_NAME"].description == "שם רחוב"
+    assert by_name["ROAD_NAME"].samples == ["הרצל", "בגין"]
+    assert by_name["LANES"].type == "number"
+    assert by_name["IS_OPEN"].type == "boolean"
+
+
 def test_describe_schema_valuelist_failure_is_soft(tmp_path):
     def responses(request):
         if request.url.path.startswith("/MoriaProject/ValueList/"):
@@ -267,6 +326,59 @@ def test_list_remote_layers_accepts_nested_pascal_case_envelope(tmp_path):
         "Data": {"Items": [{"Id": 1, "Name": "roads"}]}
     })
     assert provider.list_remote_layers() == [{"Id": 1, "Name": "roads"}]
+
+
+def test_list_remote_layers_accepts_moria_layers_list_envelope(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "total_layers": 46,
+        "layers_list": [
+            {"layer_id": 7, "display_name": "כבישים ודרכים"},
+        ],
+    })
+    assert provider.list_remote_layers() == [
+        {"layer_id": 7, "display_name": "כבישים ודרכים"},
+    ]
+
+
+def test_moria_layers_list_is_normalized_for_api(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "total_layers": 46,
+        "layers_list": [
+            {"layer_id": 7, "display_name": "כבישים ודרכים"},
+        ],
+    })
+    layers, skipped = browse_mqs_layers(provider)
+    assert skipped == 0
+    assert len(layers) == 1
+    assert layers[0].id == "7"
+    assert layers[0].name == "כבישים ודרכים"
+    assert layers[0].source_url == "mqs://layer/7"
+
+
+def test_full_moria_layer_object_is_normalized(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "total_layers": 46,
+        "layers_list": [{
+            "display_name": "כבישים ודרכים",
+            "unclassified_description": "שכבת פרויקט אזרחי",
+            "name": "T_ROADS",
+            "is_dynamic": False,
+            "layer_info_link": "https://mqs.test/MoriaProject/Layers/110",
+            "layer_entities_link": "https://mqs.test/MoriaProject/110/Entities",
+            "classification": [{"triangle": "678588", "clearence_level": 0}],
+            "exclusive_id": {
+                "data_store_name": "MoriaProject",
+                "layer_id": "110",
+            },
+        }],
+    })
+    layers, skipped = browse_mqs_layers(provider)
+    assert skipped == 0
+    assert len(layers) == 1
+    assert layers[0].id == "110"
+    assert layers[0].name == "כבישים ודרכים"
+    assert layers[0].description == "שכבת פרויקט אזרחי"
+    assert layers[0].source_url == "mqs://layer/110"
 
 
 def test_list_remote_layers_rejects_unknown_200_response(tmp_path):

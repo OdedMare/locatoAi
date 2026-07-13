@@ -17,8 +17,10 @@ from uuid import uuid4
 from app.bl.ports import LayerMeta, LayersRepository
 
 _ID_KEYS = ("id", "layerId", "layer_id", "Id")
-_NAME_KEYS = ("name", "title", "alias", "Name")
-_DESCRIPTION_KEYS = ("description", "comments", "Description")
+_NAME_KEYS = ("display_name", "name", "title", "alias", "Name")
+_DESCRIPTION_KEYS = (
+    "unclassified_description", "description", "comments", "Description"
+)
 _TAG_KEYS = ("tags", "category", "group")
 
 _MAX_NAME = 200
@@ -67,6 +69,17 @@ def _tags(entry: dict) -> List[str]:
     return list(dict.fromkeys(cleaned))[:_MAX_TAGS]
 
 
+def _layer_id(entry: dict) -> Optional[object]:
+    """MQS layer ids are nested under exclusive_id in the live response."""
+    direct = _first(entry, _ID_KEYS)
+    if direct is not None:
+        return direct
+    exclusive_id = entry.get("exclusive_id")
+    if isinstance(exclusive_id, dict):
+        return _first(exclusive_id, _ID_KEYS)
+    return None
+
+
 def browse_mqs_layers(mqs_provider) -> tuple[List[RemoteMqsLayer], int]:
     """Read and normalize the remote inventory without changing the catalog."""
     layers: List[RemoteMqsLayer] = []
@@ -76,7 +89,7 @@ def browse_mqs_layers(mqs_provider) -> tuple[List[RemoteMqsLayer], int]:
         if not isinstance(entry, dict):
             skipped += 1
             continue
-        raw_id = _first(entry, _ID_KEYS)
+        raw_id = _layer_id(entry)
         if raw_id is None:
             skipped += 1
             continue
