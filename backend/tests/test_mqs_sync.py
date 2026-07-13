@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.bl.catalog.mqs_sync import sync_mqs_layers
+from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
 from app.common.errors import ProviderError
 from app.main import _register_error_handlers
 from app.service import catalog_router
@@ -64,6 +64,18 @@ def test_entry_without_id_is_skipped():
     assert layer.name == "MQS layer 7"  # name fallback
 
 
+def test_browse_normalizes_without_inserting():
+    repository = FakeLayersRepository([])
+    layers, skipped = browse_mqs_layers(FakeMqsProvider([
+        {"layerId": 3, "title": "Trees", "tags": ["green", "green"]},
+        {"name": "missing id"},
+    ]))
+    assert skipped == 1
+    assert repository.list_layers() == []
+    assert layers[0].source_url == "mqs://layer/3"
+    assert layers[0].tags == ["green"]
+
+
 def make_app(repository, provider) -> FastAPI:
     app = FastAPI()
     _register_error_handlers(app)
@@ -90,3 +102,15 @@ def test_sync_endpoint_provider_error_is_502():
     response = client.post("/api/layers/sync-mqs")
     assert response.status_code == 502
     assert "not configured" in response.json()["detail"]
+
+
+def test_browse_endpoint_does_not_insert():
+    repository = FakeLayersRepository([])
+    app = make_app(repository, FakeMqsProvider([{"id": 4, "name": "Buildings"}]))
+    response = TestClient(app).get("/api/layers/mqs")
+    assert response.status_code == 200
+    assert response.json()["layers"][0] == {
+        "id": "4", "name": "Buildings", "description": "", "tags": [],
+        "provider": "mqs", "source_url": "mqs://layer/4",
+    }
+    assert repository.list_layers() == []

@@ -1194,6 +1194,36 @@ body {
   background: #fafafa;
 }
 
+.mqs-browser {
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.mqs-picker-list {
+  max-height: 260px;
+  margin-top: 8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.mqs-picker-item {
+  width: 100%;
+  padding: 10px;
+  text-align: start;
+  color: var(--text);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+}
+
+.mqs-picker-item:hover { background: var(--accent-soft); }
+.mqs-picker-item strong, .mqs-picker-item span, .mqs-picker-item small { display: block; }
+.mqs-picker-item span, .mqs-picker-item small { margin-top: 3px; color: var(--text-muted); }
+
 .add-layer-form h3 {
   margin-bottom: 14px;
   font-size: 14px;

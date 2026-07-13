@@ -3,12 +3,23 @@ import type {
   CreateLayerRequest,
   LayersResponse,
   MqsSyncResponse,
+  RemoteMqsLayersResponse,
 } from "@/types/catalog";
 
 /** Fetch the layer catalog (metadata only — what users can ask about). */
 export async function getLayers(): Promise<LayersResponse> {
   const res = await fetch("/api/layers");
   if (!res.ok) throw new Error(`טעינת השכבות נכשלה (${res.status})`);
+  return res.json();
+}
+
+/** Browse the remote MQS inventory without adding it to the catalog. */
+export async function getMqsLayers(): Promise<RemoteMqsLayersResponse> {
+  const res = await fetch("/api/layers/mqs");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `טעינת שכבות MQS נכשלה (${res.status})`);
+  }
   return res.json();
 }
 

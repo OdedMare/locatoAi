@@ -26,3 +26,13 @@ export interface MqsSyncResponse {
   skipped: number;
   total: number;
 }
+
+export interface RemoteMqsLayer extends CreateLayerRequest {
+  id: string;
+}
+
+export interface RemoteMqsLayersResponse {
+  layers: RemoteMqsLayer[];
+  count: number;
+  skipped: number;
+}

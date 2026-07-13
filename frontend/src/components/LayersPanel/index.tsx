@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createLayer, getLayers, syncMqsLayers } from "@/services/catalogService";
-import type { CatalogLayer } from "@/types/catalog";
+import { createLayer, getLayers, getMqsLayers } from "@/services/catalogService";
+import type { CatalogLayer, RemoteMqsLayer } from "@/types/catalog";
 
 interface LayersPanelProps {
   onClose: () => void;
@@ -25,8 +25,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [sourceUrl, setSourceUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [showMqsBrowser, setShowMqsBrowser] = useState(false);
+  const [mqsLayers, setMqsLayers] = useState<RemoteMqsLayer[] | null>(null);
+  const [mqsSearch, setMqsSearch] = useState("");
+  const [mqsMessage, setMqsMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getLayers()
@@ -45,6 +47,15 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         .includes(needle)
     );
   }, [layers, search]);
+
+  const filteredMqs = useMemo(() => {
+    if (!mqsLayers) return [];
+    const needle = mqsSearch.trim().toLocaleLowerCase();
+    if (!needle) return mqsLayers;
+    return mqsLayers.filter((layer) =>
+      [layer.name, layer.description, ...layer.tags].join(" ").toLocaleLowerCase().includes(needle)
+    );
+  }, [mqsLayers, mqsSearch]);
 
   const commitTags = (value: string) => {
     const additions = value
@@ -95,23 +106,30 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     }
   };
 
-  const handleSyncMqs = async () => {
-    if (syncing) return;
-    setSyncing(true);
-    setSyncMessage(null);
+  const handleBrowseMqs = async () => {
+    const opening = !showMqsBrowser;
+    setShowMqsBrowser(opening);
+    if (!opening || mqsLayers) return;
+    setMqsMessage(null);
     try {
-      const result = await syncMqsLayers();
-      const refreshed = await getLayers();
-      setLayers(refreshed.layers);
-      setSyncMessage(
-        `סונכרן ✓ — נוספו ${result.added}, עודכנו ${result.updated}` +
-          (result.skipped ? `, דולגו ${result.skipped}` : "")
-      );
+      const result = await getMqsLayers();
+      setMqsLayers(result.layers);
+      if (result.skipped) setMqsMessage(`${result.skipped} רשומות לא תקינות דולגו`);
     } catch (err) {
-      setSyncMessage(err instanceof Error ? err.message : "סנכרון שכבות MQS נכשל");
-    } finally {
-      setSyncing(false);
+      setMqsMessage(err instanceof Error ? err.message : "טעינת שכבות MQS נכשלה");
     }
+  };
+
+  const selectMqsLayer = (layer: RemoteMqsLayer) => {
+    setName(layer.name);
+    setDescription(layer.description);
+    setTags(layer.tags);
+    setTagDraft("");
+    setProvider(layer.provider);
+    setSourceUrl(layer.source_url);
+    setFormMessage(null);
+    setShowAddForm(true);
+    setShowMqsBrowser(false);
   };
 
   return (
@@ -151,12 +169,30 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         <button
           type="button"
           className="add-layer-toggle"
-          onClick={handleSyncMqs}
-          disabled={syncing}
+          onClick={handleBrowseMqs}
         >
-          {syncing ? "מסנכרן…" : "סנכרון שכבות MQS"}
+          {showMqsBrowser ? "סגירת מאגר MQS" : "בחירת שכבה מ-MQS"}
         </button>
-        {syncMessage && <p className="settings-message" dir="auto">{syncMessage}</p>}
+        {mqsMessage && <p className="settings-message" dir="auto">{mqsMessage}</p>}
+
+        {showMqsBrowser && (
+          <section className="mqs-browser" aria-label="בחירת שכבת MQS">
+            <input className="settings-input" value={mqsSearch} onChange={(e) => setMqsSearch(e.target.value)} placeholder="חיפוש במאגר MQS…" dir="auto" />
+            {mqsLayers === null && !mqsMessage && <p className="panel-placeholder">שכבות MQS נטענות…</p>}
+            <ul className="mqs-picker-list">
+              {filteredMqs.map((layer) => (
+                <li key={layer.id}>
+                  <button type="button" className="mqs-picker-item" onClick={() => selectMqsLayer(layer)}>
+                    <strong dir="auto">{layer.name}</strong>
+                    {layer.description && <span dir="auto">{layer.description}</span>}
+                    <small dir="auto">{layer.tags.join(" · ")}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {mqsLayers !== null && filteredMqs.length === 0 && <p className="panel-placeholder">לא נמצאו שכבות MQS מתאימות.</p>}
+          </section>
+        )}
 
         {showAddForm && (
           <section className="add-layer-form" aria-label="הוספת שכבה לקטלוג">

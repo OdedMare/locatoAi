@@ -37,6 +37,19 @@ class MqsSyncResult:
         return self.added + self.updated + self.skipped
 
 
+@dataclass(frozen=True)
+class RemoteMqsLayer:
+    id: str
+    name: str
+    description: str
+    tags: List[str]
+    provider: str = "mqs"
+
+    @property
+    def source_url(self) -> str:
+        return f"mqs://layer/{self.id}"
+
+
 def _first(entry: dict, keys) -> Optional[object]:
     for key in keys:
         if key in entry and entry[key] not in (None, ""):
@@ -54,25 +67,47 @@ def _tags(entry: dict) -> List[str]:
     return list(dict.fromkeys(cleaned))[:_MAX_TAGS]
 
 
+def browse_mqs_layers(mqs_provider) -> tuple[List[RemoteMqsLayer], int]:
+    """Read and normalize the remote inventory without changing the catalog."""
+    layers: List[RemoteMqsLayer] = []
+    skipped = 0
+    seen = set()
+    for entry in mqs_provider.list_remote_layers():
+        if not isinstance(entry, dict):
+            skipped += 1
+            continue
+        raw_id = _first(entry, _ID_KEYS)
+        if raw_id is None:
+            skipped += 1
+            continue
+        layer_id = str(raw_id).strip()
+        if not layer_id or layer_id in seen:
+            skipped += 1
+            continue
+        seen.add(layer_id)
+        name = _first(entry, _NAME_KEYS)
+        description = _first(entry, _DESCRIPTION_KEYS)
+        layers.append(RemoteMqsLayer(
+            id=layer_id,
+            name=(str(name).strip() if name else f"MQS layer {layer_id}")[:_MAX_NAME],
+            description=(str(description).strip() if description else "")[:_MAX_DESCRIPTION],
+            tags=_tags(entry),
+        ))
+    return layers, skipped
+
+
 def sync_mqs_layers(repository: LayersRepository, mqs_provider) -> MqsSyncResult:
     """`mqs_provider` is duck-typed: anything with list_remote_layers()."""
     result = MqsSyncResult()
-    for entry in mqs_provider.list_remote_layers():
-        layer_id = _first(entry, _ID_KEYS)
-        if layer_id is None:
-            result.skipped += 1
-            continue
-        name = _first(entry, _NAME_KEYS)
-        description = _first(entry, _DESCRIPTION_KEYS)
+    remote_layers, result.skipped = browse_mqs_layers(mqs_provider)
+    for remote in remote_layers:
         layer = LayerMeta(
             id=str(uuid4()),  # replaced by the repository on insert
-            name=(str(name).strip() if name else f"MQS layer {layer_id}")[:_MAX_NAME],
-            description=(str(description).strip() if description else "")[
-                :_MAX_DESCRIPTION
-            ],
-            tags=_tags(entry),  # only applied on insert; updates preserve tags
-            provider="mqs",
-            source_url=f"mqs://layer/{layer_id}",
+            name=remote.name,
+            description=remote.description,
+            tags=remote.tags,  # only applied on insert; updates preserve tags
+            provider=remote.provider,
+            source_url=remote.source_url,
         )
         _, created = repository.upsert_layer(layer)
         if created:

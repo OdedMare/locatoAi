@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.bl.catalog.mqs_sync import sync_mqs_layers
+from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
 from app.bl.ports import LayerMeta
 
 router = APIRouter()
@@ -33,6 +33,21 @@ class MqsSyncResponse(BaseModel):
     updated: int
     skipped: int
     total: int
+
+
+class RemoteMqsLayerResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    tags: List[str]
+    provider: str
+    source_url: str
+
+
+class RemoteMqsLayersResponse(BaseModel):
+    layers: List[RemoteMqsLayerResponse]
+    count: int
+    skipped: int
 
 
 class CreateLayerRequest(BaseModel):
@@ -72,6 +87,27 @@ def sync_mqs(request: Request) -> MqsSyncResponse:
         updated=result.updated,
         skipped=result.skipped,
         total=result.total,
+    )
+
+
+@router.get("/api/layers/mqs", response_model=RemoteMqsLayersResponse)
+def list_remote_mqs_layers(request: Request) -> RemoteMqsLayersResponse:
+    """Browse MQS metadata without inserting anything into the catalog."""
+    layers, skipped = browse_mqs_layers(request.app.state.mqs_provider)
+    return RemoteMqsLayersResponse(
+        layers=[
+            RemoteMqsLayerResponse(
+                id=layer.id,
+                name=layer.name,
+                description=layer.description,
+                tags=layer.tags,
+                provider=layer.provider,
+                source_url=layer.source_url,
+            )
+            for layer in layers
+        ],
+        count=len(layers),
+        skipped=skipped,
     )
 
 
