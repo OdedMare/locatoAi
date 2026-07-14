@@ -3,7 +3,6 @@
 import type { GeographyMode } from "@/types/geo-query";
 
 const MODES: { value: GeographyMode; label: string; hint: string }[] = [
-  { value: "none", label: "ללא גבול", hint: "חיפוש בכל האזור" },
   { value: "viewport", label: "תצוגת המפה", hint: "שימוש באזור המוצג" },
   { value: "polygon", label: "ציור פוליגון", hint: "לחצו על נקודות ולסיום על הראשונה" },
   { value: "rectangle", label: "ציור מלבן", hint: "לחצו וגררו" },
@@ -16,7 +15,7 @@ interface GeographyControlsProps {
   hasDrawnGeometry: boolean;
 }
 
-/** Geography scoping mode selector (none / viewport / polygon / rectangle). */
+/** Required geography selector (viewport / polygon / rectangle). */
 export default function GeographyControls({
   mode,
   onModeChange,

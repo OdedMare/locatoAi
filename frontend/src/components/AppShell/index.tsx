@@ -29,7 +29,7 @@ const INITIAL_VIEW: MapViewState = {
  */
 export default function AppShell() {
   const [queryText, setQueryText] = useState("");
-  const [geographyMode, setGeographyMode] = useState<GeographyMode>("none");
+  const [geographyMode, setGeographyMode] = useState<GeographyMode>("viewport");
   const [drawnGeometry, setDrawnGeometry] = useState<GeoJSONPolygon | null>(null);
   const [mapView, setMapView] = useState<MapViewState>(INITIAL_VIEW);
   const [lastRequest, setLastRequest] = useState<GeoQueryRequest | null>(null);
@@ -66,26 +66,26 @@ export default function AppShell() {
 
   const handleNewChat = useCallback(() => {
     setQueryText("");
-    setGeographyMode("none");
+    setGeographyMode("viewport");
     setDrawnGeometry(null);
     setLastRequest(null);
     setLastResponse(null);
   }, []);
 
   /** Build the backend request — exactly {query, boundaries}. */
-  const buildRequest = (): GeoQueryRequest => ({
-    query: queryText.trim(),
-    boundaries:
-      geographyMode === "viewport"
-        ? bboxToMultiPolygon(mapView.bbox)
-        : (geographyMode === "polygon" || geographyMode === "rectangle") &&
-            drawnGeometry
-          ? polygonToMultiPolygon(drawnGeometry)
-          : null,
-  });
+  const buildRequest = (): GeoQueryRequest => {
+    const boundaries = geographyMode === "viewport"
+      ? bboxToMultiPolygon(mapView.bbox)
+      : drawnGeometry
+        ? polygonToMultiPolygon(drawnGeometry)
+        : null;
+    if (!boundaries) throw new Error("Geographic boundaries are required");
+    return { query: queryText.trim(), boundaries };
+  };
 
   const handleRunQuery = async () => {
-    if (!queryText.trim() || isSubmitting) return;
+    const needsDrawing = geographyMode === "polygon" || geographyMode === "rectangle";
+    if (!queryText.trim() || isSubmitting || (needsDrawing && !drawnGeometry)) return;
     const request = buildRequest();
     setLastRequest(request);
     setIsSubmitting(true);

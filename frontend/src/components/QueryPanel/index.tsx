@@ -46,7 +46,11 @@ export default function QueryPanel({
   isDarkMode,
   onToggleTheme,
 }: QueryPanelProps) {
-  const canRun = queryText.trim().length > 0 && !isSubmitting;
+  const needsDrawing = geographyMode === "polygon" || geographyMode === "rectangle";
+  const canRun =
+    queryText.trim().length > 0 &&
+    !isSubmitting &&
+    (!needsDrawing || hasDrawnGeometry);
 
   return (
     <aside className="query-panel">

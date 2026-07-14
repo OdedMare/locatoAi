@@ -19,7 +19,7 @@ def execute_plan(
     request: Request,
     orchestrator: QueryOrchestrator = Depends(get_orchestrator),
 ) -> QueryResponse:
-    boundaries = body.boundaries.to_shapely() if body.boundaries else None
+    boundaries = body.boundaries.to_shapely()
     outcome = orchestrator.execute_plan(body.plan, boundaries)
 
     result_count = len(outcome.features) if outcome.features is not None else 0

@@ -19,7 +19,7 @@ def run_query(
     request: Request,
     orchestrator: QueryOrchestrator = Depends(get_orchestrator),
 ) -> QueryResponse:
-    boundaries = body.boundaries.to_shapely() if body.boundaries else None
+    boundaries = body.boundaries.to_shapely()
     outcome = orchestrator.run_query(body.query, boundaries)
 
     request.app.state.request_log.info(

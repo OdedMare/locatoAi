@@ -120,6 +120,12 @@ def validate_plan(
 
     if not plan.steps:
         raise PlanValidationError("Plan has no steps")
+    if has_user_geometry and not any(
+        isinstance(step, WithinGeometryStep) for step in plan.steps
+    ):
+        raise PlanValidationError(
+            "Plan must apply within_geometry because request boundaries are required"
+        )
     if plan.output not in seen_ids:
         raise PlanValidationError(f"Plan output '{plan.output}' is not a step id")
 

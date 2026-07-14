@@ -8,7 +8,7 @@ Request has drawn boundaries: {has_boundaries}
 - {"id": "s1", "op": "load", "layer": "<layer-id>"}
   Load a layer's features. Every chain starts with a load.
 - {"id": "s2", "op": "within_geometry", "input": "s1", "geometry": "user_polygon"}
-  Keep features inside the user's drawn boundaries. Use ONLY when boundaries are provided — and when they are, apply it to the subject layer right after load.
+  Keep features intersecting the user's required boundaries. Every query request has boundaries: ALWAYS apply this to the subject layer immediately after load. A plan without within_geometry is invalid.
 - {"id": "s3", "op": "attribute_filter", "input": "s2", "field": "<field>", "operator": "eq|neq|gt|lt|contains", "value": <string or number>}
   Field must exist in the layer's schema; string values must match the language/format of the sample values.
 - {"id": "s4", "op": "near", "input": "s3", "target_layer": "<layer-id>", "distance_m": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}

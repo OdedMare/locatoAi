@@ -24,14 +24,14 @@ class QueryRequest(BaseModel):
     """The contract with the frontend: exactly {query, boundaries}."""
 
     query: str = Field(min_length=1)
-    boundaries: Optional[GeoJSONMultiPolygon] = None
+    boundaries: GeoJSONMultiPolygon
 
 
 class ExecutePlanRequest(BaseModel):
     """Debug endpoint input: a hand-written plan (no AI involved)."""
 
     plan: GeoQueryPlan
-    boundaries: Optional[GeoJSONMultiPolygon] = None
+    boundaries: GeoJSONMultiPolygon
 
 
 class SelectedLayerDto(BaseModel):

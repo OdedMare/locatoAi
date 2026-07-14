@@ -6,7 +6,7 @@
  */
 
 /** How the user scopes the query geographically (UI concept only). */
-export type GeographyMode = "none" | "viewport" | "polygon" | "rectangle";
+export type GeographyMode = "viewport" | "polygon" | "rectangle";
 
 /** Minimal GeoJSON Polygon (RFC 7946). Coordinates are [lng, lat]. */
 export interface GeoJSONPolygon {
@@ -27,7 +27,7 @@ export type BBox = [number, number, number, number];
 /** The request sent to POST /api/query — exactly {query, boundaries}. */
 export interface GeoQueryRequest {
   query: string;
-  boundaries: GeoJSONMultiPolygon | null;
+  boundaries: GeoJSONMultiPolygon;
 }
 
 /** Agent trace: one layer the model selected for the query. */
