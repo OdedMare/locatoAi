@@ -38,6 +38,11 @@ class LayerSchema(BaseModel):
     layer_id: str
     geometry_type: str
     fields: List[LayerField]
+    temporal_field: Optional[str] = None
+    """Name of the field holding this layer's event time, if any — set by
+    the provider (v0.2: this used to be a hardcoded 'timestamp' column
+    name in the executor; now each provider declares its own). None means
+    the layer has no temporal dimension."""
 
 
 class LayersRepository(Protocol):

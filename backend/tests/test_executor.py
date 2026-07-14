@@ -1,8 +1,10 @@
 import json
 
+import pytest
 from shapely.geometry import box
 
 from app.bl.plan.models import GeoQueryPlan
+from app.common.errors import ExecutionError
 from tests.conftest import FIXTURES_DIR
 
 # Central Tel Aviv box: 7 of the 12 schools fall inside.
@@ -73,6 +75,33 @@ def test_near_uses_meters_not_degrees(executor):
     }
 
 
+def test_near_keeps_distance_to_nearest_target(executor):
+    """near computes and keeps distance_to_target_m — not thrown away."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near", "input": "s1",
+         "target_layer": "roundabouts", "distance_m": 300},
+    ], "s2")
+    assert "distance_to_target_m" in result.columns
+    distances = result.set_index("name")["distance_to_target_m"]
+    assert (distances > 0).all()
+    assert (distances <= 300).all()
+    # nearest of possibly-several targets, not the first join match:
+    # דיזנגוף is documented ~110m from its nearest square.
+    assert distances["בית ספר דיזנגוף"] == pytest.approx(110, abs=15)
+
+
+def test_near_empty_input_has_distance_column(executor):
+    """Empty results still carry the column (schema stays consistent)."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "empty-layer"},
+        {"id": "s2", "op": "near", "input": "s1",
+         "target_layer": "roundabouts", "distance_m": 300},
+    ], "s2")
+    assert result.empty
+    assert "distance_to_target_m" in result.columns
+
+
 def test_directional_northernmost(executor):
     result = run_steps(executor, [
         {"id": "s1", "op": "load", "layer": "schools"},
@@ -91,6 +120,23 @@ def test_temporal_filter_yesterday(executor, frozen_now):
     ], "s2", now=frozen_now)
     # offsets -20, -26, -30 (Ayalon) and -22, -28 (Highway 6) land on Jul 8
     assert len(result) == 5
+
+
+def test_temporal_filter_uses_schema_declared_field(executor, frozen_now):
+    """temporal_field comes from the provider's schema, not a hardcoded
+    'timestamp' literal (accidents' mock schema declares "timestamp")."""
+    schema = executor._catalog.get_schema("accidents")
+    assert schema.temporal_field == "timestamp"
+
+
+def test_temporal_filter_on_non_temporal_layer_raises(executor, frozen_now):
+    """schools has no temporal_field — a clean ExecutionError, not a KeyError."""
+    with pytest.raises(ExecutionError, match="no temporal field"):
+        run_steps(executor, [
+            {"id": "s1", "op": "load", "layer": "schools"},
+            {"id": "s2", "op": "temporal_filter", "input": "s1",
+             "from": "2026-07-08T00:00:00Z", "to": "2026-07-08T23:59:59Z"},
+        ], "s2", now=frozen_now)
 
 
 def test_golden_plan_yesterday_ayalon(executor, frozen_now):

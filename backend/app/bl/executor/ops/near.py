@@ -4,6 +4,11 @@ from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.plan.models import NearStep
 from app.common.geo import to_metric
 
+# Computed distance to the nearest target-layer feature, in meters — added
+# as a plain column so it survives every downstream op unchanged and is
+# serialized into the GeoJSON response like any other property.
+DISTANCE_COLUMN = "distance_to_target_m"
+
 
 @register_op("near")
 class NearOp(OpHandler):
@@ -17,11 +22,18 @@ class NearOp(OpHandler):
         gdf = ctx.results[step.input]
         target = ctx.load_layer_features(step.target_layer)
         if gdf.empty or target.empty:
-            return gdf.iloc[0:0]
+            result = gdf.iloc[0:0].copy()
+            result[DISTANCE_COLUMN] = []
+            return result
 
         left = to_metric(gdf)
         right = to_metric(target[["geometry"]])
-        joined = gpd.sjoin_nearest(left, right, max_distance=step.distance_m, how="inner")
-        # sjoin_nearest can duplicate a left row when several targets tie.
-        matched_index = joined.index.unique()
-        return gdf.loc[matched_index]
+        joined = gpd.sjoin_nearest(
+            left, right, max_distance=step.distance_m, how="inner",
+            distance_col=DISTANCE_COLUMN,
+        )
+        # Several targets can tie within range — keep the nearest per row.
+        nearest = joined.groupby(level=0)[DISTANCE_COLUMN].min()
+        result = gdf.loc[nearest.index].copy()
+        result[DISTANCE_COLUMN] = nearest
+        return result

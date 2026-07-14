@@ -69,8 +69,10 @@ class MockArcgisProvider:
 
         first = features[0]
         fields = []
+        temporal_field = None
         for name, value in first.get("properties", {}).items():
             if name == OFFSET_HOURS_FIELD:
+                temporal_field = "timestamp"
                 fields.append(
                     LayerField(name="timestamp", type="string",
                                description="ISO 8601 event time")
@@ -85,6 +87,7 @@ class MockArcgisProvider:
             )
         return LayerSchema(
             layer_id=layer.id,
+            temporal_field=temporal_field,
             geometry_type=first.get("geometry", {}).get("type", "unknown"),
             fields=fields,
         )

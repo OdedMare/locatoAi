@@ -28,10 +28,19 @@ class ExecutionContext:
     results: Dict[str, gpd.GeoDataFrame] = field(default_factory=dict)
 
     def load_layer_features(self, layer_id: str) -> gpd.GeoDataFrame:
-        """Shared by `load` and `near` (which loads its target layer)."""
+        """Shared by `load` and `near` (which loads its target layer).
+
+        Stashes the layer's temporal_field (from its provider-reported
+        schema) on the GeoDataFrame's .attrs — pandas/GeoPandas .attrs
+        survive boolean-mask filtering, so any op downstream in the same
+        chain (e.g. temporal_filter) can read it without a hardcoded
+        column name. See ops/temporal_filter.py.
+        """
         layer = self.catalog.get_layer(layer_id)
         provider = self.providers.get(layer.provider)
-        return provider.fetch_features(layer, now=self.now)
+        gdf = provider.fetch_features(layer, now=self.now)
+        gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
+        return gdf
 
 
 class OpHandler(ABC):

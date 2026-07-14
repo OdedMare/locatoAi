@@ -64,6 +64,32 @@ _GEOMETRY_TYPE_KEYS = ("geometryType", "geometry_type", "geomType")
 _GEOMETRY_VALUE_KEYS = ("geometry", "geom", "shape", "location")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
 
+# Candidate names for a layer's event-time field, checked in order against
+# the described field list (properties_list-style attributes).
+_TEMPORAL_FIELD_CANDIDATES = ("timestamp", "datetime", "date", "Date", "Timestamp")
+
+# The live entity envelope ALSO always carries a top-level "date" (see
+# _entity_to_record) — a per-entity system timestamp (created/modified),
+# not necessarily this layer's "event time". It's used as a fallback when
+# no properties_list field matches _TEMPORAL_FIELD_CANDIDATES, since most
+# layers have no better candidate. Catalog rows can opt out per layer with
+# the tag "no_temporal_field", or force a specific field with a tag of the
+# form "temporal_field:<name>" (checked first, before any of the above).
+_ENVELOPE_TEMPORAL_FIELD = "date"
+_TEMPORAL_FIELD_TAG_PREFIX = "temporal_field:"
+_NO_TEMPORAL_FIELD_TAG = "no_temporal_field"
+
+
+def _temporal_field_override(layer: LayerMeta) -> Tuple[bool, Optional[str]]:
+    """(has_override, field_name_or_None) from the layer's tags, per the
+    conventions above. has_override=False means "no opinion, use defaults"."""
+    for tag in layer.tags:
+        if tag == _NO_TEMPORAL_FIELD_TAG:
+            return True, None
+        if tag.startswith(_TEMPORAL_FIELD_TAG_PREFIX):
+            return True, tag[len(_TEMPORAL_FIELD_TAG_PREFIX):].strip() or None
+    return False, None
+
 _MQS_TO_SCHEMA_TYPE = {
     "string": "string", "text": "string", "str": "string",
     "int": "number", "integer": "number", "long": "number",
@@ -292,10 +318,18 @@ class MqsProvider:
             )
 
         geometry_type = _first_key(payload, _GEOMETRY_TYPE_KEYS)
+        has_override, temporal_field = _temporal_field_override(layer)
+        if not has_override:
+            field_names = {f.name for f in fields}
+            temporal_field = next(
+                (c for c in _TEMPORAL_FIELD_CANDIDATES if c in field_names),
+                _ENVELOPE_TEMPORAL_FIELD,
+            )
         return LayerSchema(
             layer_id=layer.id,  # the catalog id, not the MQS id
             geometry_type=geometry_type if isinstance(geometry_type, str) else "unknown",
             fields=fields,
+            temporal_field=temporal_field,
         )
 
     def fetch_features(

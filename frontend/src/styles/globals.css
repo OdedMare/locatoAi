@@ -1507,3 +1507,36 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+
+.results-table-scroll {
+  margin-top: 6px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.results-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.results-table th,
+.results-table td {
+  padding: 6px 10px;
+  text-align: start;
+  border-bottom: 1px solid var(--border);
+}
+
+.results-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+}
+
+.results-table tbody tr:last-child td {
+  border-bottom: none;
+}

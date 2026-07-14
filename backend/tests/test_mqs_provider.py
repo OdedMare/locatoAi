@@ -226,6 +226,61 @@ def test_describe_schema_fields_and_samples(tmp_path):
     assert by_name["size"].samples == ["1", "2", "3"]
 
 
+def test_describe_schema_temporal_field_from_properties_list(tmp_path):
+    """A properties_list field named like a temporal candidate wins over
+    the envelope-level "date" fallback."""
+    def responses(request):
+        if request.url.path == "/MoriaProject/Layers/42":
+            return {"geometryType": "Point", "fields": [
+                {"name": "timestamp", "type": "datetime"},
+                {"name": "status", "type": "string"},
+            ]}
+        return {}
+
+    provider, _ = make_provider(tmp_path, responses)
+    schema = provider.describe_schema(mqs_layer())
+    assert schema.temporal_field == "timestamp"
+
+
+def test_describe_schema_temporal_field_falls_back_to_envelope_date(tmp_path):
+    """No properties_list field matches a temporal candidate — falls back
+    to the always-present envelope "date" field, not None."""
+    def responses(request):
+        if request.url.path == "/MoriaProject/Layers/42":
+            return {"geometryType": "Point", "fields": [
+                {"name": "ROAD_NAME", "type": "string"},
+            ]}
+        return {}
+
+    provider, _ = make_provider(tmp_path, responses)
+    schema = provider.describe_schema(mqs_layer())
+    assert schema.temporal_field == "date"
+
+
+def test_describe_schema_temporal_field_tag_override(tmp_path):
+    """A "temporal_field:<name>" tag on the catalog row forces the field,
+    bypassing both the candidate list and the envelope fallback."""
+    def responses(request):
+        return {"geometryType": "Point", "fields": [{"name": "ROAD_NAME", "type": "string"}]}
+
+    provider, _ = make_provider(tmp_path, responses)
+    layer = mqs_layer().model_copy(update={"tags": ["temporal_field:LAST_MODIFIED"]})
+    schema = provider.describe_schema(layer)
+    assert schema.temporal_field == "LAST_MODIFIED"
+
+
+def test_describe_schema_no_temporal_field_tag_opts_out(tmp_path):
+    """A "no_temporal_field" tag declares the layer has no temporal
+    dimension, even though "date" would otherwise be assumed."""
+    def responses(request):
+        return {"geometryType": "Point", "fields": [{"name": "ROAD_NAME", "type": "string"}]}
+
+    provider, _ = make_provider(tmp_path, responses)
+    layer = mqs_layer().model_copy(update={"tags": ["no_temporal_field"]})
+    schema = provider.describe_schema(layer)
+    assert schema.temporal_field is None
+
+
 def test_describe_schema_parses_live_fields_list_map(tmp_path):
     def responses(request):
         if request.url.path == "/MoriaProject/Layers/42":
