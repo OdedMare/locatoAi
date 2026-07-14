@@ -46,6 +46,17 @@ def validate_plan(
             raise PlanValidationError(
                 f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"
             )
+        if isinstance(step, (NearStep, NearestNStep)):
+            target_filter = (
+                step.target_field, step.target_operator, step.target_value
+            )
+            if any(value is not None for value in target_filter) and not all(
+                value is not None for value in target_filter
+            ):
+                raise PlanValidationError(
+                    f"Step '{step.id}': target_field, target_operator and "
+                    "target_value must be supplied together"
+                )
         if isinstance(step, NearestNStep) and step.target_layer not in known_layer_ids:
             raise PlanValidationError(
                 f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"
@@ -78,3 +89,9 @@ def validate_plan(
                 "Plan has a 'count' step but it is not the plan's output — "
                 "'count' must be the final, output step"
             )
+
+    if plan.steps and plan.output != plan.steps[-1].id:
+        raise PlanValidationError(
+            f"Plan output '{plan.output}' must be the final step "
+            f"('{plan.steps[-1].id}')"
+        )

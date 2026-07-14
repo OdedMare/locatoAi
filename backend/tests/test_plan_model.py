@@ -127,6 +127,27 @@ def test_nearest_n_count_bounds():
         ])
 
 
+def test_proximity_target_filter_must_be_complete():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near", "input": "s1",
+         "target_layer": "roundabouts", "distance_m": 300,
+         "target_field": "name"},
+    ], output="s2")
+    with pytest.raises(PlanValidationError, match="must be supplied together"):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+def test_output_must_be_final_step():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "city_en", "operator": "eq", "value": "Tel Aviv"},
+    ], output="s1")
+    with pytest.raises(PlanValidationError, match="must be the final step"):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
 def test_count_as_output_with_nothing_downstream_is_valid():
     plan = make_plan(steps=[
         {"id": "s1", "op": "load", "layer": "schools"},

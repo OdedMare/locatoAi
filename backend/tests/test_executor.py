@@ -213,6 +213,25 @@ def test_nearest_n_distance_column_present_and_sorted(executor):
     ], "s2")
     distances = list(result["distance_to_target_m"])
     assert distances == sorted(distances)
+    assert result["match_reason"].str.contains("הקרובות ביותר").all()
+    assert result["nearest_target_feature"].map(
+        lambda feature: feature["type"] == "Feature"
+    ).all()
+
+
+def test_nearest_n_can_target_one_named_reference_entity(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "roundabouts", "count": 2,
+         "target_field": "name", "target_operator": "contains",
+         "target_value": "דיזנגוף"},
+    ], "s2")
+    assert len(result) == 2
+    assert all(
+        feature["properties"]["name"] == "כיכר דיזנגוף"
+        for feature in result["nearest_target_feature"]
+    )
 
 
 def test_count_of_simple_load(executor):

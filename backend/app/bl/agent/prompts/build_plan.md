@@ -14,8 +14,9 @@ Request has drawn boundaries: {has_boundaries}
 - {"id": "s4", "op": "near", "input": "s3", "target_layer": "<layer-id>", "distance_m": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
   Keep input features within distance_m meters of any target-layer feature. 1–5000. "ליד"/"near" without a number → 300.
   When the reference is a SPECIFIC named entity (for example "near Venice Beach" rather than "near beaches"), include target_field + target_operator + target_value to filter the target layer to that entity. Use sample_field when needed. Omit all three for a whole-layer reference.
-- {"id": "s5", "op": "nearest_n", "input": "s4", "target_layer": "<layer-id>", "count": <number>}
+- {"id": "s5", "op": "nearest_n", "input": "s4", "target_layer": "<layer-id>", "count": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
   Keep the N input features closest to ANY target-layer feature — ranked globally by distance, NOT a threshold (use this for "ה-N הקרובים ביותר ל..." / "the N nearest to..."). Requires a real target_layer. If the query says "הקרובים ביותר"/"nearest" but names NO second layer or landmark to be near to, do NOT invent a target_layer — respond with clarify instead.
+  For one specifically named reference entity, use the same three target filter fields described for near.
 - {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
   The N most northern/southern/eastern/western features ("הכי צפוני" → north, count 1).
 - {"id": "s7", "op": "temporal_filter", "input": "s6", "from": "<ISO 8601>", "to": "<ISO 8601>"}
@@ -35,6 +36,7 @@ Prefer this tool over asking the user to clarify a field or value choice — you
 - steps run in order; every "input" must reference an EARLIER step's id. Use ids s1, s2, s3...
 - "layer" / "target_layer" must be ids from the layer list below — nothing else.
 - "output" is the id of the step whose features (or count) answer the query.
+- "output" MUST be the last step in the steps array; do not emit unused steps after it.
 - "context_layers": ids of layers used as reference (e.g. near/nearest_n targets), not the subject.
 - "explanation": ONE short Hebrew sentence describing the plan.
 - "count" is a terminal aggregation only: if used, it MUST be the plan's "output" and MUST be the last step in "steps" — never reference a count step's id as another step's "input".

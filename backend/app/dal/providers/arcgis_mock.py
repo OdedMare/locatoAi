@@ -19,6 +19,7 @@ from typing import Optional, Union
 from urllib.parse import urlparse
 
 import geopandas as gpd
+from shapely.geometry.base import BaseGeometry
 
 from app.bl.ports import LayerField, LayerMeta, LayerSchema
 from app.common.geo import WGS84, empty_features_gdf
@@ -103,7 +104,10 @@ class MockArcgisProvider:
         return _sample_values(collection.get("features", []), field, limit=limit)
 
     def fetch_features(
-        self, layer: LayerMeta, now: Optional[datetime] = None
+        self,
+        layer: LayerMeta,
+        now: Optional[datetime] = None,
+        geometry: Optional[BaseGeometry] = None,
     ) -> gpd.GeoDataFrame:
         path = self._file_for(layer)
         if not path.exists():
@@ -112,6 +116,8 @@ class MockArcgisProvider:
         gdf = gpd.read_file(path)
         if gdf.crs is None:
             gdf = gdf.set_crs(WGS84)
+        if geometry is not None:
+            gdf = gdf[gdf.geometry.intersects(geometry)]
 
         if OFFSET_HOURS_FIELD in gdf.columns:
             base = now or datetime.now(timezone.utc)

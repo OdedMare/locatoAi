@@ -21,6 +21,11 @@ def _feature_from_row(row) -> dict:
         for key, value in row.items()
         if key != "geometry"
     }
+    return {
+        "type": "Feature",
+        "geometry": mapping(row.geometry),
+        "properties": properties,
+    }
 
 
 def filter_reference_entities(target, field, operator, value):
@@ -67,11 +72,6 @@ def enrich_proximity_results(gdf, target, nearest_rows, requested_distance=None)
         for target_index in nearest_rows["index_right"]
     ]
     return result
-    return {
-        "type": "Feature",
-        "geometry": mapping(row.geometry),
-        "properties": properties,
-    }
 
 
 @register_op("near")
