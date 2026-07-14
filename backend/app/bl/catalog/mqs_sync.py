@@ -11,7 +11,7 @@ prompt-injection sanitization stays at prompt-build time (locked rule).
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import uuid4
 
 from app.bl.ports import LayerMeta, LayersRepository
@@ -80,7 +80,7 @@ def _layer_id(entry: dict) -> Optional[object]:
     return None
 
 
-def browse_mqs_layers(mqs_provider) -> tuple[List[RemoteMqsLayer], int]:
+def browse_mqs_layers(mqs_provider) -> Tuple[List[RemoteMqsLayer], int]:
     """Read and normalize the remote inventory without changing the catalog."""
     layers: List[RemoteMqsLayer] = []
     skipped = 0
