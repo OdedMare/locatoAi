@@ -427,6 +427,26 @@ body {
   font-size: 14px;
 }
 
+.map-relation-arrow {
+  color: #334155;
+  font-size: 18px;
+  line-height: 18px;
+  text-align: center;
+  text-shadow: 0 0 2px #fff;
+}
+
+.leaflet-popup-content dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 8px;
+  margin: 8px 0 0;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.leaflet-popup-content dt { font-weight: 600; }
+.leaflet-popup-content dd { margin: 0; }
+
 .map-draw-hint {
   position: absolute;
   top: 16px;

@@ -10,7 +10,7 @@ Locked decisions:
 public.layers).
 """
 
-from typing import List, Literal, Union
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated
@@ -44,6 +44,11 @@ class NearStep(BaseModel):
     input: str
     target_layer: str
     distance_m: float = Field(gt=0, le=5000)
+    # A named landmark (for example "Venice Beach") narrows the reference
+    # layer before distance calculation. All three fields are emitted together.
+    target_field: Optional[str] = None
+    target_operator: Optional[Literal["eq", "contains"]] = None
+    target_value: Optional[Union[str, float]] = None
 
 
 class NearestNStep(BaseModel):
@@ -52,6 +57,9 @@ class NearestNStep(BaseModel):
     input: str
     target_layer: str
     count: int = Field(gt=0, le=50)
+    target_field: Optional[str] = None
+    target_operator: Optional[Literal["eq", "contains"]] = None
+    target_value: Optional[Union[str, float]] = None
 
 
 class DirectionalStep(BaseModel):

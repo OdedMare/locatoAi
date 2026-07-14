@@ -1,4 +1,5 @@
 import geopandas as gpd
+import pandas as pd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.plan.models import AttributeFilterStep
@@ -23,9 +24,11 @@ class AttributeFilterOp(OpHandler):
         elif step.operator == "neq":
             mask = column != step.value
         elif step.operator == "gt":
-            mask = column > step.value
+            mask = pd.to_numeric(column, errors="coerce") > float(step.value)
         elif step.operator == "lt":
-            mask = column < step.value
+            mask = pd.to_numeric(column, errors="coerce") < float(step.value)
         else:  # "contains" — operators are closed by the Literal type
-            mask = column.astype(str).str.contains(str(step.value), na=False)
+            mask = column.astype(str).str.contains(
+                str(step.value), case=False, na=False, regex=False
+            )
         return gdf[mask]

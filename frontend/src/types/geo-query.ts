@@ -53,6 +53,9 @@ export interface GeoPlanStep {
   input?: string;
   layer?: string;
   target_layer?: string;
+  target_field?: string;
+  target_operator?: "eq" | "contains";
+  target_value?: string | number;
   field?: string;
   operator?: string;
   value?: string | number;

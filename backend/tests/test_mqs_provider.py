@@ -249,6 +249,18 @@ def test_fetch_features_accepts_now_kwarg(tmp_path, frozen_now):
     assert len(gdf) == 0
 
 
+def test_fetch_features_rejects_non_wgs84_coordinates(tmp_path):
+    """A live instance serving a projected CRS (e.g. ITM/EPSG:2039) instead
+    of WGS84 lon/lat must fail loudly, not silently mislabel the geometry —
+    regression guard for the CRS-confusion class of geography bugs."""
+    itm_like_entity = entity("{G1}", wkt_value="POINT (178000 664000 0)")
+    provider, _ = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [itm_like_entity]}
+    )
+    with pytest.raises(ProviderError, match="outside WGS84"):
+        provider.fetch_features(mqs_layer())
+
+
 def test_fetch_features_unrecognized_shape_raises(tmp_path):
     provider, _ = make_provider(tmp_path, lambda request: {"success": True})
     with pytest.raises(ProviderError, match="unrecognized Entities response"):

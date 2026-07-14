@@ -9,6 +9,7 @@ interface ResultsPanelProps {
 /** Computed by NearOp (backend/app/bl/executor/ops/near.py) — shown as its
  * own formatted column, and used to sort nearest-first when present. */
 const DISTANCE_FIELD = "distance_to_target_m";
+const INTERNAL_FIELDS = new Set(["nearest_target_feature"]);
 const MAX_ROWS = 20;
 
 function ResultsTable({ response }: { response: GeoQueryResponse }) {
@@ -33,7 +34,7 @@ function ResultsTable({ response }: { response: GeoQueryResponse }) {
 
   const columns = Array.from(
     new Set(rows.flatMap((row) => Object.keys(row)))
-  ).filter((key) => key !== DISTANCE_FIELD);
+  ).filter((key) => key !== DISTANCE_FIELD && !INTERNAL_FIELDS.has(key));
   const visibleRows = rows.slice(0, MAX_ROWS);
 
   return (

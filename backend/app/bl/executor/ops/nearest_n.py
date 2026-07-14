@@ -1,9 +1,15 @@
 import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.executor.ops.near import DISTANCE_COLUMN
+from app.bl.executor.ops.near import (
+    DISTANCE_COLUMN,
+    MATCH_REASON_COLUMN,
+    NEAREST_TARGET_COLUMN,
+    enrich_proximity_results,
+    filter_reference_entities,
+)
 from app.bl.plan.models import NearestNStep
-from app.common.geo import to_metric
+from app.common.geo import metric_crs_for, to_metric
 
 
 @register_op("nearest_n")
@@ -19,20 +25,26 @@ class NearestNOp(OpHandler):
     def run(self, step: NearestNStep, ctx: ExecutionContext) -> gpd.GeoDataFrame:
         gdf = ctx.results[step.input]
         target = ctx.load_layer_features(step.target_layer)
+        target = filter_reference_entities(
+            target, step.target_field, step.target_operator, step.target_value
+        )
         if gdf.empty or target.empty:
             result = gdf.iloc[0:0].copy()
             result[DISTANCE_COLUMN] = []
+            result[MATCH_REASON_COLUMN] = []
+            result[NEAREST_TARGET_COLUMN] = []
             return result
 
-        left = to_metric(gdf)
-        right = to_metric(target[["geometry"]])
+        metric_crs = metric_crs_for(gdf, target)
+        left = to_metric(gdf, metric_crs)
+        right = to_metric(target[["geometry"]], metric_crs)
         # No max_distance — nearest_n ranks globally, it isn't a threshold.
         joined = gpd.sjoin_nearest(left, right, distance_col=DISTANCE_COLUMN)
-        nearest = joined.groupby(level=0)[DISTANCE_COLUMN].min()
+        nearest_rows = joined.sort_values(DISTANCE_COLUMN).loc[
+            lambda frame: ~frame.index.duplicated(keep="first")
+        ]
 
         # count > available rows degrades gracefully (nsmallest returns
         # everything), same precedent as DirectionalStep's index slice.
-        top_n = nearest.nsmallest(step.count)
-        result = gdf.loc[top_n.index].copy()
-        result[DISTANCE_COLUMN] = top_n
-        return result
+        top_n = nearest_rows.nsmallest(step.count, DISTANCE_COLUMN)
+        return enrich_proximity_results(gdf, target, top_n)

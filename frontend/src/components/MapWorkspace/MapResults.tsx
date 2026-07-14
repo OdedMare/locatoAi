@@ -22,6 +22,45 @@ const SHAPE_STYLE: L.PathOptions = {
   fillOpacity: 0.15,
 };
 
+const TARGET_STYLE: L.CircleMarkerOptions = {
+  radius: 8,
+  color: "#1d4ed8",
+  weight: 2,
+  fillColor: "#60a5fa",
+  fillOpacity: 0.9,
+};
+
+const INTERNAL_PROPERTIES = new Set(["nearest_target_feature"]);
+
+function popupContent(feature: GeoJSON.Feature, title: string): HTMLElement {
+  const root = document.createElement("div");
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  root.appendChild(heading);
+  const list = document.createElement("dl");
+  Object.entries(feature.properties ?? {}).forEach(([key, value]) => {
+    if (INTERNAL_PROPERTIES.has(key)) return;
+    const term = document.createElement("dt");
+    term.textContent = key;
+    const description = document.createElement("dd");
+    description.textContent = value == null ? "—" : String(value);
+    list.append(term, description);
+  });
+  root.appendChild(list);
+  return root;
+}
+
+function centerOf(layer: L.Layer): L.LatLng | null {
+  if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+    return layer.getLatLng();
+  }
+  if ("getBounds" in layer) {
+    const bounds = (layer as L.Polygon).getBounds();
+    return bounds.isValid() ? bounds.getCenter() : null;
+  }
+  return null;
+}
+
 /**
  * Draws the query results on the map and zooms to them. Managed
  * imperatively (add/remove on change) — react-leaflet's <GeoJSON> does
@@ -33,20 +72,56 @@ export default function MapResults({ features }: MapResultsProps) {
   useEffect(() => {
     if (!features || features.features.length === 0) return;
 
-    const layer = L.geoJSON(features, {
+    const group = L.featureGroup().addTo(map);
+    L.geoJSON(features, {
       pointToLayer: (_feature, latlng) => L.circleMarker(latlng, POINT_STYLE),
       style: () => SHAPE_STYLE,
       onEachFeature: (feature, featureLayer) => {
-        const name = feature.properties?.name;
-        if (name) featureLayer.bindPopup(String(name));
-      },
-    }).addTo(map);
+        featureLayer.bindPopup(popupContent(feature, "ישות שנמצאה"));
 
-    const bounds = layer.getBounds();
+        const target = feature.properties?.nearest_target_feature as
+          | GeoJSON.Feature
+          | undefined;
+        if (!target?.geometry) return;
+        const targetLayer = L.geoJSON(target, {
+          pointToLayer: (_targetFeature, latlng) =>
+            L.circleMarker(latlng, TARGET_STYLE),
+          style: { color: "#1d4ed8", weight: 2, fillOpacity: 0.12 },
+          onEachFeature: (targetFeature, targetFeatureLayer) => {
+            targetFeatureLayer.bindPopup(
+              popupContent(targetFeature, "ישות ייחוס")
+            );
+          },
+        });
+        targetLayer.eachLayer((item) => {
+          group.addLayer(item);
+          const from = centerOf(item);
+          const to = centerOf(featureLayer);
+          if (!from || !to) return;
+          L.polyline([from, to], {
+            color: "#475569",
+            weight: 2,
+            dashArray: "6 5",
+          }).addTo(group);
+          const angle = Math.atan2(to.lat - from.lat, to.lng - from.lng) * 180 / Math.PI;
+          L.marker(L.latLng((from.lat + to.lat) / 2, (from.lng + to.lng) / 2), {
+            interactive: false,
+            icon: L.divIcon({
+              className: "map-relation-arrow",
+              html: `<span style="display:block;transform:rotate(${-angle}deg)">➤</span>`,
+              iconSize: [18, 18],
+              iconAnchor: [9, 9],
+            }),
+          }).addTo(group);
+        });
+      },
+    }).addTo(group);
+
+    const bounds = group.getBounds();
     if (bounds.isValid()) map.fitBounds(bounds.pad(0.25), { maxZoom: 15 });
 
     return () => {
-      map.removeLayer(layer);
+      map.removeLayer(group);
     };
   }, [features, map]);
 

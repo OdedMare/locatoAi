@@ -10,6 +10,7 @@ from typing import List, Optional, Protocol, Tuple
 
 import geopandas as gpd
 from pydantic import BaseModel
+from shapely.geometry.base import BaseGeometry
 
 
 class LayerMeta(BaseModel):
@@ -69,8 +70,17 @@ class Provider(Protocol):
     def describe_schema(self, layer: LayerMeta) -> LayerSchema: ...
 
     def fetch_features(
-        self, layer: LayerMeta, now: Optional[datetime] = None
-    ) -> gpd.GeoDataFrame: ...
+        self,
+        layer: LayerMeta,
+        now: Optional[datetime] = None,
+        geometry: Optional[BaseGeometry] = None,
+    ) -> gpd.GeoDataFrame:
+        """geometry, when given, is a WGS84 hint the provider MAY push down
+        as a server-side spatial filter (e.g. MQS geo_polygon/
+        geo_bounding_box) to avoid fetching the whole layer. It is always
+        an optimization: within_geometry still re-filters client-side
+        (correctness doesn't depend on any provider honoring this)."""
+        ...
 
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20

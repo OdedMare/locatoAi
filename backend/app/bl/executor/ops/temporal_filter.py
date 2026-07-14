@@ -24,6 +24,11 @@ class TemporalFilterOp(OpHandler):
             raise ExecutionError(f"temporal_filter: layer has no '{field}' field")
 
         timestamps = pd.to_datetime(gdf[field], utc=True, errors="coerce")
-        start = pd.to_datetime(step.from_, utc=True)
-        end = pd.to_datetime(step.to, utc=True)
+        try:
+            start = pd.to_datetime(step.from_, utc=True)
+            end = pd.to_datetime(step.to, utc=True)
+        except (TypeError, ValueError) as exc:
+            raise ExecutionError(f"temporal_filter: invalid date range: {exc}") from exc
+        if start > end:
+            raise ExecutionError("temporal_filter: 'from' must not be after 'to'")
         return gdf[(timestamps >= start) & (timestamps <= end)]

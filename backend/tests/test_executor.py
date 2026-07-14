@@ -60,6 +60,34 @@ def test_within_geometry(executor):
     assert len(result) == 7
 
 
+def test_within_geometry_reprojects_non_wgs84_features():
+    """A provider returning features in a metric CRS must still intersect
+    correctly against user_geometry (always WGS84) — regression test for
+    within_geometry silently comparing degrees against meters."""
+    from app.bl.executor.ops.within_geometry import WithinGeometryOp
+    from app.bl.plan.models import WithinGeometryStep
+    from app.common.geo import ISRAEL_TM
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    # Two points inside CENTRAL_TLV, one outside — built directly in WGS84
+    # then reprojected, so the op must convert back to compare correctly.
+    gdf = gpd.GeoDataFrame(
+        {"name": ["in1", "in2", "out"]},
+        geometry=[Point(34.77, 32.07), Point(34.78, 32.08), Point(35.5, 33.0)],
+        crs="EPSG:4326",
+    ).to_crs(ISRAEL_TM)
+
+    class FakeCtx:
+        user_geometry = CENTRAL_TLV
+        results = {"s1": gdf}
+
+    op = WithinGeometryOp()
+    step = WithinGeometryStep(id="s2", op="within_geometry", input="s1")
+    result = op.run(step, FakeCtx())
+    assert set(result["name"]) == {"in1", "in2"}
+
+
 def test_near_uses_meters_not_degrees(executor):
     """Schools within 300m of a square — geodesically correct set."""
     result = run_steps(executor, [
@@ -89,6 +117,37 @@ def test_near_keeps_distance_to_nearest_target(executor):
     # nearest of possibly-several targets, not the first join match:
     # דיזנגוף is documented ~110m from its nearest square.
     assert distances["בית ספר דיזנגוף"] == pytest.approx(110, abs=15)
+
+
+def test_near_returns_match_reason_and_reference_entity(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near", "input": "s1",
+         "target_layer": "roundabouts", "distance_m": 300},
+    ], "s2")
+
+    row = result.set_index("name").loc["בית ספר דיזנגוף"]
+    assert "300" in row["match_reason"]
+    target = row["nearest_target_feature"]
+    assert target["type"] == "Feature"
+    assert target["geometry"]["type"] == "Point"
+    assert target["properties"]["name"] == "כיכר דיזנגוף"
+
+
+def test_near_can_target_one_named_reference_entity(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near", "input": "s1",
+         "target_layer": "roundabouts", "distance_m": 300,
+         "target_field": "name", "target_operator": "contains",
+         "target_value": "דיזנגוף"},
+    ], "s2")
+
+    assert set(result["name"]) == {"בית ספר דיזנגוף"}
+    assert all(
+        feature["properties"]["name"] == "כיכר דיזנגוף"
+        for feature in result["nearest_target_feature"]
+    )
 
 
 def test_near_empty_input_has_distance_column(executor):

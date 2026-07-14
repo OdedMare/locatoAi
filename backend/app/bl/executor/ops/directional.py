@@ -2,7 +2,7 @@ import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.plan.models import DirectionalStep
-from app.common.geo import to_metric
+from app.common.geo import WGS84, require_crs
 
 
 @register_op("directional")
@@ -14,15 +14,18 @@ class DirectionalOp(OpHandler):
         if gdf.empty:
             return gdf
 
-        # Centroid in a projected CRS (WGS84 centroids are inaccurate and
-        # geopandas warns); order is what matters here.
-        centroids = to_metric(gdf).geometry.centroid
+        # Rank by each feature's WGS84 bounding-box center. Unlike a fixed
+        # projected CRS, this remains meaningful for datasets outside Israel.
+        require_crs(gdf, "directional")
+        bounds = gdf.to_crs(WGS84).geometry.bounds
+        x = (bounds.minx + bounds.maxx) / 2
+        y = (bounds.miny + bounds.maxy) / 2
         if step.direction == "north":
-            order = centroids.y.sort_values(ascending=False)
+            order = y.sort_values(ascending=False, kind="stable")
         elif step.direction == "south":
-            order = centroids.y.sort_values(ascending=True)
+            order = y.sort_values(ascending=True, kind="stable")
         elif step.direction == "east":
-            order = centroids.x.sort_values(ascending=False)
+            order = x.sort_values(ascending=False, kind="stable")
         else:  # "west" — directions are closed by the Literal type
-            order = centroids.x.sort_values(ascending=True)
+            order = x.sort_values(ascending=True, kind="stable")
         return gdf.loc[order.index[: step.count]]

@@ -194,12 +194,42 @@ def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
     return geometry, attributes
 
 
+# A loose WGS84 lon/lat sanity envelope (world bounds, not just Israel —
+# this is a smoke check, not a real CRS validation). ITM (EPSG:2039)
+# easting/northing values are 6-7 digit numbers and fall way outside it,
+# so mixing up the two CRSs is caught immediately instead of silently
+# producing wrong/empty spatial results downstream (within_geometry,
+# near, directional all assume WGS84 degrees).
+_WGS84_LON_RANGE = (-180.0, 180.0)
+_WGS84_LAT_RANGE = (-90.0, 90.0)
+
+
+def _looks_like_wgs84(gdf: gpd.GeoDataFrame) -> bool:
+    bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
+    if len(bounds) != 4 or any(b != b for b in bounds):  # nan → empty/no geometry
+        return True
+    minx, miny, maxx, maxy = bounds
+    return (
+        _WGS84_LON_RANGE[0] <= minx <= maxx <= _WGS84_LON_RANGE[1]
+        and _WGS84_LAT_RANGE[0] <= miny <= maxy <= _WGS84_LAT_RANGE[1]
+    )
+
+
 def _ensure_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """MQS WKT is assumed WGS84 lon/lat (per the doc's note to confirm the
     SRID with the service owner). If a live instance turns out to serve
-    ITM, change this to set_crs(ISRAEL_TM).to_crs(WGS84)."""
+    ITM, change this to set_crs(ISRAEL_TM).to_crs(WGS84) — the coordinate
+    sanity check below turns that mismatch into a loud error instead of
+    silently wrong spatial results."""
     if gdf.crs is None:
         gdf = gdf.set_crs(WGS84)
+    if not _looks_like_wgs84(gdf):
+        bounds = gdf.total_bounds
+        raise ProviderError(
+            f"MQS geometry coordinates {list(bounds)} are outside WGS84 "
+            "lon/lat range — the service may be serving a projected CRS "
+            "(e.g. ITM/EPSG:2039); fix _ensure_wgs84 in mqs.py"
+        )
     return gdf
 
 

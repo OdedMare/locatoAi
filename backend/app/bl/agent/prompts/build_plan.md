@@ -11,8 +11,9 @@ Request has drawn boundaries: {has_boundaries}
   Keep features inside the user's drawn boundaries. Use ONLY when boundaries are provided — and when they are, apply it to the subject layer right after load.
 - {"id": "s3", "op": "attribute_filter", "input": "s2", "field": "<field>", "operator": "eq|neq|gt|lt|contains", "value": <string or number>}
   Field must exist in the layer's schema; string values must match the language/format of the sample values.
-- {"id": "s4", "op": "near", "input": "s3", "target_layer": "<layer-id>", "distance_m": <number>}
+- {"id": "s4", "op": "near", "input": "s3", "target_layer": "<layer-id>", "distance_m": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
   Keep input features within distance_m meters of any target-layer feature. 1–5000. "ליד"/"near" without a number → 300.
+  When the reference is a SPECIFIC named entity (for example "near Venice Beach" rather than "near beaches"), include target_field + target_operator + target_value to filter the target layer to that entity. Use sample_field when needed. Omit all three for a whole-layer reference.
 - {"id": "s5", "op": "nearest_n", "input": "s4", "target_layer": "<layer-id>", "count": <number>}
   Keep the N input features closest to ANY target-layer feature — ranked globally by distance, NOT a threshold (use this for "ה-N הקרובים ביותר ל..." / "the N nearest to..."). Requires a real target_layer. If the query says "הקרובים ביותר"/"nearest" but names NO second layer or landmark to be near to, do NOT invent a target_layer — respond with clarify instead.
 - {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
