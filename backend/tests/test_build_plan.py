@@ -140,16 +140,16 @@ def test_sample_field_unselected_layer_gets_no_values(catalog):
 
 
 def test_sample_field_budget_exhausted_falls_back_to_retry_policy(catalog):
-    # 2 tool rounds allowed; the 3rd tool response is treated as a bad plan
-    # (consumes the validation retry), the 4th still asks → fallback clarify.
-    llm = SequenceLLM([SAMPLE_TOOL_CALL] * 4)
+    # 3 tool rounds allowed; the 4th tool response is treated as a bad plan
+    # (consumes the validation retry), the 5th still asks → fallback clarify.
+    llm = SequenceLLM([SAMPLE_TOOL_CALL] * 5)
     result = PlanBuilder(llm, catalog).build(
         "q", [SCHOOLS, ROUNDABOUTS], has_boundaries=False, now=NOW
     )
     assert result.plan is None
     assert result.clarify == _FALLBACK_CLARIFY
-    assert len(result.tool_calls) == 2
-    assert len(llm.calls) == 4
+    assert len(result.tool_calls) == 3
+    assert len(llm.calls) == 5
 
 
 def test_orchestrator_full_flow_returns_features(catalog, executor):

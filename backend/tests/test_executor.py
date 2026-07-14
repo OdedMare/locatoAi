@@ -102,6 +102,101 @@ def test_near_empty_input_has_distance_column(executor):
     assert "distance_to_target_m" in result.columns
 
 
+def test_nearest_n_exact_count(executor):
+    """The 4 globally nearest schools to any roundabout — same set as the
+    300m threshold test, since those happen to be the 4 closest overall."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "roundabouts", "count": 4},
+    ], "s2")
+    assert len(result) == 4
+    assert set(result["name"]) == {
+        "בית ספר גרץ", "בית ספר דיזנגוף", "עירוני ד'", "אליאנס תל אביב",
+    }
+
+
+def test_nearest_n_count_exceeds_available(executor):
+    """count > available rows degrades gracefully — all 12 schools, no error."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "roundabouts", "count": 50},
+    ], "s2")
+    assert len(result) == 12
+
+
+def test_nearest_n_empty_input(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "empty-layer"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "roundabouts", "count": 3},
+    ], "s2")
+    assert result.empty
+    assert "distance_to_target_m" in result.columns
+
+
+def test_nearest_n_empty_target(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "empty-layer", "count": 3},
+    ], "s2")
+    assert result.empty
+    assert "distance_to_target_m" in result.columns
+
+
+def test_nearest_n_distance_column_present_and_sorted(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "roundabouts", "count": 4},
+    ], "s2")
+    distances = list(result["distance_to_target_m"])
+    assert distances == sorted(distances)
+
+
+def test_count_of_simple_load(executor):
+    result = run_steps(
+        executor,
+        [{"id": "s1", "op": "load", "layer": "schools"},
+         {"id": "s2", "op": "count", "input": "s1"}],
+        "s2",
+    )
+    assert result == 12
+    assert isinstance(result, int)
+
+
+def test_count_after_near_chain(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near", "input": "s1",
+         "target_layer": "roundabouts", "distance_m": 300},
+        {"id": "s3", "op": "count", "input": "s2"},
+    ], "s3")
+    assert result == 4
+
+
+def test_count_after_attribute_filter(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "city_en", "operator": "eq", "value": "Tel Aviv"},
+        {"id": "s3", "op": "count", "input": "s2"},
+    ], "s3")
+    assert result == 8
+
+
+def test_count_of_empty_result(executor):
+    result = run_steps(
+        executor,
+        [{"id": "s1", "op": "load", "layer": "empty-layer"},
+         {"id": "s2", "op": "count", "input": "s1"}],
+        "s2",
+    )
+    assert result == 0
+
+
 def test_directional_northernmost(executor):
     result = run_steps(executor, [
         {"id": "s1", "op": "load", "layer": "schools"},

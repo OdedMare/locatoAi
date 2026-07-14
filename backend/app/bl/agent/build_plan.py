@@ -35,8 +35,11 @@ _USAGE_KEY = "_usage"  # attached by the LLM client, not part of the plan
 # The sample_field tool (see prompts/build_plan.md): the model may ask for
 # extra distinct values of one field before committing to a plan. Tool
 # rounds have their own budget and do not consume the validation retry.
+# Bumped from 2 to 3: the clarify policy now expects the model to lean on
+# this tool more habitually (self-serve field/value checks) rather than
+# asking the user, so a tight cap would push it toward premature clarify.
 _TOOL_NAME = "sample_field"
-_MAX_TOOL_ROUNDS = 2
+_MAX_TOOL_ROUNDS = 3
 _SAMPLE_LIMIT = 20
 _MAX_SAMPLE_CHARS = 40
 

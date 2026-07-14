@@ -100,3 +100,58 @@ def test_empty_plan_rejected():
     plan = GeoQueryPlan(explanation="x", steps=[], output="s1")
     with pytest.raises(PlanValidationError, match="no steps"):
         validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+def test_nearest_n_unknown_target_layer_rejected():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "nearest_n", "input": "s1",
+         "target_layer": "nope", "count": 3},
+    ], output="s2")
+    with pytest.raises(PlanValidationError, match="not in the catalog"):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+def test_nearest_n_count_bounds():
+    with pytest.raises(ValidationError):
+        make_plan(steps=[
+            {"id": "s1", "op": "load", "layer": "schools"},
+            {"id": "s2", "op": "nearest_n", "input": "s1",
+             "target_layer": "roundabouts", "count": 0},
+        ])
+    with pytest.raises(ValidationError):
+        make_plan(steps=[
+            {"id": "s1", "op": "load", "layer": "schools"},
+            {"id": "s2", "op": "nearest_n", "input": "s1",
+             "target_layer": "roundabouts", "count": 51},
+        ])
+
+
+def test_count_as_output_with_nothing_downstream_is_valid():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "count", "input": "s1"},
+    ], output="s2")
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)  # does not raise
+
+
+def test_count_referenced_as_input_rejected():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "count", "input": "s1"},
+        {"id": "s3", "op": "attribute_filter", "input": "s2",
+         "field": "x", "operator": "eq", "value": "y"},
+    ], output="s3")
+    with pytest.raises(
+        PlanValidationError, match="cannot be used as another step's input"
+    ):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+def test_count_not_set_as_output_rejected():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "count", "input": "s1"},
+    ], output="s1")
+    with pytest.raises(PlanValidationError, match="must be the final, output step"):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
