@@ -10,6 +10,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
 from app.bl.ports import LayerMeta
 
@@ -56,6 +57,18 @@ class CreateLayerRequest(BaseModel):
     tags: List[str] = []
     provider: str = Field(default="mqs", min_length=1, max_length=50)
     source_url: str = Field(min_length=1, max_length=2000)
+
+
+class GenerateLayerMetadataRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    provider: str = Field(default="mqs", min_length=1, max_length=50)
+    source_url: str = Field(min_length=1, max_length=2000)
+
+
+class GeneratedLayerMetadataResponse(BaseModel):
+    description: str
+    tags: List[str]
+    sample_count: int
 
 
 @router.get("/api/layers", response_model=LayersResponse)
@@ -131,4 +144,22 @@ def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
         name=created.name,
         description=created.description,
         tags=created.tags,
+    )
+
+
+@router.post(
+    "/api/layers/generate-metadata", response_model=GeneratedLayerMetadataResponse
+)
+def generate_layer_metadata(
+    body: GenerateLayerMetadataRequest, request: Request
+) -> GeneratedLayerMetadataResponse:
+    """Generate suggestions only; the user can edit them before layer creation."""
+    generator: LayerMetadataGenerator = request.app.state.layer_metadata_generator
+    result = generator.generate(
+        name=body.name, provider_name=body.provider, source_url=body.source_url
+    )
+    return GeneratedLayerMetadataResponse(
+        description=result.description,
+        tags=result.tags,
+        sample_count=result.sample_count,
     )

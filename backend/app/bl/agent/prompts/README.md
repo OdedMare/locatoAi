@@ -1,6 +1,6 @@
 # Agent prompts
 
-The prompt files are the model-facing policy layer for LocatoAI's two-call agent pipeline. They are loaded by the business layer at runtime, populated with sanitized context, and sent through the OpenAI-compatible LLM port. Keeping prompts outside Python makes model tuning reviewable without mixing wording changes with orchestration code.
+The prompt files are the model-facing policy layer for LocatoAI's query pipeline and catalog-metadata assistant. They are loaded by the business layer at runtime, populated with sanitized context, and sent through the OpenAI-compatible LLM port. Keeping prompts outside Python makes model tuning reviewable without mixing wording changes with orchestration code.
 
 ## Pipeline position
 
@@ -40,6 +40,15 @@ Used by `PlanBuilder` for model call two. Runtime substitutions are:
 The model may return a `sample_field` tool request to inspect additional distinct values for a selected layer field. The builder allows at most two tool rounds. Tool rounds do not consume the separate validation-retry budget.
 
 The final response must be either a plan matching `GeoQueryPlan` or a short Hebrew clarification. Invalid plans receive one correction attempt containing a bounded validation error and the rejected JSON.
+
+### `generate_layer_metadata.md`
+
+Used while a user prepares a catalog layer. The backend fetches the source through
+its registered provider, randomly selects at most 10 entities, removes geometry,
+bounds property names and values, and sends the preview with the schema and layer
+name. The model returns a concise Hebrew description and searchable Hebrew/English
+tags. These are suggestions only: the frontend fills editable form fields, and no
+catalog row is written until the user explicitly submits it.
 
 ## Rules split between prompts and code
 

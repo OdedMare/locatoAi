@@ -20,6 +20,18 @@ export interface CreateLayerRequest {
   source_url: string;
 }
 
+export interface GenerateLayerMetadataRequest {
+  name: string;
+  provider: string;
+  source_url: string;
+}
+
+export interface GeneratedLayerMetadataResponse {
+  description: string;
+  tags: string[];
+  sample_count: number;
+}
+
 export interface MqsSyncResponse {
   added: number;
   updated: number;

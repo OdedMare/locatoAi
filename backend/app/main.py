@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.bl.agent.build_plan import PlanBuilder
+from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.agent.select_layers import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
@@ -70,6 +71,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     llm = OpenAIJsonClient(settings_store)
     layer_selector = LayerSelector(llm, catalog)
     plan_builder = PlanBuilder(llm, catalog)
+    metadata_generator = LayerMetadataGenerator(llm, providers)
 
     app.state.settings_store = settings_store
     app.state.repository = repository
@@ -78,6 +80,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.llm_client = llm
+    app.state.layer_metadata_generator = metadata_generator
     app.state.orchestrator = QueryOrchestrator(
         catalog, executor, layer_selector=layer_selector, plan_builder=plan_builder
     )

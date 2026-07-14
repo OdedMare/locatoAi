@@ -1,6 +1,8 @@
 import type {
   CatalogLayer,
   CreateLayerRequest,
+  GeneratedLayerMetadataResponse,
+  GenerateLayerMetadataRequest,
   LayersResponse,
   MqsSyncResponse,
   RemoteMqsLayersResponse,
@@ -32,6 +34,22 @@ export async function createLayer(layer: CreateLayerRequest): Promise<CatalogLay
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `הוספת השכבה נכשלה (${res.status})`);
+  }
+  return res.json();
+}
+
+/** Sample up to 10 entities and ask the LLM for editable metadata suggestions. */
+export async function generateLayerMetadata(
+  layer: GenerateLayerMetadataRequest
+): Promise<GeneratedLayerMetadataResponse> {
+  const res = await fetch("/api/layers/generate-metadata", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(layer),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `יצירת התיאור והתגיות נכשלה (${res.status})`);
   }
   return res.json();
 }

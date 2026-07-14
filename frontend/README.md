@@ -117,7 +117,7 @@ Handles every response state. Feature results become a dynamic property table ca
 
 ### `LayersPanel`
 
-Loads and searches catalog metadata. It supports manual layer creation and browsing remote MQS inventory before copying a remote layer into the creation form. Catalog writes go through backend endpoints; this component never talks to PostgreSQL or MQS itself.
+Loads and searches catalog metadata. It supports manual layer creation and browsing remote MQS inventory before copying a remote layer into the creation form. Selecting a remote layer automatically asks the backend to sample up to 10 random entities and generate a description and tags; the suggestions populate normal editable fields and are not saved until the user submits the form. Catalog writes go through backend endpoints; this component never talks to PostgreSQL or MQS itself.
 
 ### `SettingsPanel`
 
@@ -167,6 +167,7 @@ src/
 | `getLayers` | `GET /api/layers` | Read catalog metadata. |
 | `getMqsLayers` | `GET /api/layers/mqs` | Browse remote inventory without writing. |
 | `createLayer` | `POST /api/layers` | Add one catalog entry. |
+| `generateLayerMetadata` | `POST /api/layers/generate-metadata` | Generate editable metadata from a random entity sample. |
 | `syncMqsLayers` | `POST /api/layers/sync-mqs` | Bulk upsert remote inventory. |
 | `getSettings` | `GET /api/settings` | Load settings and catalog status. |
 | `updateSettings` | `PUT /api/settings` | Save validated runtime overrides. |

@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createLayer, getLayers, getMqsLayers } from "@/services/catalogService";
+import {
+  createLayer,
+  generateLayerMetadata,
+  getLayers,
+  getMqsLayers,
+} from "@/services/catalogService";
 import type { CatalogLayer, RemoteMqsLayer } from "@/types/catalog";
 
 interface LayersPanelProps {
@@ -24,6 +29,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [provider, setProvider] = useState("mqs");
   const [sourceUrl, setSourceUrl] = useState("");
   const [saving, setSaving] = useState(false);
+  const [generatingMetadata, setGeneratingMetadata] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [showMqsBrowser, setShowMqsBrowser] = useState(false);
   const [mqsLayers, setMqsLayers] = useState<RemoteMqsLayer[] | null>(null);
@@ -120,6 +126,30 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     }
   };
 
+  const handleGenerateMetadata = async (selected?: RemoteMqsLayer) => {
+    const target = {
+      name: selected?.name ?? name,
+      provider: selected?.provider ?? provider,
+      source_url: selected?.source_url ?? sourceUrl,
+    };
+    if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
+    setGeneratingMetadata(true);
+    setFormMessage("דוגם עד 10 ישויות ומייצר תיאור ותגיות…");
+    try {
+      const generated = await generateLayerMetadata(target);
+      setDescription(generated.description);
+      setTags(generated.tags);
+      setTagDraft("");
+      setFormMessage(
+        `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
+      );
+    } catch (err) {
+      setFormMessage(err instanceof Error ? err.message : "יצירת התיאור והתגיות נכשלה");
+    } finally {
+      setGeneratingMetadata(false);
+    }
+  };
+
   const selectMqsLayer = (layer: RemoteMqsLayer) => {
     setName(layer.name);
     setDescription(layer.description);
@@ -130,6 +160,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setFormMessage(null);
     setShowAddForm(true);
     setShowMqsBrowser(false);
+    void handleGenerateMetadata(layer);
   };
 
   return (
@@ -242,6 +273,14 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
             <label className="field-label" htmlFor="layer-source-url">כתובת המקור</label>
             <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://provider.example/layer" dir="ltr" />
             {formMessage && <p className="settings-message">{formMessage}</p>}
+            <button
+              type="button"
+              className="add-layer-toggle"
+              onClick={() => void handleGenerateMetadata()}
+              disabled={!name.trim() || !provider.trim() || !sourceUrl.trim() || generatingMetadata}
+            >
+              {generatingMetadata ? "מייצר תיאור ותגיות…" : "✨ יצירת תיאור ותגיות באמצעות AI"}
+            </button>
             <button type="button" className="run-query-button" onClick={handleAddLayer} disabled={!name.trim() || !sourceUrl.trim() || saving}>
               {saving ? "מוסיף…" : "הוספת שכבה"}
             </button>

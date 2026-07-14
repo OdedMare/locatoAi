@@ -12,7 +12,7 @@ POST /api/query {query, boundaries: MultiPolygon|null}
         ▼
 ┌─ QueryOrchestrator ────────────────────────────────────────────┐
 │  1. select layers   (LLM call 1 — LIVE)                        │
-│  2. build plan      (LLM call 2 — NEXT STAGE)                  │
+│  2. build plan      (LLM call 2 — LIVE)                        │
 │  3. validate plan   (retry once with the error, then clarify)  │
 │  4. execute plan    (GeoPandas ops, EPSG:2039 for meters)      │
 └────────────────────────────────────────────────────────────────┘
@@ -23,7 +23,7 @@ POST /api/query {query, boundaries: MultiPolygon|null}
 
 The model never writes SQL and never invents data sources: it chooses from a
 **Postgres layer catalog** and emits a **plan** — a small, validated JSON program
-over six spatial operations.
+over eight spatial, filtering, and aggregation operations.
 
 ---
 
@@ -56,7 +56,7 @@ app/
 │   │   ├── build_plan.py    # call 2: query+schemas → plan (+ sample_field tool rounds)
 │   │   └── prompts/         # prompts are FILES; tuning ≠ code change
 │   ├── plan/
-│   │   ├── models.py        # GeoQueryPlan: discriminated union of 6 step types
+│   │   ├── models.py        # GeoQueryPlan: discriminated union of 8 step types
 │   │   └── validators.py    # semantic checks with agent-readable error messages
 │   ├── executor/
 │   │   ├── engine.py        # runs steps in order, dispatches via the op registry
@@ -66,7 +66,9 @@ app/
 │       └── mqs_sync.py      # MQS layer inventory → catalog upserts (tags preserved)
 │
 ├── dal/                     # ── Data access tier (implements bl.ports) ──
-│   ├── layers_repository.py # Postgres public.layers — the ONLY module with SQL
+│   ├── postgres.py          # shared live-settings PostgreSQL connection factory
+│   ├── layers_repository.py # configurable PostgreSQL catalog table
+│   ├── feedback_repository.py # configurable PostgreSQL feedback table
 │   ├── providers/
 │   │   ├── arcgis_mock.py   # TEST FIXTURE ONLY — used by tests/conftest.py, not production
 │   │   ├── mqs.py           # MQS (Moria Query Service) REST adapter — the only prod provider
@@ -82,11 +84,35 @@ app/
     └── logging.py           # structlog → logs/requests.jsonl
 ```
 
+The service tier exposes these routes:
+
+| Method and path | Stage / purpose |
+|---|---|
+| `GET /health` | Process health check; outside the `/api` proxy family. |
+| `POST /api/query` | Full natural-language select → plan → validate → execute pipeline. |
+| `POST /api/execute-plan` | Validate and execute a supplied plan without either LLM call. |
+| `POST /api/select-layers` | Run only agent call one for debugging/evaluation. |
+| `GET /api/layers` | Return local catalog metadata. |
+| `POST /api/layers` | Create one catalog record. |
+| `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
+| `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
+| `POST /api/layers/sync-mqs` | Upsert remote MQS inventory into PostgreSQL. |
+| `GET /api/settings` | Read masked runtime settings and live catalog status. |
+| `PUT /api/settings` | Validate and persist runtime setting overrides. |
+| `GET /api/models` | List models with saved LLM settings. |
+| `POST /api/models` | Probe models using unsaved URL/key overrides. |
+| `POST /api/feedback` | Persist a thumbs verdict and selection context. |
+
+`main.py` creates the settings store, repositories, provider registry, MQS
+provider, catalog, executor, LLM client, both agent stages, and orchestrator.
+These long-lived objects are attached to `app.state`; routers retrieve them
+directly or through `service/deps.py`.
+
 **How SOLID maps onto it**
 
 | Principle | Where it lives |
 |---|---|
-| SRP | routers translate HTTP only; each executor op is one module; the repository only speaks SQL |
+| SRP | routers translate HTTP only; each executor op is one module; DAL repositories own SQL |
 | OCP | new op = new file in `executor/ops/` (engine untouched); new provider = one `register()` call |
 | LSP/ISP | `Provider` is three methods (`describe_schema`, `fetch_features`, `sample_field_values`) — any adapter drops in |
 | DIP | BL imports nothing from DAL; it depends on `bl/ports.py` Protocols, wired in `main.py` |
@@ -118,14 +144,65 @@ Plans are DAGs of steps chained by `id`/`input`. Validators guarantee every
 | `within_geometry` | keep features intersecting the request boundaries | rejected if request has no boundaries |
 | `attribute_filter` | `eq/neq/gt/lt/contains` on a property | field must exist |
 | `near` | keep features ≤ `distance_m` from any target-layer feature | reprojects to EPSG:2039 first |
+| `nearest_n` | globally nearest N features to a target layer | adds `distance_to_target_m` |
 | `directional` | N most northern/southern/eastern/western | projected centroids |
-| `temporal_filter` | ISO `from`/`to` on the `timestamp` field | mock data is relative-to-now |
+| `temporal_filter` | ISO `from`/`to` on the provider-declared time field | field is not hardcoded |
+| `count` | return the upstream row count as an integer | terminal output only |
 
 **Locked decisions** (don't relitigate): plans not SQL · meters math only after
 reprojecting to EPSG:2039, never in WGS84 degrees · provider/catalog text is untrusted
 prompt input (sanitized + truncated) · clarify is a first-class response, always Hebrew.
 
 ---
+
+## Full request lifecycle
+
+### Stage 0: transport and boundary conversion
+
+`service/dto.py` accepts a non-empty query and optional GeoJSON
+`MultiPolygon`. The router converts the boundary to Shapely and passes domain
+values into `QueryOrchestrator`. DTOs contain translation, not planning rules.
+
+### Stage 1: layer selection
+
+The selector reads current catalog metadata through `CatalogService`, sanitizes
+and bounds untrusted names/descriptions/tags, injects them into the selection
+prompt, and asks for JSON. It preserves valid returned order, removes duplicates,
+and discards IDs outside the catalog. No valid IDs produces a Hebrew
+clarification instead of an empty execution.
+
+### Stage 2: schema discovery and plan construction
+
+The builder resolves selected layers through their registered providers and asks
+the catalog service for schemas. Schemas are cached by layer ID with a TTL; when
+a refresh fails, a stale cached schema is preferred. The plan prompt receives
+current UTC time, boundary availability, fields, types, and bounded samples.
+
+The model can request `sample_field` up to twice before producing a plan. This is
+a JSON protocol implemented by the builder, keeping compatibility with smaller
+OpenAI-style servers. Tool rounds do not consume the validation-retry budget.
+
+### Stage 3: parsing, semantic validation, and correction
+
+Pydantic parses the discriminated step union and enforces literal operations and
+numeric limits. `validate_plan` checks unique IDs, earlier inputs, known layers,
+boundary requirements, output existence, and terminal-count rules. A failure is
+fed into one correction attempt; a second failure becomes a Hebrew clarification.
+
+### Stage 4: deterministic execution
+
+The executor creates one `ExecutionContext`, walks steps in list order, and
+dispatches registered handlers. Load and relationship operations obtain features
+through the provider registry. Intermediate GeoDataFrames are stored by step ID.
+`count` returns an integer; all feature outputs remain WGS84 GeoDataFrames.
+
+### Stage 5: response, observability, and feedback
+
+`QueryResponse.from_outcome` is the domain-to-HTTP translation. It serializes
+GeoDataFrames through `__geo_interface__`, preserving computed fields such as
+`distance_to_target_m`. Responses carry the agent trace, stage timings, token
+usage, and tool calls. Routers write structured request events, while user votes
+go to the configured PostgreSQL feedback table.
 
 ## The agent
 
@@ -199,7 +276,20 @@ Two layers, one store ([`runtime_settings.py`](app/common/runtime_settings.py)):
    (gitignored, mounted into the container) and **wins over env**.
 
 Consumers read the store **per call** — settings changes need no restart.
-The layers table name is identifier-validated and quoted before entering SQL.
+Both layers and feedback table names are identifier-validated and quoted before
+entering SQL. The database URL accepts PostgreSQL URLs and normalizes pasted JDBC
+PostgreSQL URLs. Optional user, password, host, port, and database fields override
+the matching URL parts.
+
+The catalog and feedback repositories share the same live connection settings.
+The feedback repository creates its configured table on first use and stores the
+query, verdict, selected-layer names, reasoning, clarification, and timestamp.
+The PostgreSQL role therefore needs catalog access and permission to create or
+write that feedback table.
+
+Secrets have write-only API semantics: empty key/password fields keep the saved
+value, GET responses expose only presence or masked hints, and the full values
+remain in the backend runtime settings file.
 
 ---
 
