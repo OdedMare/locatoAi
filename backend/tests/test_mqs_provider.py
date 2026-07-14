@@ -12,7 +12,6 @@ from app.common.geo import WGS84
 from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.providers.mqs import (
     _MAX_FEATURES,
-    _PAGE_SIZE,
     MqsProvider,
     mqs_layer_id,
 )
@@ -84,12 +83,9 @@ def test_fetch_features_parses_geojson_features(tmp_path):
     assert str(gdf.crs) == WGS84
     assert list(gdf["name"]) == ["א", "ב"]
     request = handler.requests[0]
+    assert request.method == "POST"
     assert request.url.path == "/MoriaProject/42/Entities"
-    params = dict(request.url.params)
-    assert params["geo_type"] == "GeoJSON"
-    assert params["result_type"] == "data"
-    assert params["from"] == "0"
-    assert params["to"] == str(_PAGE_SIZE)
+    assert json.loads(request.content) == {"filter": {}}
 
 
 def test_fetch_features_flat_entities(tmp_path):
@@ -130,18 +126,15 @@ def test_fetch_features_parses_live_mqs_entity_shape(tmp_path):
     assert gdf.iloc[0].geometry.wkt == "POINT (34.78 32.08)"
 
 
-def test_fetch_features_paginates(tmp_path):
-    def responses(request):
-        offset = int(dict(request.url.params)["from"])
-        if offset == 0:
-            return {"features": [feature(34.0, 32.0, i=i) for i in range(_PAGE_SIZE)]}
-        return {"features": [feature(34.0, 32.0, i=offset)]}
-
-    provider, handler = make_provider(tmp_path, responses)
+def test_fetch_features_single_unpaginated_request(tmp_path):
+    """No documented pagination param for Entities — one request returns
+    everything; see the module docstring for why."""
+    provider, handler = make_provider(tmp_path, lambda request: {
+        "features": [feature(34.0, 32.0, i=i) for i in range(500)]
+    })
     gdf = provider.fetch_features(mqs_layer())
-    assert len(gdf) == _PAGE_SIZE + 1
-    assert len(handler.requests) == 2
-    assert dict(handler.requests[1].url.params)["from"] == str(_PAGE_SIZE)
+    assert len(gdf) == 500
+    assert len(handler.requests) == 1
 
 
 def test_fetch_features_empty(tmp_path):
@@ -165,8 +158,8 @@ def test_fetch_features_skips_bad_geometry(tmp_path):
 
 
 def test_fetch_features_hard_cap(tmp_path):
-    full_page = {"features": [feature(34.0, 32.0) for _ in range(_PAGE_SIZE)]}
-    provider, _ = make_provider(tmp_path, lambda request: full_page)
+    huge_response = {"features": [feature(34.0, 32.0) for _ in range(_MAX_FEATURES)]}
+    provider, _ = make_provider(tmp_path, lambda request: huge_response)
     with pytest.raises(ProviderError, match=str(_MAX_FEATURES)):
         provider.fetch_features(mqs_layer())
 
