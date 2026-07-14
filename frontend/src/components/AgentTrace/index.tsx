@@ -24,6 +24,14 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
       return `בקרבת ${layerName(step.target_layer)} (עד ${step.distance_m} מ')`;
     case "nearest_n":
       return `${step.count ?? 1} הקרובים ביותר ל${layerName(step.target_layer)}`;
+    case "between":
+      return `בין ${layerName(step.first_target_layer)} ל${layerName(step.second_target_layer)} (מסדרון ${step.corridor_width_m ?? 100} מ')`;
+    case "crosses":
+      return `חוצה את ${layerName(step.target_layer)}`;
+    case "touches":
+      return `נוגע בגבול של ${layerName(step.target_layer)}`;
+    case "contains":
+      return `מכיל ישות מתוך ${layerName(step.target_layer)}`;
     case "directional":
       return `${DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
     case "temporal_filter":

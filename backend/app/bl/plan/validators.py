@@ -8,11 +8,15 @@ the prompt, then a clarify fallback.
 from typing import Set
 
 from app.bl.plan.models import (
+    BetweenStep,
+    ContainsStep,
     CountStep,
     GeoQueryPlan,
     LoadStep,
     NearestNStep,
     NearStep,
+    CrossesStep,
+    TouchesStep,
     WithinGeometryStep,
 )
 from app.common.errors import PlanValidationError
@@ -46,7 +50,14 @@ def validate_plan(
             raise PlanValidationError(
                 f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"
             )
-        if isinstance(step, (NearStep, NearestNStep)):
+        if isinstance(
+            step, (NearStep, NearestNStep, CrossesStep, TouchesStep, ContainsStep)
+        ):
+            if step.target_layer not in known_layer_ids:
+                raise PlanValidationError(
+                    f"Step '{step.id}': target_layer '{step.target_layer}' "
+                    "is not in the catalog"
+                )
             target_filter = (
                 step.target_field, step.target_operator, step.target_value
             )
@@ -57,6 +68,29 @@ def validate_plan(
                     f"Step '{step.id}': target_field, target_operator and "
                     "target_value must be supplied together"
                 )
+        if isinstance(step, BetweenStep):
+            for label, layer_id in (
+                ("first_target_layer", step.first_target_layer),
+                ("second_target_layer", step.second_target_layer),
+            ):
+                if layer_id not in known_layer_ids:
+                    raise PlanValidationError(
+                        f"Step '{step.id}': {label} '{layer_id}' is not in the catalog"
+                    )
+            for prefix in ("first", "second"):
+                target_filter = (
+                    getattr(step, f"{prefix}_target_field"),
+                    getattr(step, f"{prefix}_target_operator"),
+                    getattr(step, f"{prefix}_target_value"),
+                )
+                if any(value is not None for value in target_filter) and not all(
+                    value is not None for value in target_filter
+                ):
+                    raise PlanValidationError(
+                        f"Step '{step.id}': {prefix}_target_field, "
+                        f"{prefix}_target_operator and {prefix}_target_value "
+                        "must be supplied together"
+                    )
         if isinstance(step, NearestNStep) and step.target_layer not in known_layer_ids:
             raise PlanValidationError(
                 f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"

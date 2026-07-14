@@ -1,7 +1,9 @@
+import json
 from typing import Callable, List, Optional
 
 import httpx
 import pytest
+from shapely.geometry import Polygon, box
 
 from app.bl.ports import LayerMeta
 from app.bl.catalog.mqs_sync import browse_mqs_layers
@@ -265,6 +267,71 @@ def test_fetch_features_unrecognized_shape_raises(tmp_path):
     provider, _ = make_provider(tmp_path, lambda request: {"success": True})
     with pytest.raises(ProviderError, match="unrecognized Entities response"):
         provider.fetch_features(mqs_layer())
+
+
+def test_fetch_features_without_geometry_stays_get(tmp_path):
+    """No geometry hint → unchanged GET behavior (no regression)."""
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    provider.fetch_features(mqs_layer())
+    assert handler.requests[0].method == "GET"
+
+
+def test_fetch_features_with_bbox_geometry_posts_geo_bounding_box(tmp_path):
+    """An axis-aligned rectangle (the viewport case) becomes a POST with
+    geo_bounding_box, not GET — spatial pushdown per the filter doc."""
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    viewport = box(34.7, 32.0, 34.9, 32.2)  # minx, miny, maxx, maxy
+    provider.fetch_features(mqs_layer(), geometry=viewport)
+
+    request = handler.requests[0]
+    assert request.method == "POST"
+    assert request.url.path == "/MoriaProject/42/Entities"
+    body = json.loads(request.content)
+    bbox = body["filter"]["complex_operators"]["geo_bounding_box"]["geo"]["values"][0]
+    assert bbox["location_top_left"] == {"lat": 32.2, "lon": 34.7}
+    assert bbox["location_bottom_right"] == {"lat": 32.0, "lon": 34.9}
+    # pagination params still applied on the POST path
+    assert dict(request.url.params) == {"from": "0", "to": str(_PAGE_SIZE)}
+
+
+def test_fetch_features_with_polygon_geometry_posts_geo_polygon(tmp_path):
+    """A non-rectangular shape (a drawn polygon) becomes geo_polygon WKT."""
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
+    triangle = Polygon([(34.7, 32.0), (34.9, 32.0), (34.8, 32.3)])
+    provider.fetch_features(mqs_layer(), geometry=triangle)
+
+    request = handler.requests[0]
+    assert request.method == "POST"
+    body = json.loads(request.content)
+    geo_polygon = body["filter"]["complex_operators"]["geo_polygon"]["geo"]
+    assert geo_polygon["type"] == "IN"
+    assert geo_polygon["values"] == [triangle.wkt]
+
+
+def test_fetch_features_with_geometry_follows_pagination(tmp_path):
+    """Spatial pushdown and pagination compose — next_page still followed
+    on the POST path."""
+    page_1 = {
+        "next_page": "https://mqs.test/MQS/MoriaProject/42/Entities?from=1&to=2",
+        "entities_list": [entity("{G1}")],
+    }
+    page_2 = {"next_page": None, "entities_list": [entity("{G2}")]}
+
+    def responses(request):
+        params = dict(request.url.params)
+        return page_2 if params.get("from") == "1" else page_1
+
+    provider, handler = make_provider(tmp_path, responses)
+    gdf = provider.fetch_features(mqs_layer(), geometry=box(34.0, 32.0, 35.0, 33.0))
+    assert len(gdf) == 2
+    assert all(r.method == "POST" for r in handler.requests)
+    assert dict(handler.requests[1].url.params) == {"from": "1", "to": "2"}
 
 
 def test_user_id_header_sent_when_configured(tmp_path):

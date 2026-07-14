@@ -47,6 +47,10 @@ export interface GeoPlanStep {
     | "attribute_filter"
     | "near"
     | "nearest_n"
+    | "between"
+    | "crosses"
+    | "touches"
+    | "contains"
     | "directional"
     | "temporal_filter"
     | "count";
@@ -56,6 +60,15 @@ export interface GeoPlanStep {
   target_field?: string;
   target_operator?: "eq" | "contains";
   target_value?: string | number;
+  first_target_layer?: string;
+  second_target_layer?: string;
+  corridor_width_m?: number;
+  first_target_field?: string;
+  first_target_operator?: "eq" | "contains";
+  first_target_value?: string | number;
+  second_target_field?: string;
+  second_target_operator?: "eq" | "contains";
+  second_target_value?: string | number;
   field?: string;
   operator?: string;
   value?: string | number;

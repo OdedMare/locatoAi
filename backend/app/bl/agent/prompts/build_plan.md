@@ -19,9 +19,17 @@ Request has drawn boundaries: {has_boundaries}
   For one specifically named reference entity, use the same three target filter fields described for near.
 - {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
   The N most northern/southern/eastern/western features ("הכי צפוני" → north, count 1).
-- {"id": "s7", "op": "temporal_filter", "input": "s6", "from": "<ISO 8601>", "to": "<ISO 8601>"}
+- {"id": "s6", "op": "between", "input": "s5", "first_target_layer": "<layer-id>", "second_target_layer": "<layer-id>", "corridor_width_m": <number>, "first_target_field": "<optional field>", "first_target_operator": "<eq|contains>", "first_target_value": "<optional value>", "second_target_field": "<optional field>", "second_target_operator": "<eq|contains>", "second_target_value": "<optional value>"}
+  Keep subject features in a meter-wide corridor connecting entities from two reference layers. Use for "between A and B" / "בין A ל-B". Default corridor_width_m is 100. For specifically named places, use the corresponding complete target filter triple. The two target layers may be the same layer when selecting two named entities from it.
+- {"id": "s7", "op": "crosses", "input": "s6", "target_layer": "<layer-id>", "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional value>"}
+  Keep subject geometries that cross a reference geometry: their interiors intersect but neither contains the other. Best for lines crossing polygons or other lines.
+- {"id": "s8", "op": "touches", "input": "s7", "target_layer": "<layer-id>", "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional value>"}
+  Keep subject geometries whose boundaries touch a reference without interior overlap.
+- {"id": "s9", "op": "contains", "input": "s8", "target_layer": "<layer-id>", "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional value>"}
+  Keep subject geometries that fully contain a reference geometry. Relation direction matters: the INPUT contains the TARGET.
+- {"id": "s10", "op": "temporal_filter", "input": "s9", "from": "<ISO 8601>", "to": "<ISO 8601>"}
   Only for layers with a timestamp field. "אתמול"/"yesterday" = the full previous calendar day relative to the current time above.
-- {"id": "s8", "op": "count", "input": "s7"}
+- {"id": "s11", "op": "count", "input": "s10"}
   Return the row count of the input step as a single number ("כמה"/"how many" queries) — no grouping, no per-attribute breakdown. MUST be the plan's "output" AND the last step in "steps" — no other step may use a count step's id as its "input".
 
 ## Tool: sample field values (use it — don't guess, and don't ask the user)
@@ -37,7 +45,7 @@ Prefer this tool over asking the user to clarify a field or value choice — you
 - "layer" / "target_layer" must be ids from the layer list below — nothing else.
 - "output" is the id of the step whose features (or count) answer the query.
 - "output" MUST be the last step in the steps array; do not emit unused steps after it.
-- "context_layers": ids of layers used as reference (e.g. near/nearest_n targets), not the subject.
+- "context_layers": ids of layers used as reference (e.g. proximity, between and topological-relation targets), not the subject.
 - "explanation": ONE short Hebrew sentence describing the plan.
 - "count" is a terminal aggregation only: if used, it MUST be the plan's "output" and MUST be the last step in "steps" — never reference a count step's id as another step's "input".
 - Prefer the simplest plan that answers the query. Do not add steps the query doesn't ask for — a bare load with nothing else is a completely valid plan for a plain "show me X" query (see Example 1).
