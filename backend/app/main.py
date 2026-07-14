@@ -19,6 +19,7 @@ from app.common.errors import (
 )
 from app.common.logging import configure_logging
 from app.common.runtime_settings import RuntimeSettingsStore
+from app.dal.feedback_repository import PostgresFeedbackRepository
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.mqs import MqsProvider
@@ -57,6 +58,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     settings_store = RuntimeSettingsStore(settings)
 
     repository = PostgresLayersRepository(settings_store)
+    feedback_repository = PostgresFeedbackRepository(settings_store)
     providers = InMemoryProviderRegistry()
     mqs_provider = MqsProvider(settings_store)
     providers.register("mqs", mqs_provider)
@@ -71,6 +73,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
 
     app.state.settings_store = settings_store
     app.state.repository = repository
+    app.state.feedback_repository = feedback_repository
     app.state.mqs_provider = mqs_provider  # catalog_router's sync endpoint
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector

@@ -28,6 +28,8 @@ class QueryOutcome:
     clarify: Optional[str] = None
     plan: Optional[GeoQueryPlan] = None
     features: Optional[gpd.GeoDataFrame] = None
+    scalar_result: Optional[int] = None
+    """Set instead of `features` when the plan ends in a `count` step."""
     timing_ms: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
     # Agent trace — what the model chose and why (the UI's "thinking" view).
@@ -116,7 +118,7 @@ class QueryOrchestrator:
             )
 
         # 3. Execution
-        features = self._executor.execute(
+        result = self._executor.execute(
             build.plan, user_geometry=boundaries, now=now
         )
         timer.mark("execute")
@@ -124,7 +126,8 @@ class QueryOrchestrator:
         return QueryOutcome(
             status="ok",
             plan=build.plan,
-            features=features,
+            features=result if isinstance(result, gpd.GeoDataFrame) else None,
+            scalar_result=result if isinstance(result, int) else None,
             timing_ms=timer.timing,
             token_usage=usage,
             selected_layers=selection.layers,
@@ -140,12 +143,13 @@ class QueryOrchestrator:
         validate_plan(plan, known_ids, has_user_geometry=boundaries is not None)
 
         timer = _StageTimer()
-        features = self._executor.execute(plan, user_geometry=boundaries)
+        result = self._executor.execute(plan, user_geometry=boundaries)
         timer.mark("execute")
 
         return QueryOutcome(
             status="ok",
             plan=plan,
-            features=features,
+            features=result if isinstance(result, gpd.GeoDataFrame) else None,
+            scalar_result=result if isinstance(result, int) else None,
             timing_ms=timer.timing,
         )

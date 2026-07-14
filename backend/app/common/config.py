@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     layers_table: str = "public.layers"
     """Table with the layer metadata the agent chooses from."""
 
+    feedback_table: str = "public.feedback"
+    """Table where UI thumbs-up/down feedback is stored."""
+
     llm_model: str = "gemma4:31b-cloud"
     """The main model — Gemma 4 31B served through Ollama."""
 
@@ -59,10 +62,6 @@ class Settings(BaseSettings):
     """Directory of mock GeoJSON files served by the mock ArcGIS provider."""
 
     request_log_path: str = "logs/requests.jsonl"
-
-    feedback_log_path: str = "logs/feedback.jsonl"
-    """UI 👍/👎 verdicts land here — the raw material for new eval cases."""
-
 
 @lru_cache
 def get_settings() -> Settings:

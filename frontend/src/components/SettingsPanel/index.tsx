@@ -26,6 +26,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [databasePort, setDatabasePort] = useState("");
   const [databaseName, setDatabaseName] = useState("");
   const [layersTable, setLayersTable] = useState("");
+  const [feedbackTable, setFeedbackTable] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -63,6 +64,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setDatabasePort(s.database_port?.toString() ?? "");
         setDatabaseName(s.database_name ?? "");
         setLayersTable(s.layers_table ?? "");
+        setFeedbackTable(s.feedback_table ?? "");
         void loadModels();
       })
       .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
@@ -84,6 +86,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         database_port: (databasePort ?? "").trim() ? Number(databasePort) : null,
         database_name: (databaseName ?? "").trim(),
         layers_table: layersTable,
+        feedback_table: feedbackTable,
       });
       setSettings(saved);
       setApiKey("");
@@ -270,6 +273,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             placeholder="public.layers"
             value={layersTable}
             onChange={(e) => setLayersTable(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-feedback-table">טבלת משוב</label>
+          <input
+            id="set-feedback-table"
+            dir="ltr"
+            className="settings-input"
+            placeholder="public.feedback"
+            value={feedbackTable}
+            onChange={(e) => setFeedbackTable(e.target.value)}
           />
           {settings && (
             <p className={`catalog-status ${settings.catalog.ok ? "ok" : "bad"}`}>

@@ -7,7 +7,7 @@ never changes. Each op handler does exactly one spatial operation (SRP).
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Dict, Optional, Type
+from typing import Callable, Dict, Optional, Type, Union
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -47,7 +47,10 @@ class OpHandler(ABC):
     """One handler per plan op."""
 
     @abstractmethod
-    def run(self, step: Step, ctx: ExecutionContext) -> gpd.GeoDataFrame: ...
+    def run(self, step: Step, ctx: ExecutionContext) -> Union[gpd.GeoDataFrame, int]:
+        """A GeoDataFrame for every op except a terminal `count` step,
+        which returns a plain int (see engine.py and ops/count.py)."""
+        ...
 
 
 _REGISTRY: Dict[str, OpHandler] = {}

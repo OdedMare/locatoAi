@@ -73,10 +73,16 @@ class RuntimeSettings:
     database_port: Optional[int]
     database_name: str
     layers_table: str
+    feedback_table: str
 
     def quoted_layers_table(self) -> str:
         """The layers table as a safely quoted SQL identifier."""
         parts = self.layers_table.split(".")
+        return ".".join(f'"{part}"' for part in parts)
+
+    def quoted_feedback_table(self) -> str:
+        """The feedback table as a safely quoted SQL identifier."""
+        parts = self.feedback_table.split(".")
         return ".".join(f'"{part}"' for part in parts)
 
 
@@ -102,6 +108,7 @@ class RuntimeSettingsStore:
             database_port=env.database_port,
             database_name=env.database_name,
             layers_table=env.layers_table,
+            feedback_table=env.feedback_table,
         )
         if self._path.exists():
             saved = json.loads(self._path.read_text(encoding="utf-8"))
@@ -134,7 +141,7 @@ class RuntimeSettingsStore:
             if value is None:
                 continue
             try:
-                if key == "layers_table":
+                if key in ("layers_table", "feedback_table"):
                     validate_layers_table(value)
                 elif key == "database_url":
                     value = normalize_database_url(value)

@@ -10,12 +10,11 @@ identifier is validated + quoted by the store (never raw user input).
 
 from typing import List, Optional, Tuple
 
-import psycopg
 from psycopg.errors import UniqueViolation
-from psycopg.rows import dict_row
 
 from app.bl.ports import LayerMeta
 from app.common.runtime_settings import RuntimeSettingsStore
+from app.dal.postgres import connect
 
 _COLUMNS = "id, name, description, tags, provider, source_url"
 
@@ -24,36 +23,16 @@ class PostgresLayersRepository:
     def __init__(self, settings_store: RuntimeSettingsStore):
         self._store = settings_store
 
-    def _connect(self) -> psycopg.Connection:
-        # MVP: connection per call. Pooling (psycopg_pool) when load justifies it.
-        settings = self._store.get()
-        credentials = {}
-        if settings.database_user:
-            credentials["user"] = settings.database_user
-        if settings.database_password:
-            credentials["password"] = settings.database_password
-        if settings.database_host:
-            credentials["host"] = settings.database_host
-        if settings.database_port is not None:
-            credentials["port"] = settings.database_port
-        if settings.database_name:
-            credentials["dbname"] = settings.database_name
-        return psycopg.connect(
-            settings.database_url,
-            row_factory=dict_row,
-            **credentials,
-        )
-
     def _select(self) -> str:
         return f"SELECT {_COLUMNS} FROM {self._store.get().quoted_layers_table()}"
 
     def list_layers(self) -> List[LayerMeta]:
-        with self._connect() as conn:
+        with connect(self._store) as conn:
             rows = conn.execute(self._select()).fetchall()
         return [self._to_meta(row) for row in rows]
 
     def get_layer(self, layer_id: str) -> Optional[LayerMeta]:
-        with self._connect() as conn:
+        with connect(self._store) as conn:
             row = conn.execute(
                 self._select() + " WHERE id = %s", (layer_id,)
             ).fetchone()
@@ -67,7 +46,7 @@ class PostgresLayersRepository:
             "VALUES (%s, %s, %s, %s, %s) RETURNING id"
         )
         try:
-            with self._connect() as conn:
+            with connect(self._store) as conn:
                 row = conn.execute(
                     query,
                     (
@@ -89,7 +68,7 @@ class PostgresLayersRepository:
         identity of an externally synced layer. Updates preserve tags
         (they may have been LLM-enriched after the original sync)."""
         table = self._store.get().quoted_layers_table()
-        with self._connect() as conn:
+        with connect(self._store) as conn:
             existing = conn.execute(
                 f"SELECT id FROM {table} WHERE provider = %s AND source_url = %s",
                 (layer.provider, layer.source_url),

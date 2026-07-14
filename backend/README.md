@@ -44,7 +44,7 @@ app/
 │   ├── agent_router.py      # POST /api/select-layers   (debug: LLM call 1 only)
 │   ├── catalog_router.py    # GET/POST /api/layers + POST /api/layers/sync-mqs
 │   ├── settings_router.py   # GET/PUT /api/settings     (backs the UI ⚙ panel)
-│   ├── feedback_router.py   # POST /api/feedback        (👍/👎 → feedback.jsonl)
+│   ├── feedback_router.py   # POST /api/feedback        (👍/👎 → PostgreSQL)
 │   └── deps.py              # FastAPI dependency accessors (app.state)
 │
 ├── bl/                      # ── Business logic tier ──
@@ -155,7 +155,7 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 - `scripts/eval_select_layers.py` — SCORED eval (20 Hebrew/English cases with expected
   layer sets, incl. typos/slang/must-clarify; exit 1 on regression). Run after every
   prompt/model change. Add every real-world miss as a case.
-- UI 👍/👎 → `POST /api/feedback` → `logs/feedback.jsonl` — mine downvotes for new cases.
+- UI 👍/👎 → `POST /api/feedback` → configurable PostgreSQL feedback table.
 - `scripts/enrich_layer_tags.py` — LLM-generated bilingual alias tags for the catalog
   (dry-run by default; `--apply` writes; previous tags in `scripts/tags_backup.txt`).
 

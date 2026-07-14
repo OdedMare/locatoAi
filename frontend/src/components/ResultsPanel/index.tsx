@@ -107,6 +107,10 @@ export default function ResultsPanel({ response }: ResultsPanelProps) {
           ⚠️ הבקשה נכשלה{response.clarify ? ` — ${response.clarify}` : ""}.
           האם השרת פועל בפורט 8000?
         </p>
+      ) : response.scalar_result !== null ? (
+        <p className="panel-placeholder" dir="auto">
+          ✅ נמצאו {response.scalar_result} תוצאות
+        </p>
       ) : (
         <ResultsTable response={response} />
       )}

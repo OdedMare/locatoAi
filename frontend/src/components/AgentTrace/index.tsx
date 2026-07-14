@@ -22,10 +22,14 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
       return `סינון לפי ${step.field} ${step.operator} "${step.value}"`;
     case "near":
       return `בקרבת ${layerName(step.target_layer)} (עד ${step.distance_m} מ')`;
+    case "nearest_n":
+      return `${step.count ?? 1} הקרובים ביותר ל${layerName(step.target_layer)}`;
     case "directional":
       return `${DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
     case "temporal_filter":
       return `סינון זמן: ${step.from} עד ${step.to}`;
+    case "count":
+      return "ספירת תוצאות";
   }
 }
 

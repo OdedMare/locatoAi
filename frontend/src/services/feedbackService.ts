@@ -1,6 +1,6 @@
 import type { GeoQueryResponse } from "@/types/geo-query";
 
-/** Log a 👍/👎 verdict on an agent selection (backend appends to feedback.jsonl). */
+/** Store a 👍/👎 verdict on an agent selection in PostgreSQL. */
 export async function submitFeedback(
   query: string,
   response: GeoQueryResponse,

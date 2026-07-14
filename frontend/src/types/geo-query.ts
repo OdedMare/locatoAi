@@ -41,7 +41,15 @@ export interface SelectedLayer {
 /** One step of a Geo Query Plan (discriminated by `op` on the backend). */
 export interface GeoPlanStep {
   id: string;
-  op: "load" | "within_geometry" | "attribute_filter" | "near" | "directional" | "temporal_filter";
+  op:
+    | "load"
+    | "within_geometry"
+    | "attribute_filter"
+    | "near"
+    | "nearest_n"
+    | "directional"
+    | "temporal_filter"
+    | "count";
   input?: string;
   layer?: string;
   target_layer?: string;
@@ -71,6 +79,8 @@ export interface GeoQueryResponse {
   plan: GeoQueryPlanDto | null;
   /** GeoJSON FeatureCollection of results. */
   features: GeoJSON.FeatureCollection | null;
+  /** Set instead of `features` when the plan ends in a `count` step. */
+  scalar_result: number | null;
   timing_ms: Record<string, number> | null;
   token_usage: {
     prompt_tokens: number;

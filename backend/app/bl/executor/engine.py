@@ -6,7 +6,7 @@ nothing about individual ops (OCP): it dispatches via the op registry.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -15,7 +15,7 @@ from shapely.geometry.base import BaseGeometry
 import app.bl.executor.ops  # noqa: F401
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.ops.base import ExecutionContext, get_op_handler
-from app.bl.plan.models import GeoQueryPlan
+from app.bl.plan.models import CountStep, GeoQueryPlan
 from app.bl.ports import ProviderRegistry
 
 
@@ -29,8 +29,13 @@ class PlanExecutor:
         plan: GeoQueryPlan,
         user_geometry: Optional[BaseGeometry] = None,
         now: Optional[datetime] = None,
-    ) -> gpd.GeoDataFrame:
-        """Run a validated plan and return the output step's features (WGS84)."""
+    ) -> Union[gpd.GeoDataFrame, int]:
+        """Run a validated plan and return the output step's result.
+
+        A GeoDataFrame (WGS84) for every op except a terminal `count` step,
+        which returns a plain int (validate_plan guarantees `count`, if
+        present, is always exactly the plan's output — see validators.py).
+        """
         ctx = ExecutionContext(
             catalog=self._catalog,
             providers=self._providers,
@@ -39,5 +44,8 @@ class PlanExecutor:
         )
         for step in plan.steps:
             handler = get_op_handler(step.op)
-            ctx.results[step.id] = handler.run(step, ctx)
+            result = handler.run(step, ctx)
+            if isinstance(step, CountStep):
+                return result  # int — never stored in ctx.results
+            ctx.results[step.id] = result
         return ctx.results[plan.output]

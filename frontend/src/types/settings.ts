@@ -20,6 +20,7 @@ export interface AppSettings {
   database_port: number | null;
   database_name: string;
   layers_table: string;
+  feedback_table: string;
   catalog: CatalogStatus;
 }
 
@@ -36,4 +37,5 @@ export interface SettingsUpdate {
   database_port?: number | null;
   database_name?: string;
   layers_table?: string;
+  feedback_table?: string;
 }

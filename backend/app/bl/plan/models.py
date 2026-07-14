@@ -46,6 +46,14 @@ class NearStep(BaseModel):
     distance_m: float = Field(gt=0, le=5000)
 
 
+class NearestNStep(BaseModel):
+    id: str
+    op: Literal["nearest_n"]
+    input: str
+    target_layer: str
+    count: int = Field(gt=0, le=50)
+
+
 class DirectionalStep(BaseModel):
     id: str
     op: Literal["directional"]
@@ -64,14 +72,27 @@ class TemporalFilterStep(BaseModel):
     to: str  # ISO 8601
 
 
+class CountStep(BaseModel):
+    """Terminal aggregation: row count of the upstream step, as a plain
+    int. No grouping/aggregation by attribute. Must be the plan's `output`
+    and the last step — enforced in validators.py, not here, since that
+    check needs whole-plan context."""
+
+    id: str
+    op: Literal["count"]
+    input: str
+
+
 Step = Annotated[
     Union[
         LoadStep,
         WithinGeometryStep,
         AttributeFilterStep,
         NearStep,
+        NearestNStep,
         DirectionalStep,
         TemporalFilterStep,
+        CountStep,
     ],
     Field(discriminator="op"),
 ]

@@ -24,6 +24,7 @@ def test_update_persists_and_reloads(tmp_path):
     store.update({
         "llm_model": "gpt-4o-mini",
         "layers_table": "gis.my_layers",
+        "feedback_table": "gis.user_feedback",
         "database_user": "gis_user",
         "database_password": "secret",
         "database_host": "db.internal",
@@ -34,6 +35,7 @@ def test_update_persists_and_reloads(tmp_path):
     reloaded = make_store(tmp_path)  # same file, fresh store
     assert reloaded.get().llm_model == "gpt-4o-mini"
     assert reloaded.get().layers_table == "gis.my_layers"
+    assert reloaded.get().feedback_table == "gis.user_feedback"
     assert reloaded.get().database_user == "gis_user"
     assert reloaded.get().database_password == "secret"
     assert reloaded.get().database_host == "db.internal"
@@ -143,6 +145,8 @@ def test_table_identifier_validation(tmp_path):
     for bad in ["a;drop table x", "a.b.c", "1abc", 'x"y', "a b"]:
         with pytest.raises(ValueError):
             store.update({"layers_table": bad})
+        with pytest.raises(ValueError):
+            store.update({"feedback_table": bad})
     validate_layers_table("layers")
     validate_layers_table("public.layers")
 
@@ -150,3 +154,4 @@ def test_table_identifier_validation(tmp_path):
 def test_quoted_table(tmp_path):
     store = make_store(tmp_path)
     assert store.get().quoted_layers_table() == '"public"."layers"'
+    assert store.get().quoted_feedback_table() == '"public"."feedback"'

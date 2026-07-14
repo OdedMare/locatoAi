@@ -7,7 +7,14 @@ the prompt, then a clarify fallback.
 
 from typing import Set
 
-from app.bl.plan.models import GeoQueryPlan, LoadStep, NearStep, WithinGeometryStep
+from app.bl.plan.models import (
+    CountStep,
+    GeoQueryPlan,
+    LoadStep,
+    NearestNStep,
+    NearStep,
+    WithinGeometryStep,
+)
 from app.common.errors import PlanValidationError
 
 
@@ -39,6 +46,10 @@ def validate_plan(
             raise PlanValidationError(
                 f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"
             )
+        if isinstance(step, NearestNStep) and step.target_layer not in known_layer_ids:
+            raise PlanValidationError(
+                f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"
+            )
         if isinstance(step, WithinGeometryStep) and not has_user_geometry:
             raise PlanValidationError(
                 f"Step '{step.id}': plan uses within_geometry but the request has no boundaries"
@@ -50,3 +61,20 @@ def validate_plan(
         raise PlanValidationError("Plan has no steps")
     if plan.output not in seen_ids:
         raise PlanValidationError(f"Plan output '{plan.output}' is not a step id")
+
+    # count is terminal-only: it must BE the output, and nothing may chain
+    # off it as `input` (a scalar int has no features to feed onward).
+    count_step_ids = {step.id for step in plan.steps if isinstance(step, CountStep)}
+    if count_step_ids:
+        referenced_as_input = {getattr(step, "input", None) for step in plan.steps}
+        bad_refs = count_step_ids & referenced_as_input
+        if bad_refs:
+            raise PlanValidationError(
+                f"Step(s) {sorted(bad_refs)}: a 'count' step cannot be used "
+                "as another step's input"
+            )
+        if plan.output not in count_step_ids:
+            raise PlanValidationError(
+                "Plan has a 'count' step but it is not the plan's output — "
+                "'count' must be the final, output step"
+            )

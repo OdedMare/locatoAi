@@ -48,6 +48,8 @@ class QueryResponse(BaseModel):
     clarify: Optional[str] = None
     plan: Optional[GeoQueryPlan] = None
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection
+    scalar_result: Optional[int] = None
+    """Set instead of `features` when the plan ends in a `count` step."""
     timing_ms: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
     selected_layers: List[SelectedLayerDto] = []
@@ -64,6 +66,7 @@ class QueryResponse(BaseModel):
             clarify=outcome.clarify,
             plan=outcome.plan,
             features=gdf_to_feature_collection(outcome.features),
+            scalar_result=outcome.scalar_result,
             timing_ms=outcome.timing_ms,
             token_usage=outcome.token_usage,
             selected_layers=[

@@ -30,6 +30,7 @@ class SettingsUpdate(BaseModel):
     database_port: Optional[int] = Field(default=None, ge=1, le=65535)
     database_name: Optional[str] = None
     layers_table: Optional[str] = None
+    feedback_table: Optional[str] = None
 
 
 class CatalogStatus(BaseModel):
@@ -51,6 +52,7 @@ class SettingsResponse(BaseModel):
     database_port: Optional[int]
     database_name: str
     layers_table: str
+    feedback_table: str
     catalog: CatalogStatus
 
 
@@ -88,6 +90,7 @@ def _to_response(
         database_port=settings.database_port,
         database_name=settings.database_name,
         layers_table=settings.layers_table,
+        feedback_table=settings.feedback_table,
         catalog=_catalog_status(repository),
     )
 
