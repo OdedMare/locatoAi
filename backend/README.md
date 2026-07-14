@@ -68,8 +68,8 @@ app/
 ├── dal/                     # ── Data access tier (implements bl.ports) ──
 │   ├── layers_repository.py # Postgres public.layers — the ONLY module with SQL
 │   ├── providers/
-│   │   ├── arcgis_mock.py   # serves data/*.geojson picked by source_url's last segment
-│   │   ├── mqs.py           # MQS (Moria Query Service) REST adapter — real provider
+│   │   ├── arcgis_mock.py   # TEST FIXTURE ONLY — used by tests/conftest.py, not production
+│   │   ├── mqs.py           # MQS (Moria Query Service) REST adapter — the only prod provider
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
 │       └── openai_client.py # OpenAI-compatible JSON-mode client (Ollama/Gemma today)
@@ -164,11 +164,9 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 ## Providers
 
 The catalog's `provider` column routes each layer to a registered adapter
-([`registry.py`](app/dal/providers/registry.py), wired in `main.py`):
+([`registry.py`](app/dal/providers/registry.py), wired in `main.py`). **Production
+registers only `mqs`** — `arcgis` is not a real provider anymore.
 
-- **`arcgis`** — [`arcgis_mock.py`](app/dal/providers/arcgis_mock.py): local
-  `data/*.geojson`, file picked by the source_url's last path segment; converts
-  `timestamp_offset_hours` to concrete timestamps relative to `now`.
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
@@ -184,6 +182,11 @@ The catalog's `provider` column routes each layer to a registered adapter
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —
 re-syncs update name/description in place and **preserve tags** (rerun
 `scripts/enrich_layer_tags.py` after syncing new layers).
+
+**`arcgis` / `MockArcgisProvider`** ([`arcgis_mock.py`](app/dal/providers/arcgis_mock.py))
+is a **test fixture only** — it serves local `data/*.geojson` and backs
+`tests/conftest.py`'s fixtures (so the suite runs without live MQS/Postgres) but
+is never registered in production (`main.py`) or the eval script.
 
 ---
 

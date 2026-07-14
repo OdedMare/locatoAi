@@ -1,11 +1,15 @@
 """Mock ArcGIS provider: serves layers from local GeoJSON files.
 
+TEST FIXTURE ONLY — not registered in production (see app/main.py, which
+wires only the real 'mqs' provider). Used exclusively by tests/conftest.py
+to exercise the executor/agent without a live MQS instance or Postgres.
+
 The catalog's source_url last path segment picks the file, e.g.
 https://provider.example/schools → data/schools.geojson. Layers without
 a data file return an empty collection — the contract still holds.
 
-The real ArcGIS adapter (v0.2) replaces this class only; it implements
-the same bl.ports.Provider protocol (LSP).
+Implements the same bl.ports.Provider protocol as the real MQS adapter
+(dal/providers/mqs.py) — any Provider drops in per LSP.
 """
 
 import json

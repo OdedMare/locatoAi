@@ -19,7 +19,6 @@ from app.common.config import get_settings
 from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.providers.arcgis_mock import MockArcgisProvider
 from app.dal.providers.mqs import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 
@@ -103,8 +102,7 @@ def main() -> int:
         return 1
 
     providers = InMemoryProviderRegistry()
-    providers.register("arcgis", MockArcgisProvider(settings.data_dir))
-    providers.register("mqs", MqsProvider(store))  # synced mqs rows need a provider
+    providers.register("mqs", MqsProvider(store))
     catalog = CatalogService(PostgresLayersRepository(store), providers)
     selector = LayerSelector(OpenAIJsonClient(store), catalog)
 

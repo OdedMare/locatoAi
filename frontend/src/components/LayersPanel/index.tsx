@@ -21,7 +21,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState("");
-  const [provider, setProvider] = useState("arcgis");
+  const [provider, setProvider] = useState("mqs");
   const [sourceUrl, setSourceUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -204,7 +204,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
               </div>
               <div>
                 <label className="field-label" htmlFor="layer-provider">ספק</label>
-                <input id="layer-provider" className="settings-input" value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="arcgis" dir="ltr" />
+                <input id="layer-provider" className="settings-input" value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="mqs" dir="ltr" />
               </div>
             </div>
             <label className="field-label" htmlFor="layer-description">תיאור</label>
