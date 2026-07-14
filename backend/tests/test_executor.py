@@ -255,6 +255,21 @@ def test_count_after_near_chain(executor):
     assert result == 4
 
 
+def test_detailed_count_keeps_the_counted_geometries(executor):
+    plan = GeoQueryPlan(explanation="t", steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "city_en", "operator": "eq", "value": "Tel Aviv"},
+        {"id": "s3", "op": "count", "input": "s2"},
+    ], output="s3")
+
+    result = executor.execute_detailed(plan)
+
+    assert result.scalar_result == 8
+    assert len(result.features) == result.scalar_result
+    assert result.features.geometry.notna().all()
+
+
 def test_count_after_attribute_filter(executor):
     result = run_steps(executor, [
         {"id": "s1", "op": "load", "layer": "schools"},

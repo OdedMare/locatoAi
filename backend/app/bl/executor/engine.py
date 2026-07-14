@@ -5,6 +5,7 @@ an earlier step, so list order IS a topological order. The engine knows
 nothing about individual ops (OCP): it dispatches via the op registry.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Union
 
@@ -17,6 +18,14 @@ from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.ops.base import ExecutionContext, get_op_handler
 from app.bl.plan.models import CountStep, GeoQueryPlan
 from app.bl.ports import ProviderRegistry
+
+
+@dataclass
+class ExecutionOutput:
+    """Detailed result used by the API so every success keeps geometry."""
+
+    features: gpd.GeoDataFrame
+    scalar_result: Optional[int] = None
 
 
 class PlanExecutor:
@@ -36,6 +45,25 @@ class PlanExecutor:
         which returns a plain int (validate_plan guarantees `count`, if
         present, is always exactly the plan's output — see validators.py).
         """
+        output = self.execute_detailed(plan, user_geometry=user_geometry, now=now)
+        return (
+            output.scalar_result
+            if output.scalar_result is not None
+            else output.features
+        )
+
+    def execute_detailed(
+        self,
+        plan: GeoQueryPlan,
+        user_geometry: Optional[BaseGeometry] = None,
+        now: Optional[datetime] = None,
+    ) -> ExecutionOutput:
+        """Return matching geometries as well as an optional scalar count.
+
+        The legacy ``execute`` method remains backward-compatible for internal
+        callers. HTTP orchestration uses this method so count queries do not
+        throw away the entities that were counted.
+        """
         ctx = ExecutionContext(
             catalog=self._catalog,
             providers=self._providers,
@@ -46,6 +74,8 @@ class PlanExecutor:
             handler = get_op_handler(step.op)
             result = handler.run(step, ctx)
             if isinstance(step, CountStep):
-                return result  # int — never stored in ctx.results
+                return ExecutionOutput(
+                    features=ctx.results[step.input], scalar_result=result
+                )
             ctx.results[step.id] = result
-        return ctx.results[plan.output]
+        return ExecutionOutput(features=ctx.results[plan.output])

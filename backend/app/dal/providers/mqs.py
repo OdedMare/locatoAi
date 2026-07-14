@@ -40,6 +40,20 @@ for a future per-entity refresh path.
 WKT coordinates are lon/lat (the doc says to confirm the CRS with the
 service owner); assumed WGS84 — if a real instance serves ITM
 (EPSG:2039), fix it inside _ensure_wgs84.
+
+Spatial pushdown: the same /Entities route also accepts POST with a
+{"filter": {"complex_operators": {...}}} body (per a follow-up doc
+excerpt covering geo_bounding_box/geo_polygon/geo_distance — the
+simple_operators section, e.g. ids/match/IN, was not provided and is not
+implemented). fetch_features/sample_field_values take an optional
+`geometry` (always WGS84); when given, a rectangular geometry becomes
+geo_bounding_box and anything else becomes geo_polygon (WKT), and the
+request is POSTed instead of GET'd — same pagination params, same
+response envelope assumed (not separately confirmed for POST, since no
+different shape was documented). This is always an optimization: it
+narrows what MQS returns, but callers (within_geometry) still re-filter
+client-side, so an instance that ignores the filter body stays correct,
+just slower.
 """
 
 import logging
@@ -50,6 +64,7 @@ from urllib.parse import parse_qs, urlparse
 import geopandas as gpd
 import httpx
 from shapely import wkt
+from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.ports import LayerField, LayerMeta, LayerSchema
@@ -215,6 +230,40 @@ def _looks_like_wgs84(gdf: gpd.GeoDataFrame) -> bool:
     )
 
 
+def _geometry_filter_body(geometry: BaseGeometry) -> dict:
+    """A WGS84 geometry → the {"filter": {"complex_operators": {...}}}
+    body for MQS's POST spatial filter. A geometry equal to its own
+    bounding box (an axis-aligned rectangle — the common viewport case)
+    uses geo_bounding_box; anything else (drawn polygons) uses geo_polygon
+    with WKT, per the doc excerpt covering both operators."""
+    minx, miny, maxx, maxy = geometry.bounds
+    if geometry.equals(box(minx, miny, maxx, maxy)):
+        return {
+            "filter": {
+                "complex_operators": {
+                    "geo_bounding_box": {
+                        "geo": {
+                            "type": "AND",
+                            "values": [{
+                                "location_top_left": {"lat": maxy, "lon": minx},
+                                "location_bottom_right": {"lat": miny, "lon": maxx},
+                            }],
+                        }
+                    }
+                }
+            }
+        }
+    return {
+        "filter": {
+            "complex_operators": {
+                "geo_polygon": {
+                    "geo": {"type": "IN", "values": [geometry.wkt]}
+                }
+            }
+        }
+    }
+
+
 def _ensure_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """MQS WKT is assumed WGS84 lon/lat (per the doc's note to confirm the
     SRID with the service owner). If a live instance turns out to serve
@@ -291,14 +340,42 @@ class MqsProvider:
         except ValueError as exc:
             raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
 
+    def _post_json(
+        self, client: httpx.Client, path: str, body: dict, params: Optional[dict] = None
+    ) -> object:
+        try:
+            response = client.post(path, json=body, params=params)
+            logger.info("MQS POST %s -> %s", response.request.url,
+                        response.status_code)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"MQS request failed ({path}): {exc}")
+        except ValueError as exc:
+            raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
+
     def _entities_page(
-        self, client: httpx.Client, layer_id: str, params: Optional[dict]
+        self,
+        client: httpx.Client,
+        layer_id: str,
+        params: Optional[dict],
+        geometry: Optional[BaseGeometry] = None,
     ) -> Tuple[List[dict], Optional[str]]:
         """One page of entities_list + the next_page URL, or (entities, None)
-        for a doc-variant response with no pagination wrapper at all."""
-        payload = self._get_json(
-            client, f"/MoriaProject/{layer_id}/Entities", params
-        )
+        for a doc-variant response with no pagination wrapper at all.
+
+        geometry, when given, switches the request from GET to POST with a
+        geo_bounding_box/geo_polygon filter body (spatial pushdown — an
+        optimization only, see module docstring); pagination params are
+        still applied the same way on both paths.
+        """
+        path = f"/MoriaProject/{layer_id}/Entities"
+        if geometry is not None:
+            payload = self._post_json(
+                client, path, _geometry_filter_body(geometry), params
+            )
+        else:
+            payload = self._get_json(client, path, params)
         entities = _find_list(payload, _ENTITY_LIST_KEYS)
         if entities is None:
             raise ProviderError(
@@ -315,11 +392,13 @@ class MqsProvider:
         query = parse_qs(urlparse(next_page_url).query)
         return {key: values[0] for key, values in query.items() if values}
 
-    def _iter_all_entities(self, client: httpx.Client, layer_id: str):
+    def _iter_all_entities(
+        self, client: httpx.Client, layer_id: str, geometry: Optional[BaseGeometry] = None
+    ):
         params = {"from": 0, "to": _PAGE_SIZE}
         fetched = 0
         while True:
-            entities, next_page = self._entities_page(client, layer_id, params)
+            entities, next_page = self._entities_page(client, layer_id, params, geometry)
             fetched += len(entities)
             if fetched > _MAX_FEATURES:
                 raise ProviderError(
@@ -349,16 +428,21 @@ class MqsProvider:
         )
 
     def fetch_features(
-        self, layer: LayerMeta, now: Optional[datetime] = None
+        self,
+        layer: LayerMeta,
+        now: Optional[datetime] = None,
+        geometry: Optional[BaseGeometry] = None,
     ) -> gpd.GeoDataFrame:
         # `now` is part of the Provider protocol (mock temporal synthesis);
-        # MQS serves real data, so it is ignored.
+        # MQS serves real data, so it is ignored. `geometry`, when given,
+        # is pushed down as a POST filter (see module docstring) — an
+        # optimization only; nothing downstream depends on MQS honoring it.
         layer_id = mqs_layer_id(layer)
         geometries: List[BaseGeometry] = []
         attribute_rows: List[dict] = []
         skipped = 0
         with self._client() as client:
-            for entity in self._iter_all_entities(client, layer_id):
+            for entity in self._iter_all_entities(client, layer_id, geometry):
                 record = _entity_to_record(entity)
                 if record is None:
                     skipped += 1
