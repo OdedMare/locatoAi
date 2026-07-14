@@ -45,6 +45,54 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
   }
 }
 
+const STAGE_HE: Record<string, string> = {
+  layer_selection: "בחירת שכבות",
+  plan_building: "בניית תוכנית",
+  plan_validation: "אימות תוכנית",
+  execute_step: "ביצוע פעולה",
+  response: "הכנת תשובה",
+};
+
+function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
+  const trace = response.pipeline_trace ?? [];
+  if (trace.length === 0) return null;
+  return (
+    <div className="plan-trace pipeline-timeline" dir="auto">
+      <p className="agent-step done">✓ פירוט מלא של הצינור:</p>
+      <ol className="plan-steps">
+        {trace.map((entry, index) => (
+          <li key={`${entry.stage}-${entry.step_id ?? index}`} className="plan-step">
+            <div>
+              <strong>{STAGE_HE[entry.stage] ?? entry.stage}</strong>
+              {entry.operation && <span dir="ltr"> · {entry.operation}</span>}
+              {typeof entry.duration_ms === "number" && ` · ${entry.duration_ms} מ״ש`}
+            </div>
+            {entry.selected_layer_names?.length ? (
+              <div>שכבות: {entry.selected_layer_names.join(", ")}</div>
+            ) : null}
+            {entry.explanation && <div>{entry.explanation}</div>}
+            {typeof entry.attempts === "number" && <div>ניסיונות תכנון: {entry.attempts}</div>}
+            {(entry.input_count !== undefined || entry.output_count !== undefined) && (
+              <div>
+                קלט: {entry.input_count ?? "—"} · פלט: {entry.output_count ?? "—"}
+              </div>
+            )}
+            {entry.geometry_returned && (
+              <div>גאומטריה הוחזרה · {entry.feature_count ?? 0} ישויות</div>
+            )}
+            {entry.parameters && Object.keys(entry.parameters).length > 0 && (
+              <details>
+                <summary>פרמטרים</summary>
+                <pre dir="ltr">{JSON.stringify(entry.parameters, null, 2)}</pre>
+              </details>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 interface AgentTraceProps {
   response: GeoQueryResponse | null;
   isSubmitting: boolean;
@@ -126,6 +174,8 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
           </span>
         )}
       </header>
+
+      {!isSubmitting && response && <PipelineTimeline response={response} />}
 
       {isSubmitting ? (
         <div className="plan-trace" aria-live="polite">

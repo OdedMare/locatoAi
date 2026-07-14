@@ -203,3 +203,12 @@ def test_orchestrator_full_flow_returns_features(catalog, executor):
     assert len(outcome.features) == 4
     assert [l.id for l in outcome.selected_layers] == ["schools", "roundabouts"]
     assert set(outcome.timing_ms) == {"select", "plan", "execute"}
+    assert [entry["stage"] for entry in outcome.pipeline_trace] == [
+        "layer_selection", "plan_building", "execute_step", "execute_step",
+        "response",
+    ]
+    assert outcome.pipeline_trace[0]["selected_layer_ids"] == [
+        "schools", "roundabouts"
+    ]
+    assert outcome.pipeline_trace[-1]["geometry_returned"] is True
+    assert outcome.pipeline_trace[-1]["feature_count"] == 4

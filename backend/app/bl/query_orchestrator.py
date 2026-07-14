@@ -8,7 +8,7 @@ error appended before falling back to clarify.
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -37,6 +37,8 @@ class QueryOutcome:
     reasoning: str = ""
     tool_calls: List[Dict[str, str]] = field(default_factory=list)
     """sample_field rounds the plan builder ran ({layer_id, field} each)."""
+    pipeline_trace: List[Dict[str, Any]] = field(default_factory=list)
+    """User-visible operational trace; never private model chain-of-thought."""
 
 
 def _sum_usage(*usages) -> Optional[Dict[str, int]]:
@@ -91,6 +93,14 @@ class QueryOrchestrator:
         # 1. Layer selection (agent call 1)
         selection = self._selector.select(query)
         timer.mark("select")
+        selection_trace = {
+            "stage": "layer_selection",
+            "status": "completed" if selection.layers else "clarify",
+            "duration_ms": timer.timing["select"],
+            "selected_layer_ids": [layer.id for layer in selection.layers],
+            "selected_layer_names": [layer.name for layer in selection.layers],
+            "explanation": selection.reasoning,
+        }
         if selection.clarify:
             return QueryOutcome(
                 status="clarify",
@@ -98,6 +108,7 @@ class QueryOrchestrator:
                 timing_ms=timer.timing,
                 token_usage=selection.token_usage,
                 reasoning=selection.reasoning,
+                pipeline_trace=[selection_trace],
             )
 
         # 2. Plan building (agent call 2) — validate → retry once → clarify
@@ -106,6 +117,14 @@ class QueryOrchestrator:
         )
         timer.mark("plan")
         usage = _sum_usage(selection.token_usage, build.token_usage)
+        planning_trace = {
+            "stage": "plan_building",
+            "status": "completed" if build.plan is not None else "clarify",
+            "duration_ms": timer.timing["plan"],
+            "attempts": build.attempts,
+            "tool_calls": build.tool_calls,
+            "explanation": build.plan.explanation if build.plan else build.clarify,
+        }
         if build.plan is None:
             return QueryOutcome(
                 status="clarify",
@@ -115,6 +134,7 @@ class QueryOrchestrator:
                 selected_layers=selection.layers,
                 reasoning=selection.reasoning,
                 tool_calls=build.tool_calls,
+                pipeline_trace=[selection_trace, planning_trace],
             )
 
         # 3. Execution
@@ -133,6 +153,18 @@ class QueryOrchestrator:
             selected_layers=selection.layers,
             reasoning=selection.reasoning,
             tool_calls=build.tool_calls,
+            pipeline_trace=[
+                selection_trace,
+                planning_trace,
+                *result.step_traces,
+                {
+                    "stage": "response",
+                    "status": "completed",
+                    "feature_count": len(result.features),
+                    "scalar_result": result.scalar_result,
+                    "geometry_returned": True,
+                },
+            ],
         )
 
     def execute_plan(
@@ -152,4 +184,19 @@ class QueryOrchestrator:
             features=result.features,
             scalar_result=result.scalar_result,
             timing_ms=timer.timing,
+            pipeline_trace=[
+                {
+                    "stage": "plan_validation",
+                    "status": "completed",
+                    "explanation": plan.explanation,
+                },
+                *result.step_traces,
+                {
+                    "stage": "response",
+                    "status": "completed",
+                    "feature_count": len(result.features),
+                    "scalar_result": result.scalar_result,
+                    "geometry_returned": True,
+                },
+            ],
         )

@@ -393,6 +393,12 @@ def test_detailed_count_keeps_the_counted_geometries(executor):
     assert result.scalar_result == 8
     assert len(result.features) == result.scalar_result
     assert result.features.geometry.notna().all()
+    assert [trace["operation"] for trace in result.step_traces] == [
+        "load", "attribute_filter", "count"
+    ]
+    assert result.step_traces[1]["input_count"] == 12
+    assert result.step_traces[1]["output_count"] == 8
+    assert result.step_traces[-1]["output_count"] == 8
 
 
 def test_count_after_attribute_filter(executor):

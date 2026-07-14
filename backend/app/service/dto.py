@@ -57,6 +57,8 @@ class QueryResponse(BaseModel):
     """The model's short Hebrew 'why' for its layer choice."""
     tool_calls: List[Dict[str, str]] = []
     """sample_field rounds the plan builder ran ({layer_id, field} each)."""
+    pipeline_trace: List[Dict[str, Any]] = []
+    """Structured, user-visible record of pipeline stages and execution."""
 
     @classmethod
     def from_outcome(cls, outcome: QueryOutcome) -> "QueryResponse":
@@ -80,6 +82,7 @@ class QueryResponse(BaseModel):
             ],
             reasoning=outcome.reasoning,
             tool_calls=outcome.tool_calls,
+            pipeline_trace=outcome.pipeline_trace,
         )
 
 

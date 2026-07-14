@@ -119,6 +119,27 @@ export interface GeoQueryResponse {
   reasoning: string;
   /** sample_field rounds the plan builder ran ({layer_id, field} each). */
   tool_calls: { layer_id: string; field: string }[];
+  /** Operational pipeline trace (not private model chain-of-thought). */
+  pipeline_trace: PipelineTraceEntry[];
+}
+
+export interface PipelineTraceEntry {
+  stage: "layer_selection" | "plan_building" | "plan_validation" | "execute_step" | "response";
+  status: "completed" | "clarify" | "error";
+  duration_ms?: number;
+  explanation?: string | null;
+  attempts?: number;
+  tool_calls?: { layer_id: string; field: string }[];
+  selected_layer_ids?: string[];
+  selected_layer_names?: string[];
+  step_id?: string;
+  operation?: GeoPlanStep["op"];
+  input_count?: number | null;
+  output_count?: number;
+  parameters?: Record<string, unknown>;
+  feature_count?: number;
+  scalar_result?: number | null;
+  geometry_returned?: boolean;
 }
 
 /** Live map view state reported by the map component (UI-internal). */

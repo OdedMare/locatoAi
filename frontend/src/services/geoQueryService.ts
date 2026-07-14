@@ -31,6 +31,7 @@ export async function submitQuery(
       selected_layers: [],
       reasoning: "",
       tool_calls: [],
+      pipeline_trace: [],
     };
   }
 
@@ -47,6 +48,7 @@ export async function submitQuery(
       selected_layers: [],
       reasoning: "",
       tool_calls: [],
+      pipeline_trace: [],
     };
   }
   return res.json();

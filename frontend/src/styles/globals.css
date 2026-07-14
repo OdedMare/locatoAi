@@ -363,6 +363,18 @@ body {
   margin-bottom: 8px;
 }
 
+.pipeline-timeline details { margin-top: 4px; }
+.pipeline-timeline summary { cursor: pointer; font-weight: 600; }
+.pipeline-timeline pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-width: 100%;
+  overflow: auto;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.06);
+  font-size: 11px;
+}
+
 .agent-step.running {
   color: var(--accent);
 }

@@ -6,8 +6,9 @@ nothing about individual ops (OCP): it dispatches via the op registry.
 """
 
 from dataclasses import dataclass
+import time
 from datetime import datetime, timezone
-from typing import Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -26,6 +27,7 @@ class ExecutionOutput:
 
     features: gpd.GeoDataFrame
     scalar_result: Optional[int] = None
+    step_traces: List[Dict[str, Any]] = None
 
 
 class PlanExecutor:
@@ -70,12 +72,37 @@ class PlanExecutor:
             user_geometry=user_geometry,
             now=now or datetime.now(timezone.utc),
         )
+        step_traces: List[Dict[str, Any]] = []
         for step in plan.steps:
             handler = get_op_handler(step.op)
+            input_ref = getattr(step, "input", None)
+            input_count = (
+                len(ctx.results[input_ref])
+                if input_ref is not None and input_ref in ctx.results
+                else None
+            )
+            started = time.perf_counter()
             result = handler.run(step, ctx)
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            output_count = result if isinstance(result, int) else len(result)
+            step_traces.append({
+                "stage": "execute_step",
+                "step_id": step.id,
+                "operation": step.op,
+                "input_count": input_count,
+                "output_count": output_count,
+                "duration_ms": duration_ms,
+                "parameters": step.model_dump(
+                    by_alias=True, exclude={"id", "op", "input"}
+                ),
+                "status": "completed",
+            })
             if isinstance(step, CountStep):
                 return ExecutionOutput(
-                    features=ctx.results[step.input], scalar_result=result
+                    features=ctx.results[step.input], scalar_result=result,
+                    step_traces=step_traces,
                 )
             ctx.results[step.id] = result
-        return ExecutionOutput(features=ctx.results[plan.output])
+        return ExecutionOutput(
+            features=ctx.results[plan.output], step_traces=step_traces
+        )
