@@ -11,6 +11,7 @@ from app.common.geo import WGS84
 from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.providers.mqs import (
     _MAX_FEATURES,
+    _PAGE_SIZE,
     MqsProvider,
     mqs_layer_id,
 )
@@ -39,10 +40,30 @@ def mqs_layer(layer_id: str = "42") -> LayerMeta:
     )
 
 
-def feature(lng: float, lat: float, **properties) -> dict:
+def entity(
+    entity_id: str = "{GUID}",
+    layer_id: str = "42",
+    wkt_value: str = "POINT (34.78 32.08 0)",
+    triangle: str = "0",
+    clearence_level: str = "0",
+    source_id: int = 700009,
+    date: str = "13/07/2026 08:30:00",
+    area: float = 0.00000001,
+    perimeter: float = 0.0005,
+) -> dict:
+    """One entity per the real MoriaProject API doc's fixed shape."""
     return {
-        "geometry": {"type": "Point", "coordinates": [lng, lat]},
-        "properties": properties,
+        "exclusive_id": {
+            "data_store_name": "MoriaProject", "layer_id": layer_id,
+            "entity_id": entity_id, "history_id": 1,
+        },
+        "classification": {
+            "triangle": triangle, "clearence_level": clearence_level,
+            "source_id": source_id,
+        },
+        "date": date,
+        "link": f"https://mqs.test/MoriaProject/{layer_id}/Entities/{entity_id}",
+        "geo": {"wkt": wkt_value, "area": area, "perimeter": perimeter},
     }
 
 
@@ -86,78 +107,87 @@ def test_layer_id_from_pasted_entities_link():
         source_url="https://host/MoriaProject/110/Entities",
     )
     assert mqs_layer_id(pasted) == "110"
-    # a source_url with NO id-like segment at all is the error case:
     bad = LayerMeta(id="x", name="n", provider="mqs", source_url="/Entities/")
     with pytest.raises(ProviderError, match="no MQS layer id"):
         mqs_layer_id(bad)
 
 
-def test_fetch_features_parses_geojson_features(tmp_path):
+def test_fetch_features_parses_entities_list_wrapper(tmp_path):
+    """The doc's paginated shape: {"entities_list": [...], "next_page": null}."""
     provider, handler = make_provider(tmp_path, lambda request: {
-        "features": [feature(34.78, 32.08, name="א"), feature(34.79, 32.09, name="ב")]
+        "next_page": None,
+        "total_entities": 2,
+        "entities_list": [
+            entity("{G1}", wkt_value="POINT (34.78 32.08 0)"),
+            entity("{G2}", wkt_value="POINT (34.79 32.09 0)"),
+        ],
     })
     gdf = provider.fetch_features(mqs_layer())
     assert len(gdf) == 2
     assert str(gdf.crs) == WGS84
-    assert list(gdf["name"]) == ["א", "ב"]
+    assert list(gdf["id"]) == ["{G1}", "{G2}"]
     request = handler.requests[0]
-    # Official Entities doc: retrieval is a plain GET, no body/params.
     assert request.method == "GET"
     assert request.url.path == "/MoriaProject/42/Entities"
-    assert not request.content
+    assert dict(request.url.params) == {"from": "0", "to": str(_PAGE_SIZE)}
+    assert request.headers["Accept"] == "application/json"
 
 
-def test_fetch_features_flat_entities(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "data": [
-            {"id": 1, "geom": {"type": "Point", "coordinates": [34.78, 32.08]},
-             "name": "x"},
-        ]
-    })
+def test_fetch_features_parses_bare_array_response(tmp_path):
+    """The doc's first (non-paginated) section shows a bare JSON array —
+    still accepted."""
+    provider, _ = make_provider(tmp_path, lambda request: [entity("{G1}")])
     gdf = provider.fetch_features(mqs_layer())
     assert len(gdf) == 1
-    assert gdf.iloc[0]["name"] == "x"
-    assert gdf.iloc[0]["id"] == 1
 
 
-def test_fetch_features_parses_live_mqs_entity_shape(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "entities": [{
-            "exclusive_id": {
-                "data_store_name": "MoriaProject",
-                "layer_id": "10",
-                "entity_id": "{GUID}",
-                "history_id": 0,
-            },
-            "classification": {"triangle": "678588", "clearence_level": 0},
-            "date": "2026-07-13",
-            "link": "https://mqs.test/entity/GUID",
-            "geometry": {"wkt": "POINT (34.78 32.08)", "geo_json": "Point"},
-            "properties_list": {"ROAD_NAME": "הרצל", "LANES": 2},
-        }],
-    })
-    gdf = provider.fetch_features(mqs_layer("10"))
-    assert len(gdf) == 1
-    assert gdf.iloc[0]["id"] == "{GUID}"
-    assert gdf.iloc[0]["ROAD_NAME"] == "הרצל"
-    assert gdf.iloc[0]["LANES"] == 2
-    assert gdf.iloc[0]["date"] == "2026-07-13"
-    assert gdf.iloc[0].geometry.wkt == "POINT (34.78 32.08)"
-
-
-def test_fetch_features_single_unpaginated_request(tmp_path):
-    """No documented pagination param for Entities — one request returns
-    everything; see the module docstring for why."""
-    provider, handler = make_provider(tmp_path, lambda request: {
-        "features": [feature(34.0, 32.0, i=i) for i in range(500)]
-    })
+def test_fetch_features_extracts_fixed_fields(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: [entity(
+        "{G1}", triangle="678588", clearence_level="2", source_id=42,
+        date="15/06/2025 20:35:33", area=1.5357398e-8, perimeter=0.0005615732822034,
+    )])
     gdf = provider.fetch_features(mqs_layer())
-    assert len(gdf) == 500
-    assert len(handler.requests) == 1
+    row = gdf.iloc[0]
+    assert row["id"] == "{G1}"
+    assert row["triangle"] == "678588"
+    assert row["clearence_level"] == "2"  # service spelling preserved
+    assert row["source_id"] == 42
+    assert row["date"] == "15/06/2025 20:35:33"
+    assert row["area"] == 1.5357398e-8
+    assert row["perimeter"] == 0.0005615732822034
+    assert "link" in gdf.columns
+    assert row.geometry.geom_type == "Polygon" or row.geometry.geom_type == "Point"
+
+
+def test_fetch_features_follows_next_page(tmp_path):
+    page_1 = {
+        "next_page": "https://mqs.test/MQS/MoriaProject/42/Entities?from=2&to=4",
+        "total_entities": 3,
+        "entities_list": [entity("{G1}"), entity("{G2}")],
+    }
+    page_2 = {
+        "next_page": None,
+        "total_entities": 3,
+        "entities_list": [entity("{G3}")],
+    }
+
+    def responses(request):
+        params = dict(request.url.params)
+        if params.get("from") == "2":
+            return page_2
+        return page_1
+
+    provider, handler = make_provider(tmp_path, responses)
+    gdf = provider.fetch_features(mqs_layer())
+    assert len(gdf) == 3
+    assert len(handler.requests) == 2
+    assert dict(handler.requests[1].url.params) == {"from": "2", "to": "4"}
 
 
 def test_fetch_features_empty(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {"features": []})
+    provider, _ = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
     gdf = provider.fetch_features(mqs_layer())
     assert len(gdf) == 0
     assert str(gdf.crs) == WGS84
@@ -165,20 +195,25 @@ def test_fetch_features_empty(tmp_path):
 
 
 def test_fetch_features_skips_bad_geometry(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "features": [
-            feature(34.78, 32.08, name="good"),
-            {"geometry": None, "properties": {"name": "bad"}},
-            {"properties": {"name": "no-geometry-at-all"}},
-        ]
-    })
+    def responses(request):
+        good = entity("{G1}")
+        bad = entity("{G2}")
+        bad["geo"] = {"wkt": "not-wkt", "area": 0, "perimeter": 0}
+        no_geo = entity("{G3}")
+        del no_geo["geo"]
+        return {"next_page": None, "entities_list": [good, bad, no_geo]}
+
+    provider, _ = make_provider(tmp_path, responses)
     gdf = provider.fetch_features(mqs_layer())
-    assert list(gdf["name"]) == ["good"]
+    assert list(gdf["id"]) == ["{G1}"]
 
 
 def test_fetch_features_hard_cap(tmp_path):
-    huge_response = {"features": [feature(34.0, 32.0) for _ in range(_MAX_FEATURES)]}
-    provider, _ = make_provider(tmp_path, lambda request: huge_response)
+    huge_page = {
+        "next_page": None,
+        "entities_list": [entity(str(i)) for i in range(_MAX_FEATURES + 1)],
+    }
+    provider, _ = make_provider(tmp_path, lambda request: huge_page)
     with pytest.raises(ProviderError, match=str(_MAX_FEATURES)):
         provider.fetch_features(mqs_layer())
 
@@ -207,248 +242,135 @@ def test_fetch_features_without_base_url(tmp_path):
 
 
 def test_fetch_features_accepts_now_kwarg(tmp_path, frozen_now):
-    provider, _ = make_provider(tmp_path, lambda request: {"features": []})
+    provider, _ = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
     gdf = provider.fetch_features(mqs_layer(), now=frozen_now)
     assert len(gdf) == 0
 
 
-def test_describe_schema_fields_and_samples(tmp_path):
-    def responses(request):
-        if request.url.path == "/MoriaProject/Layers/42":
-            return {
-                "geometryType": "Point",
-                "fields": [
-                    {"name": "status", "type": "string", "alias": "מצב"},
-                    {"name": "size", "type": "double"},
-                ],
-            }
-        if request.url.path == "/MoriaProject/ValueList/42":
-            return {"status": ["פעיל", "סגור"], "size": [1, 2, 3]}
-        raise AssertionError(f"unexpected path {request.url.path}")
+def test_fetch_features_unrecognized_shape_raises(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {"success": True})
+    with pytest.raises(ProviderError, match="unrecognized Entities response"):
+        provider.fetch_features(mqs_layer())
 
-    provider, _ = make_provider(tmp_path, responses)
+
+def test_user_id_header_sent_when_configured(tmp_path):
+    """The doc marks User_ID as a required header — it must reach every
+    MQS request when the mqs_user_id setting is set."""
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []},
+        mqs_user_id="tt/T",
+    )
+    provider.fetch_features(mqs_layer())
+    assert handler.requests[0].headers["User_ID"] == "tt/T"
+
+
+def test_user_id_header_omitted_when_unset(tmp_path):
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
+    provider.fetch_features(mqs_layer())
+    assert "User_ID" not in handler.requests[0].headers
+
+
+def test_describe_schema_returns_fixed_fields(tmp_path):
+    """No per-layer field-list endpoint exists in this API — every layer
+    reports the same fixed classification/date/geo fields, with no HTTP
+    request needed."""
+    provider, handler = make_provider(tmp_path, lambda request: {})
     schema = provider.describe_schema(mqs_layer())
-    assert schema.layer_id == "catalog-uuid"  # catalog id, not the MQS id
-    assert schema.geometry_type == "Point"
-    by_name = {f.name: f for f in schema.fields}
-    assert by_name["status"].type == "string"
-    assert by_name["status"].description == "מצב"
-    assert by_name["status"].samples == ["פעיל", "סגור"]
-    assert by_name["size"].type == "number"
-    assert by_name["size"].samples == ["1", "2", "3"]
-
-
-def test_describe_schema_temporal_field_from_properties_list(tmp_path):
-    """A properties_list field named like a temporal candidate wins over
-    the envelope-level "date" fallback."""
-    def responses(request):
-        if request.url.path == "/MoriaProject/Layers/42":
-            return {"geometryType": "Point", "fields": [
-                {"name": "timestamp", "type": "datetime"},
-                {"name": "status", "type": "string"},
-            ]}
-        return {}
-
-    provider, _ = make_provider(tmp_path, responses)
-    schema = provider.describe_schema(mqs_layer())
-    assert schema.temporal_field == "timestamp"
-
-
-def test_describe_schema_temporal_field_falls_back_to_envelope_date(tmp_path):
-    """No properties_list field matches a temporal candidate — falls back
-    to the always-present envelope "date" field, not None."""
-    def responses(request):
-        if request.url.path == "/MoriaProject/Layers/42":
-            return {"geometryType": "Point", "fields": [
-                {"name": "ROAD_NAME", "type": "string"},
-            ]}
-        return {}
-
-    provider, _ = make_provider(tmp_path, responses)
-    schema = provider.describe_schema(mqs_layer())
+    assert schema.layer_id == "catalog-uuid"
+    assert schema.geometry_type == "Polygon"
+    names = {f.name for f in schema.fields}
+    assert names == {"triangle", "clearence_level", "source_id", "date", "area", "perimeter"}
     assert schema.temporal_field == "date"
+    assert handler.requests == []  # no network call needed
 
 
 def test_describe_schema_temporal_field_tag_override(tmp_path):
-    """A "temporal_field:<name>" tag on the catalog row forces the field,
-    bypassing both the candidate list and the envelope fallback."""
-    def responses(request):
-        return {"geometryType": "Point", "fields": [{"name": "ROAD_NAME", "type": "string"}]}
-
-    provider, _ = make_provider(tmp_path, responses)
-    layer = mqs_layer().model_copy(update={"tags": ["temporal_field:LAST_MODIFIED"]})
+    provider, _ = make_provider(tmp_path, lambda request: {})
+    layer = mqs_layer().model_copy(update={"tags": ["temporal_field:custom_date"]})
     schema = provider.describe_schema(layer)
-    assert schema.temporal_field == "LAST_MODIFIED"
+    assert schema.temporal_field == "custom_date"
 
 
 def test_describe_schema_no_temporal_field_tag_opts_out(tmp_path):
-    """A "no_temporal_field" tag declares the layer has no temporal
-    dimension, even though "date" would otherwise be assumed."""
-    def responses(request):
-        return {"geometryType": "Point", "fields": [{"name": "ROAD_NAME", "type": "string"}]}
-
-    provider, _ = make_provider(tmp_path, responses)
+    provider, _ = make_provider(tmp_path, lambda request: {})
     layer = mqs_layer().model_copy(update={"tags": ["no_temporal_field"]})
     schema = provider.describe_schema(layer)
     assert schema.temporal_field is None
 
 
-def test_describe_schema_parses_live_fields_list_map(tmp_path):
-    def responses(request):
-        if request.url.path == "/MoriaProject/Layers/42":
-            return {
-                "display_name": "כבישים ודרכים",
-                "unclassified_description": "שכבת פרויקט אזרחי",
-                "name": "T_ROADS",
-                "is_dynamic": True,
-                "fields_list": {
-                    "ROAD_NAME": {
-                        "data_type": "string",
-                        "display_name": "שם רחוב",
-                    },
-                    "LANES": {"field_type": "integer"},
-                    "IS_OPEN": "boolean",
-                },
-                "exclusive_id": {"layer_id": "42"},
-                "date": {},
-            }
-        if request.url.path == "/MoriaProject/ValueList/42":
-            return {"ROAD_NAME": ["הרצל", "בגין"]}
-        raise AssertionError(f"unexpected path {request.url.path}")
-
-    provider, _ = make_provider(tmp_path, responses)
-    schema = provider.describe_schema(mqs_layer())
-    by_name = {field.name: field for field in schema.fields}
-    assert by_name["ROAD_NAME"].type == "string"
-    assert by_name["ROAD_NAME"].description == "שם רחוב"
-    assert by_name["ROAD_NAME"].samples == ["הרצל", "בגין"]
-    assert by_name["LANES"].type == "number"
-    assert by_name["IS_OPEN"].type == "boolean"
-
-
-def test_describe_schema_valuelist_failure_is_soft(tmp_path):
-    def responses(request):
-        if request.url.path.startswith("/MoriaProject/ValueList/"):
-            return httpx.Response(500)
-        return {"geometryType": "Point", "fields": [{"name": "a", "type": "string"}]}
-
-    provider, _ = make_provider(tmp_path, responses)
-    schema = provider.describe_schema(mqs_layer())
-    assert [f.name for f in schema.fields] == ["a"]
-    assert schema.fields[0].samples == []
-
-
-def test_describe_schema_unknown_shape(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {})
-    schema = provider.describe_schema(mqs_layer())
-    assert schema.geometry_type == "unknown"
-    assert schema.fields == []
-
-
-def test_sample_field_values_from_value_list(tmp_path):
-    def responses(request):
-        if request.url.path == "/MoriaProject/ValueList/42":
-            return [{"field": "status", "values": ["פעיל", "סגור", "בבנייה"]}]
-        raise AssertionError(f"unexpected path {request.url.path}")
-
-    provider, _ = make_provider(tmp_path, responses)
-    values = provider.sample_field_values(mqs_layer(), "status")
-    assert values == ["פעיל", "סגור", "בבנייה"]
-
-
-def test_sample_field_values_entities_fallback(tmp_path):
-    def responses(request):
-        if request.url.path.startswith("/MoriaProject/ValueList/"):
-            return {}
-        return {"features": [
-            feature(34.0, 32.0, status="פעיל"),
-            feature(34.1, 32.1, status="סגור"),
-            feature(34.2, 32.2, status="פעיל"),
-        ]}
-
-    provider, _ = make_provider(tmp_path, responses)
-    values = provider.sample_field_values(mqs_layer(), "status")
-    assert values == ["פעיל", "סגור"]  # distinct, order preserved
+def test_sample_field_values_from_fixed_field(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "next_page": None,
+        "entities_list": [
+            entity("{G1}", triangle="0"),
+            entity("{G2}", triangle="678588"),
+            entity("{G3}", triangle="0"),
+        ],
+    })
+    values = provider.sample_field_values(mqs_layer(), "triangle")
+    assert values == ["0", "678588"]  # distinct, order preserved
 
 
 def test_sample_field_values_respects_limit(tmp_path):
     provider, _ = make_provider(tmp_path, lambda request: {
-        "status": [f"v{i}" for i in range(50)]
-    } if "ValueList" in request.url.path else {"features": []})
-    values = provider.sample_field_values(mqs_layer(), "status", limit=5)
-    assert values == ["v0", "v1", "v2", "v3", "v4"]
+        "next_page": None,
+        "entities_list": [entity(str(i), source_id=i) for i in range(50)],
+    })
+    values = provider.sample_field_values(mqs_layer(), "source_id", limit=5)
+    assert len(values) == 5
+
+
+def test_sample_field_values_unknown_field_returns_empty(tmp_path):
+    provider, handler = make_provider(tmp_path, lambda request: {
+        "next_page": None, "entities_list": [entity("{G1}")],
+    })
+    assert provider.sample_field_values(mqs_layer(), "ROAD_NAME") == []
+    assert handler.requests == []  # no network call for an unknown field
 
 
 def test_list_remote_layers(tmp_path):
     provider, handler = make_provider(tmp_path, lambda request: {
-        "layers": [{"id": 1, "name": "roads"}, {"id": 2, "name": "parks"}]
+        "total_layers": 2,
+        "layers_list": [
+            {"layer_id": "1", "display_name": "roads"},
+            {"layer_id": "2", "display_name": "parks"},
+        ],
     })
     layers = provider.list_remote_layers()
-    assert [layer["name"] for layer in layers] == ["roads", "parks"]
+    assert [layer["display_name"] for layer in layers] == ["roads", "parks"]
     assert handler.requests[0].url.path == "/MoriaProject/Layers"
 
 
-def test_list_remote_layers_accepts_nested_pascal_case_envelope(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "Data": {"Items": [{"Id": 1, "Name": "roads"}]}
-    })
-    assert provider.list_remote_layers() == [{"Id": 1, "Name": "roads"}]
-
-
-def test_list_remote_layers_accepts_moria_layers_list_envelope(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "total_layers": 46,
-        "layers_list": [
-            {"layer_id": 7, "display_name": "כבישים ודרכים"},
-        ],
-    })
-    assert provider.list_remote_layers() == [
-        {"layer_id": 7, "display_name": "כבישים ודרכים"},
-    ]
-
-
-def test_moria_layers_list_is_normalized_for_api(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "total_layers": 46,
-        "layers_list": [
-            {"layer_id": 7, "display_name": "כבישים ודרכים"},
-        ],
-    })
-    layers, skipped = browse_mqs_layers(provider)
-    assert skipped == 0
-    assert len(layers) == 1
-    assert layers[0].id == "7"
-    assert layers[0].name == "כבישים ודרכים"
-    assert layers[0].source_url == "mqs://layer/7"
-
-
-def test_full_moria_layer_object_is_normalized(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {
-        "total_layers": 46,
-        "layers_list": [{
-            "display_name": "כבישים ודרכים",
-            "unclassified_description": "שכבת פרויקט אזרחי",
-            "name": "T_ROADS",
-            "is_dynamic": False,
-            "layer_info_link": "https://mqs.test/MoriaProject/Layers/110",
-            "layer_entities_link": "https://mqs.test/MoriaProject/110/Entities",
-            "classification": [{"triangle": "678588", "clearence_level": 0}],
-            "exclusive_id": {
-                "data_store_name": "MoriaProject",
-                "layer_id": "110",
-            },
-        }],
-    })
-    layers, skipped = browse_mqs_layers(provider)
-    assert skipped == 0
-    assert len(layers) == 1
-    assert layers[0].id == "110"
-    assert layers[0].name == "כבישים ודרכים"
-    assert layers[0].description == "שכבת פרויקט אזרחי"
-    assert layers[0].source_url == "mqs://layer/110"
+def test_list_remote_layers_accepts_bare_array(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: [
+        {"layer_id": "1", "display_name": "roads"},
+    ])
+    assert provider.list_remote_layers() == [{"layer_id": "1", "display_name": "roads"}]
 
 
 def test_list_remote_layers_rejects_unknown_200_response(tmp_path):
     provider, _ = make_provider(tmp_path, lambda request: {"success": True})
     with pytest.raises(ProviderError, match="unrecognized layer-list response"):
         provider.list_remote_layers()
+
+
+def test_full_moria_layer_object_is_normalized(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "total_layers": 46,
+        "layers_list": [{
+            "display_name": "בניינים",
+            "name": "B_BUILDINGS",
+            "layer_id": "614",
+            "layer_entities_link": "https://mqs-gs.dom9900.aman.idf/MQS/MoriaProject/614/Entities",
+        }],
+    })
+    layers, skipped = browse_mqs_layers(provider)
+    assert skipped == 0
+    assert len(layers) == 1
+    assert layers[0].id == "614"
+    assert layers[0].name == "בניינים"
+    assert layers[0].source_url == "mqs://layer/614"
