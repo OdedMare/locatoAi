@@ -19,6 +19,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [mqsBaseUrl, setMqsBaseUrl] = useState("");
+  const [mqsUserId, setMqsUserId] = useState("");
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databaseUser, setDatabaseUser] = useState("");
   const [databasePassword, setDatabasePassword] = useState("");
@@ -58,6 +59,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setModel(s.llm_model ?? "");
         setBaseUrl(s.llm_base_url ?? "");
         setMqsBaseUrl(s.mqs_base_url ?? "");
+        setMqsUserId(s.mqs_user_id ?? "");
         setDatabaseUrl(s.database_url ?? "");
         setDatabaseUser(s.database_user ?? "");
         setDatabaseHost(s.database_host ?? "");
@@ -79,6 +81,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         llm_base_url: (baseUrl ?? "").trim() === "" ? null : (baseUrl ?? "").trim(),
         openai_api_key: apiKey, // backend ignores empty
         mqs_base_url: (mqsBaseUrl ?? "").trim() === "" ? null : (mqsBaseUrl ?? "").trim(),
+        mqs_user_id: (mqsUserId ?? "").trim() === "" ? null : (mqsUserId ?? "").trim(),
         database_url: databaseUrl,
         database_user: (databaseUser ?? "").trim(),
         database_password: databasePassword, // backend ignores empty
@@ -181,6 +184,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             placeholder="https://mqs.example/api"
             value={mqsBaseUrl}
             onChange={(e) => setMqsBaseUrl(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-mqs-user-id">
+            מזהה משתמש (User_ID){" "}
+            <span className="optional">(נשלח ככותרת בכל בקשה ל-MQS; ריק = ללא)</span>
+          </label>
+          <input
+            id="set-mqs-user-id"
+            dir="ltr"
+            className="settings-input"
+            placeholder="tt/T"
+            value={mqsUserId}
+            onChange={(e) => setMqsUserId(e.target.value)}
           />
         </section>
 

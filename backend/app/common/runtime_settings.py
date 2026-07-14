@@ -66,6 +66,7 @@ class RuntimeSettings:
     llm_base_url: Optional[str]
     openai_api_key: str
     mqs_base_url: Optional[str]
+    mqs_user_id: Optional[str]
     database_url: str
     database_user: str
     database_password: str
@@ -101,6 +102,7 @@ class RuntimeSettingsStore:
             llm_base_url=env.llm_base_url,
             openai_api_key=env.openai_api_key,
             mqs_base_url=env.mqs_base_url,
+            mqs_user_id=env.mqs_user_id,
             database_url=env.database_url,
             database_user=env.database_user,
             database_password=env.database_password,
@@ -128,7 +130,7 @@ class RuntimeSettingsStore:
         return self._settings
 
     # Fields where None/empty means "clear the value", not "keep current".
-    _NULLABLE = ("database_port", "llm_base_url", "mqs_base_url")
+    _NULLABLE = ("database_port", "llm_base_url", "mqs_base_url", "mqs_user_id")
 
     def _apply(self, patch: dict, strict: bool) -> None:
         known = {f.name for f in fields(RuntimeSettings)}

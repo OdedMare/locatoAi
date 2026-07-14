@@ -1,4 +1,3 @@
-import json
 from typing import Callable, List, Optional
 
 import httpx
@@ -19,11 +18,16 @@ from app.dal.providers.mqs import (
 BASE_URL = "https://mqs.test"
 
 
-def make_store(tmp_path, mqs_base_url: Optional[str] = BASE_URL) -> RuntimeSettingsStore:
+def make_store(
+    tmp_path,
+    mqs_base_url: Optional[str] = BASE_URL,
+    mqs_user_id: Optional[str] = None,
+) -> RuntimeSettingsStore:
     env = Settings(
         _env_file=None,
         runtime_settings_file=str(tmp_path / "runtime-settings.json"),
         mqs_base_url=mqs_base_url,
+        mqs_user_id=mqs_user_id,
     )
     return RuntimeSettingsStore(env)
 
@@ -57,9 +61,9 @@ class RecordingHandler:
         return httpx.Response(200, json=result)
 
 
-def make_provider(tmp_path, responses, mqs_base_url=BASE_URL):
+def make_provider(tmp_path, responses, mqs_base_url=BASE_URL, mqs_user_id=None):
     handler = RecordingHandler(responses)
-    store = make_store(tmp_path, mqs_base_url=mqs_base_url)
+    store = make_store(tmp_path, mqs_base_url=mqs_base_url, mqs_user_id=mqs_user_id)
     return MqsProvider(store, transport=httpx.MockTransport(handler)), handler
 
 
@@ -74,6 +78,20 @@ def test_layer_id_from_source_url():
     assert mqs_layer_id(url) == "42"
 
 
+def test_layer_id_from_pasted_entities_link():
+    """A full layer_entities_link as source_url must yield the id, not
+    the trailing 'Entities' endpoint word."""
+    pasted = LayerMeta(
+        id="x", name="n", provider="mqs",
+        source_url="https://host/MoriaProject/110/Entities",
+    )
+    assert mqs_layer_id(pasted) == "110"
+    # a source_url with NO id-like segment at all is the error case:
+    bad = LayerMeta(id="x", name="n", provider="mqs", source_url="/Entities/")
+    with pytest.raises(ProviderError, match="no MQS layer id"):
+        mqs_layer_id(bad)
+
+
 def test_fetch_features_parses_geojson_features(tmp_path):
     provider, handler = make_provider(tmp_path, lambda request: {
         "features": [feature(34.78, 32.08, name="א"), feature(34.79, 32.09, name="ב")]
@@ -83,9 +101,10 @@ def test_fetch_features_parses_geojson_features(tmp_path):
     assert str(gdf.crs) == WGS84
     assert list(gdf["name"]) == ["א", "ב"]
     request = handler.requests[0]
-    assert request.method == "POST"
+    # Official Entities doc: retrieval is a plain GET, no body/params.
+    assert request.method == "GET"
     assert request.url.path == "/MoriaProject/42/Entities"
-    assert json.loads(request.content) == {"filter": {}}
+    assert not request.content
 
 
 def test_fetch_features_flat_entities(tmp_path):

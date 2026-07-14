@@ -23,6 +23,7 @@ class SettingsUpdate(BaseModel):
     llm_base_url: Optional[str] = None
     openai_api_key: Optional[str] = None  # empty/omitted = keep current
     mqs_base_url: Optional[str] = None
+    mqs_user_id: Optional[str] = None
     database_url: Optional[str] = None
     database_user: Optional[str] = None
     database_password: Optional[str] = None  # empty/omitted = keep current
@@ -45,6 +46,7 @@ class SettingsResponse(BaseModel):
     openai_api_key_set: bool
     openai_api_key_hint: Optional[str]
     mqs_base_url: Optional[str]
+    mqs_user_id: Optional[str]
     database_url: str
     database_user: str
     database_password_set: bool
@@ -83,6 +85,7 @@ def _to_response(
         openai_api_key_set=bool(settings.openai_api_key),
         openai_api_key_hint=_mask_key(settings.openai_api_key),
         mqs_base_url=settings.mqs_base_url,
+        mqs_user_id=settings.mqs_user_id,
         database_url=_mask_db_password(settings.database_url),
         database_user=settings.database_user,
         database_password_set=bool(settings.database_password),

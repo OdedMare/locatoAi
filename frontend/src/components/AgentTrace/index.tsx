@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { submitFeedback } from "@/services/feedbackService";
 import type { GeoPlanStep, GeoQueryResponse } from "@/types/geo-query";
 
@@ -46,10 +46,11 @@ interface AgentTraceProps {
  * selection quality can be judged at a glance.
  */
 export default function AgentTrace({ response, isSubmitting, query }: AgentTraceProps) {
-  const [voted, setVoted] = useState<"up" | "down" | null>(null);
-
-  // A new response resets the vote state.
-  useEffect(() => setVoted(null), [response]);
+  const [voteState, setVoteState] = useState<{
+    query: string;
+    verdict: "up" | "down";
+  } | null>(null);
+  const voted = voteState?.query === query ? voteState.verdict : null;
 
   if (!isSubmitting && response === null) return null;
 
@@ -61,9 +62,13 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
 
   const vote = (verdict: "up" | "down") => {
     if (!response || voted) return;
-    setVoted(verdict);
+    setVoteState({ query, verdict });
     void submitFeedback(query, response, verdict);
   };
+
+  const planMs = response?.timing_ms?.plan;
+  const executeMs = response?.timing_ms?.execute;
+  const resultCount = response?.features?.features.length ?? response?.scalar_result;
 
   const layerName = (id?: string) =>
     response?.selected_layers.find((layer) => layer.id === id)?.name ?? "שכבה";
@@ -75,6 +80,8 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
         {typeof selectMs === "number" && (
           <span className="badge">בחירה {selectMs} אלפיות שנייה</span>
         )}
+        {typeof planMs === "number" && <span className="badge">תכנון {planMs} מ״ש</span>}
+        {typeof executeMs === "number" && <span className="badge">ביצוע {executeMs} מ״ש</span>}
         {response?.token_usage && (
           <span
             className="badge token-badge"
@@ -109,7 +116,21 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
       </header>
 
       {isSubmitting ? (
-        <p className="agent-step running">🧠 בוחר שכבות מהקטלוג…</p>
+        <div className="plan-trace" aria-live="polite">
+          <p className="agent-step running">⏳ הצינור פועל בשרת…</p>
+          <ol className="plan-steps debug-stage-list">
+            <li>בחירת שכבות</li>
+            <li>בניית תוכנית ואימותה</li>
+            <li>ביצוע התוכנית</li>
+          </ol>
+          <p className="plan-explanation">השרת מחזיר תשובה רק לאחר סיום הביצוע.</p>
+        </div>
+      ) : response!.status === "error" ? (
+        <div className="plan-trace">
+          <p className="agent-step clarify" dir="auto">✕ הצינור נכשל</p>
+          {response!.clarify && <p className="plan-explanation" dir="auto">{response!.clarify}</p>}
+          <p className="agent-step">לא התקבל אישור לביצוע התוכנית.</p>
+        </div>
       ) : response!.selected_layers.length > 0 ? (
         <>
           {response!.reasoning && (
@@ -147,7 +168,17 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
                 ))}
               </ol>
               <p className="plan-explanation">{response!.plan.explanation}</p>
+              {typeof executeMs === "number" ? (
+                <p className="agent-step done">
+                  ✓ התוכנית בוצעה בפועל בשרת ({executeMs} מ״ש) · התקבלו {resultCount ?? 0} תוצאות
+                </p>
+              ) : (
+                <p className="agent-step clarify">⚠ התוכנית נבנתה אך אין אישור ביצוע בתשובת השרת</p>
+              )}
             </div>
+          )}
+          {!response!.plan && (
+            <p className="agent-step clarify">⊘ לא נבנתה תוכנית ולכן שלב הביצוע לא הופעל</p>
           )}
         </>
       ) : response!.clarify && response!.status === "clarify" ? (

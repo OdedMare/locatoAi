@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     """Base URL of the MQS (Moria Query Service) GIS server. Unset = the
     'mqs' provider is unavailable until configured in the settings panel."""
 
+    mqs_user_id: Optional[str] = None
+    """Sent as the required User_ID header on every MQS request (the
+    official Entities doc's example value is "tt/T"). Deployment-specific;
+    unset = header omitted."""
+
     runtime_settings_file: str = "runtime-settings.json"
     """UI-edited settings are persisted here, overriding the env defaults."""
 

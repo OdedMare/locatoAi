@@ -1224,6 +1224,11 @@ body {
 .mqs-picker-item strong, .mqs-picker-item span, .mqs-picker-item small { display: block; }
 .mqs-picker-item span, .mqs-picker-item small { margin-top: 3px; color: var(--text-muted); }
 
+.debug-stage-list { opacity: 0.75; }
+.debug-response-details { margin-top: 8px; font-size: 12px; }
+.debug-response-details summary { color: var(--accent); cursor: pointer; }
+.debug-response-details .json-block { margin-top: 8px; }
+
 .add-layer-form h3 {
   margin-bottom: 14px;
   font-size: 14px;

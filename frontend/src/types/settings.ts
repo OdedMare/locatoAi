@@ -13,6 +13,7 @@ export interface AppSettings {
   /** Masked hint like "…abcd" — the real key is never sent back. */
   openai_api_key_hint: string | null;
   mqs_base_url: string | null;
+  mqs_user_id: string | null;
   database_url: string;
   database_user: string;
   database_password_set: boolean;
@@ -30,6 +31,7 @@ export interface SettingsUpdate {
   llm_base_url?: string | null;
   openai_api_key?: string;
   mqs_base_url?: string | null;
+  mqs_user_id?: string | null;
   database_url?: string;
   database_user?: string;
   database_password?: string;

@@ -6,23 +6,27 @@ base URL is the mqs_base_url runtime setting, read on every call). The
 last path segment is the layer id, so a bare id or a pasted full URL
 also work.
 
-Fetch strategy is fetch-all-filter-locally: POST /MoriaProject/{id}/Entities
-with an empty {"filter": {}} body (per the MQS technical doc — entity
-retrieval/search is POST+filter-body, not GET+query-params) fetches every
-feature and the executor does spatial ops locally. The doc's own
-"Additional URL Parameters" section did not show a pagination parameter
-for this endpoint, so there is currently no pagination — _MAX_FEATURES
-below guards against an unexpectedly huge single response; add real
-pagination here if a live layer is ever observed being truncated.
+Fetch strategy is fetch-all-filter-locally: per the official MoriaProject
+Entities API doc, GET /MoriaProject/{id}/Entities with a required
+`User_ID` header (the mqs_user_id runtime setting, sent on every MQS
+request) returns the full entity array for a layer; the executor then
+does spatial ops locally. The doc shows no pagination parameter, so a
+single request fetches everything — _MAX_FEATURES below guards against
+an unexpectedly huge response; add pagination if a live layer is ever
+observed being truncated. (A separate MQS search endpoint takes a
+POST {"filter": ...} body — that is a future spatial-pushdown path, not
+how plain retrieval works.)
 
-Response shapes are confirmed against a real MQS entity payload: each
-entity carries exclusive_id (data_store_name/layer_id/entity_id/
-history_id), classification, date, link, geometry ({"wkt": ..., "geo_json":
-<geometry type>}), and properties_list (the actual attributes) — see
-_entity_to_record's properties_list branch. Adapting to any variation
-means adjusting _extract_entities / _entity_to_record / _entities_request /
-_ensure_wgs84. Coordinates from geometry.wkt are assumed WGS84; if a real
-instance returns ITM (EPSG:2039), fix it inside _ensure_wgs84.
+Per the doc, each entity carries exclusive_id (data_store_name/layer_id/
+entity_id/history_id), classification, date (DD/MM/YYYY HH:MM:SS), link,
+and geo ({"wkt": "POLYGON ((lon lat alt, ...))", "area", "perimeter"});
+an observed live variant instead nests geometry under "geometry"
+({"wkt", "geo_json"}) and carries attributes in properties_list — both
+are handled by _entity_to_record's MQS-envelope branch. WKT coordinates
+are lon/lat and assumed WGS84 (the doc says to confirm the SRID with the
+service owner); if a real instance serves ITM (EPSG:2039), fix it inside
+_ensure_wgs84. Adapting to other variations means adjusting
+_extract_entities / _entity_to_record / _entities_path.
 """
 
 import logging
@@ -67,7 +71,7 @@ _FIELD_DESC_KEYS = (
     "description", "Description",
 )
 _GEOMETRY_TYPE_KEYS = ("geometryType", "geometry_type", "geomType")
-_GEOMETRY_VALUE_KEYS = ("geometry", "geom", "shape", "location")
+_GEOMETRY_VALUE_KEYS = ("geometry", "geo", "geom", "shape", "location")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
 
 # Candidate names for a layer's event-time field, checked in order against
@@ -105,16 +109,27 @@ _MQS_TO_SCHEMA_TYPE = {
 }
 
 
+# Endpoint words that may trail the layer id when a full MQS link was
+# pasted/synced as source_url (e.g. the inventory's layer_entities_link
+# ".../MoriaProject/110/Entities") — never a layer id themselves.
+_NON_ID_TRAILING_SEGMENTS = ("entities", "layers", "moriaproject")
+
+
 def mqs_layer_id(layer: LayerMeta) -> str:
     """The MQS layer id is the last non-empty path segment of source_url
-    (mqs://layer/42, bare "42" and https://host/MoriaProject/42/ all work)."""
-    layer_id = layer.source_url.strip().rstrip("/").rsplit("/", 1)[-1]
-    if not layer_id:
+    (mqs://layer/42, bare "42", https://host/MoriaProject/42/ and even a
+    pasted entities link https://host/MoriaProject/42/Entities all work)."""
+    segments = [
+        segment
+        for segment in layer.source_url.strip().split("/")
+        if segment and segment.lower() not in _NON_ID_TRAILING_SEGMENTS
+    ]
+    if not segments:
         raise ProviderError(
             f"Layer {layer.id} has no MQS layer id in its source_url "
             f"({layer.source_url!r}) — expected mqs://layer/<id>"
         )
-    return layer_id
+    return segments[-1]
 
 
 def _first_key(entity: dict, keys: Tuple[str, ...]) -> Optional[object]:
@@ -205,13 +220,19 @@ def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
             attributes["id"] = entity_id
         return geometry, attributes
 
-    # Live MQS shape: attributes are in properties_list, geometry contains WKT,
-    # and the entity id is nested in exclusive_id.
-    if isinstance(entity.get("properties_list"), dict):
-        geometry = _parse_geometry(entity.get("geometry"))
+    # MQS envelope shape (recognized by exclusive_id / properties_list):
+    # the official doc puts geometry under "geo" ({"wkt", "area",
+    # "perimeter"}) with no properties_list; an observed live variant puts
+    # it under "geometry" ({"wkt", "geo_json"}) with attributes in
+    # properties_list. Both share exclusive_id/classification/date/link.
+    if isinstance(entity.get("exclusive_id"), dict) or isinstance(
+        entity.get("properties_list"), dict
+    ):
+        geometry = _parse_geometry(entity.get("geo") or entity.get("geometry"))
         if geometry is None:
             return None
-        attributes = dict(entity["properties_list"])
+        properties_list = entity.get("properties_list")
+        attributes = dict(properties_list) if isinstance(properties_list, dict) else {}
         exclusive_id = entity.get("exclusive_id")
         if isinstance(exclusive_id, dict):
             entity_id = _first_key(exclusive_id, _ENTITY_ID_KEYS)
@@ -220,6 +241,13 @@ def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
         for key in ("date", "link", "classification"):
             if key in entity and key not in attributes:
                 attributes[key] = entity[key]
+        geo = entity.get("geo")
+        if isinstance(geo, dict):
+            # area/perimeter are doc-declared per-entity floats — surface
+            # them as plain attributes (units are the service's CRS units).
+            for key in ("area", "perimeter"):
+                if key in geo and key not in attributes:
+                    attributes[key] = geo[key]
         return geometry, attributes
 
     geometry = None
@@ -266,6 +294,15 @@ class MqsProvider:
             )
         return base_url
 
+    def _headers(self) -> Dict[str, str]:
+        # The official Entities doc marks User_ID as a required header
+        # (example value "tt/T"). It is deployment-specific, so it comes
+        # from the mqs_user_id runtime setting; when unset, no header is
+        # sent and an instance that enforces it will reject the request —
+        # the 4xx surfaces through ProviderError below.
+        user_id = self._store.get().mqs_user_id
+        return {"User_ID": user_id} if user_id else {}
+
     def _get_json(self, path: str, params: Optional[dict] = None) -> object:
         base_url = self._base_url()
         try:
@@ -273,8 +310,14 @@ class MqsProvider:
                 base_url=base_url,
                 timeout=_TIMEOUT_SECONDS,
                 transport=self._transport,
+                headers=self._headers(),
             ) as client:
                 response = client.get(path, params=params)
+                # The MQS doc recommends logging request URL + status for
+                # debugging; the full URL shows exactly how mqs_base_url
+                # and the layer path were joined.
+                logger.info("MQS GET %s -> %s", response.request.url,
+                            response.status_code)
                 response.raise_for_status()
                 return response.json()
         except httpx.HTTPError as exc:
@@ -282,38 +325,12 @@ class MqsProvider:
         except ValueError as exc:
             raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
 
-    def _post_json(self, path: str, body: dict) -> object:
-        base_url = self._base_url()
-        try:
-            with httpx.Client(
-                base_url=base_url,
-                timeout=_TIMEOUT_SECONDS,
-                transport=self._transport,
-            ) as client:
-                response = client.post(path, json=body)
-                response.raise_for_status()
-                return response.json()
-        except httpx.HTTPError as exc:
-            raise ProviderError(f"MQS request failed ({path}): {exc}")
-        except ValueError as exc:
-            raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
-
-    def _entities_request(self, layer_id: str) -> Tuple[str, dict]:
-        # Per the MQS technical doc: entity retrieval/search is POST with a
-        # {"filter": {...}} body, not GET+query-params (an earlier, wrong
-        # guess made before this doc was available). An empty filter means
-        # "no attribute/spatial/id constraint" — fetch-all, matching this
-        # provider's fetch-all-filter-locally strategy (spatial ops run in
-        # the executor, not pushed down to MQS).
-        #
-        # The doc does not show a pagination parameter for this endpoint
-        # (its "Additional URL Parameters" section was blank in the
-        # source). Until a live response proves truncation, this sends one
-        # unpaginated request; _MAX_FEATURES below still guards against an
-        # unexpectedly huge single response.
-        path = f"/MoriaProject/{layer_id}/Entities"
-        body = {"filter": {}}
-        return path, body
+    def _entities_path(self, layer_id: str) -> str:
+        # Official doc: GET /MoriaProject/{layer_id}/Entities returns the
+        # full entity array — no query params, no request body, no
+        # pagination parameter documented. One request fetches everything
+        # (fetch-all-filter-locally); _MAX_FEATURES guards the size.
+        return f"/MoriaProject/{layer_id}/Entities"
 
     # -- Provider protocol ---------------------------------------------------
 
@@ -365,8 +382,7 @@ class MqsProvider:
         # `now` is part of the Provider protocol (mock temporal synthesis);
         # MQS serves real data, so it is ignored.
         layer_id = mqs_layer_id(layer)
-        path, body = self._entities_request(layer_id)
-        entities = _extract_entities(self._post_json(path, body))
+        entities = _extract_entities(self._get_json(self._entities_path(layer_id)))
         if len(entities) >= _MAX_FEATURES:
             raise ProviderError(
                 f"MQS layer {layer_id} returned {len(entities)} entities, at "
@@ -404,8 +420,8 @@ class MqsProvider:
         values = self._value_list(layer_id).get(field)
         if not values:
             values = []
-            path, body = self._entities_request(layer_id)
-            for entity in _extract_entities(self._post_json(path, body)):
+            entities = _extract_entities(self._get_json(self._entities_path(layer_id)))
+            for entity in entities:
                 properties = entity.get("properties") or entity.get("properties_list")
                 source = properties if isinstance(properties, dict) else entity
                 value = source.get(field)
