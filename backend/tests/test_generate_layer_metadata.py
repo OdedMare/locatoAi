@@ -9,7 +9,11 @@ from app.dal.providers.registry import InMemoryProviderRegistry
 
 
 class SampleProvider:
-    def fetch_features(self, layer, now=None):
+    def __init__(self):
+        self.fetch_features_limit = "not called"
+
+    def fetch_features(self, layer, now=None, geometry=None, limit=None):
+        self.fetch_features_limit = limit
         return gpd.GeoDataFrame(
             {
                 "entity_name": [f"school-{index}" for index in range(15)],
@@ -48,7 +52,8 @@ class CapturingLlm:
 
 def test_generates_editable_metadata_from_ten_random_entities():
     providers = InMemoryProviderRegistry()
-    providers.register("sample", SampleProvider())
+    sample_provider = SampleProvider()
+    providers.register("sample", sample_provider)
     llm = CapturingLlm()
 
     result = LayerMetadataGenerator(llm, providers).generate(
@@ -61,3 +66,6 @@ def test_generates_editable_metadata_from_ten_random_entities():
     assert llm.user["geometry_type"] == "Point"
     assert result.description == "שכבת מוסדות חינוך לפי שם ועיר"
     assert result.tags == ["חינוך", "Education"]
+    # Must sample via a capped fetch, not the whole layer (see #4: MQS
+    # layers can be huge — tagging must not trigger a full paginated fetch).
+    assert sample_provider.fetch_features_limit == 100

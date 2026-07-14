@@ -118,6 +118,21 @@ class TemporalFilterStep(BaseModel):
     to: str  # ISO 8601
 
 
+class ClusterStep(BaseModel):
+    """Find groups of >= min_group_size input features all mutually within
+    max_distance_m of each other (a self-join within one layer — distinct
+    from near/nearest_n/between, which compare two layers). Output is the
+    subset of input features belonging to any qualifying group, each
+    tagged with a cluster_id so the UI can distinguish groups; features
+    in no qualifying group are dropped."""
+
+    id: str
+    op: Literal["cluster"]
+    input: str
+    min_group_size: int = Field(ge=2, le=20)
+    max_distance_m: float = Field(gt=0, le=5000)
+
+
 class CountStep(BaseModel):
     """Terminal aggregation: row count of the upstream step, as a plain
     int. No grouping/aggregation by attribute. Must be the plan's `output`
@@ -142,6 +157,7 @@ Step = Annotated[
         ContainsStep,
         DirectionalStep,
         TemporalFilterStep,
+        ClusterStep,
         CountStep,
     ],
     Field(discriminator="op"),

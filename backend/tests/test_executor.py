@@ -88,6 +88,80 @@ def test_within_geometry_reprojects_non_wgs84_features():
     assert set(result["name"]) == {"in1", "in2"}
 
 
+def test_load_pushes_down_user_geometry_to_provider(executor, providers):
+    """load must forward the request's user_geometry to the provider as a
+    pushdown hint — regression test for fetching the whole layer and only
+    filtering client-side via within_geometry afterwards."""
+    from app.dal.providers.arcgis_mock import MockArcgisProvider
+
+    real_provider: MockArcgisProvider = providers.get("arcgis")
+    calls = []
+    original = real_provider.fetch_features
+
+    def spy_fetch_features(layer, now=None, geometry=None):
+        calls.append(geometry)
+        return original(layer, now=now, geometry=geometry)
+
+    real_provider.fetch_features = spy_fetch_features
+    try:
+        run_steps(
+            executor, [{"id": "s1", "op": "load", "layer": "schools"}], "s1",
+            user_geometry=CENTRAL_TLV,
+        )
+    finally:
+        del real_provider.fetch_features
+
+    assert calls == [CENTRAL_TLV]
+
+
+def test_load_without_request_geometry_does_not_push_down(executor, providers):
+    """No boundaries on the request → load must not invent a geometry filter."""
+    from app.dal.providers.arcgis_mock import MockArcgisProvider
+
+    real_provider: MockArcgisProvider = providers.get("arcgis")
+    calls = []
+    original = real_provider.fetch_features
+
+    def spy_fetch_features(layer, now=None, geometry=None):
+        calls.append(geometry)
+        return original(layer, now=now, geometry=geometry)
+
+    real_provider.fetch_features = spy_fetch_features
+    try:
+        run_steps(executor, [{"id": "s1", "op": "load", "layer": "schools"}], "s1")
+    finally:
+        del real_provider.fetch_features
+
+    assert calls == [None]
+
+
+def test_near_target_layer_is_not_geometry_scoped(executor, providers):
+    """near's target layer must stay unscoped: a target outside the
+    viewport can still be the nearest one to an in-viewport feature."""
+    from app.dal.providers.arcgis_mock import MockArcgisProvider
+
+    real_provider: MockArcgisProvider = providers.get("arcgis")
+    calls = {}
+    original = real_provider.fetch_features
+
+    def spy_fetch_features(layer, now=None, geometry=None):
+        calls[layer.id] = geometry
+        return original(layer, now=now, geometry=geometry)
+
+    real_provider.fetch_features = spy_fetch_features
+    try:
+        run_steps(executor, [
+            {"id": "s1", "op": "load", "layer": "schools"},
+            {"id": "s2", "op": "near", "input": "s1",
+             "target_layer": "roundabouts", "distance_m": 300},
+        ], "s2", user_geometry=CENTRAL_TLV)
+    finally:
+        del real_provider.fetch_features
+
+    assert calls["schools"] == CENTRAL_TLV
+    assert calls["roundabouts"] is None
+
+
 def test_near_uses_meters_not_degrees(executor):
     """Schools within 300m of a square — geodesically correct set."""
     result = run_steps(executor, [

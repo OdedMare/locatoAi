@@ -74,12 +74,18 @@ class Provider(Protocol):
         layer: LayerMeta,
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
+        limit: Optional[int] = None,
     ) -> gpd.GeoDataFrame:
         """geometry, when given, is a WGS84 hint the provider MAY push down
         as a server-side spatial filter (e.g. MQS geo_polygon/
         geo_bounding_box) to avoid fetching the whole layer. It is always
         an optimization: within_geometry still re-filters client-side
-        (correctness doesn't depend on any provider honoring this)."""
+        (correctness doesn't depend on any provider honoring this).
+
+        limit, when given, caps how many features the provider needs to
+        return (e.g. for a metadata/tagging sample) — providers MAY stop
+        paginating early rather than fetching the whole layer. Callers
+        that pass a limit must not assume ordering or completeness."""
         ...
 
     def sample_field_values(

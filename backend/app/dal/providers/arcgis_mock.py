@@ -108,6 +108,7 @@ class MockArcgisProvider:
         layer: LayerMeta,
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
+        limit: Optional[int] = None,
     ) -> gpd.GeoDataFrame:
         path = self._file_for(layer)
         if not path.exists():
@@ -118,6 +119,8 @@ class MockArcgisProvider:
             gdf = gdf.set_crs(WGS84)
         if geometry is not None:
             gdf = gdf[gdf.geometry.intersects(geometry)]
+        if limit is not None:
+            gdf = gdf.iloc[:limit]
 
         if OFFSET_HOURS_FIELD in gdf.columns:
             base = now or datetime.now(timezone.utc)

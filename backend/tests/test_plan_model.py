@@ -30,6 +30,25 @@ def test_valid_plan_parses():
     validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
 
 
+@pytest.mark.parametrize("op", ["crosses", "touches", "contains"])
+def test_topological_relation_plan_parses(op):
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": op, "input": "s1", "target_layer": "roundabouts"},
+    ], output="s2")
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+def test_between_plan_parses():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "between", "input": "s1",
+         "first_target_layer": "roundabouts",
+         "second_target_layer": "accidents", "corridor_width_m": 200},
+    ], output="s2")
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
 def test_temporal_filter_accepts_from_alias():
     plan = make_plan(steps=[
         {"id": "s1", "op": "load", "layer": "accidents"},

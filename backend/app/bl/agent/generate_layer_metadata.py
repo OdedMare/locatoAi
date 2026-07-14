@@ -9,6 +9,11 @@ from app.bl.ports import LayerMeta, LLMClient, ProviderRegistry
 from app.common.errors import AgentError, ProviderError
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_layer_metadata.md"
+_FETCH_LIMIT = 100
+"""Cap on how many entities are fetched from the provider to classify a
+layer — tagging needs a representative sample, not the whole layer
+(a large MQS layer would otherwise cost a full paginated fetch just to
+draw 10 rows out of it)."""
 _SAMPLE_SIZE = 10
 _MAX_FIELDS = 20
 _MAX_VALUE_CHARS = 200
@@ -41,7 +46,7 @@ class LayerMetadataGenerator:
         )
         provider = self._providers.get(layer.provider)
         try:
-            features = provider.fetch_features(layer)
+            features = provider.fetch_features(layer, limit=_FETCH_LIMIT)
             schema = provider.describe_schema(layer)
         except Exception as exc:
             if isinstance(exc, ProviderError):

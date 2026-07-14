@@ -334,6 +334,32 @@ def test_fetch_features_with_geometry_follows_pagination(tmp_path):
     assert dict(handler.requests[1].url.params) == {"from": "1", "to": "2"}
 
 
+def test_fetch_features_with_limit_caps_page_size(tmp_path):
+    """A metadata-sampling caller passing limit=100 must request a small
+    first page, not the full _PAGE_SIZE — this is the whole point of the
+    limit hint (avoid a full paginated fetch just to sample a layer)."""
+    provider, handler = make_provider(tmp_path, lambda request: {
+        "next_page": None, "entities_list": [entity(str(i)) for i in range(5)],
+    })
+    provider.fetch_features(mqs_layer(), limit=100)
+    assert dict(handler.requests[0].url.params) == {"from": "0", "to": "100"}
+
+
+def test_fetch_features_with_limit_stops_without_following_next_page(tmp_path):
+    """Once `limit` entities have been yielded, no further page should be
+    requested even if next_page is present."""
+    def responses(request):
+        return {
+            "next_page": "https://mqs.test/MQS/MoriaProject/42/Entities?from=3&to=6",
+            "entities_list": [entity(str(i)) for i in range(3)],
+        }
+
+    provider, handler = make_provider(tmp_path, responses)
+    gdf = provider.fetch_features(mqs_layer(), limit=2)
+    assert len(gdf) == 2
+    assert len(handler.requests) == 1
+
+
 def test_user_id_header_sent_when_configured(tmp_path):
     """The doc marks User_ID as a required header — it must reach every
     MQS request when the mqs_user_id setting is set."""

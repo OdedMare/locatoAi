@@ -393,13 +393,25 @@ class MqsProvider:
         return {key: values[0] for key, values in query.items() if values}
 
     def _iter_all_entities(
-        self, client: httpx.Client, layer_id: str, geometry: Optional[BaseGeometry] = None
+        self,
+        client: httpx.Client,
+        layer_id: str,
+        geometry: Optional[BaseGeometry] = None,
+        limit: Optional[int] = None,
     ):
-        params = {"from": 0, "to": _PAGE_SIZE}
+        # limit caps the *first page size* rather than truncating after a
+        # full fetch — a metadata/tagging sample (limit=100) must cost one
+        # small request, not a full paginated fetch of the whole layer.
+        page_size = min(_PAGE_SIZE, limit) if limit is not None else _PAGE_SIZE
+        params = {"from": 0, "to": page_size}
         fetched = 0
         while True:
             entities, next_page = self._entities_page(client, layer_id, params, geometry)
             fetched += len(entities)
+            if limit is not None and fetched >= limit:
+                for entity in entities[: limit - (fetched - len(entities))]:
+                    yield entity
+                return
             if fetched > _MAX_FEATURES:
                 raise ProviderError(
                     f"MQS layer {layer_id} returned more than the "
@@ -432,17 +444,20 @@ class MqsProvider:
         layer: LayerMeta,
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
+        limit: Optional[int] = None,
     ) -> gpd.GeoDataFrame:
         # `now` is part of the Provider protocol (mock temporal synthesis);
         # MQS serves real data, so it is ignored. `geometry`, when given,
         # is pushed down as a POST filter (see module docstring) — an
         # optimization only; nothing downstream depends on MQS honoring it.
+        # `limit` caps pagination to a small first page (e.g. metadata
+        # sampling) instead of fetching the whole layer.
         layer_id = mqs_layer_id(layer)
         geometries: List[BaseGeometry] = []
         attribute_rows: List[dict] = []
         skipped = 0
         with self._client() as client:
-            for entity in self._iter_all_entities(client, layer_id, geometry):
+            for entity in self._iter_all_entities(client, layer_id, geometry, limit):
                 record = _entity_to_record(entity)
                 if record is None:
                     skipped += 1
