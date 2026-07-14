@@ -59,6 +59,22 @@ def test_catalog_metadata_is_sanitized_into_prompt(catalog):
     assert llm.last_user == "schools"
 
 
+def test_selector_prompt_requires_all_multi_reference_layers(catalog):
+    llm = FakeLLM({
+        "reasoning": "נדרשות שכבת נושא ושתי שכבות ייחוס",
+        "layer_ids": ["schools", "roundabouts", "accidents"],
+        "clarify": None,
+    })
+    selection = LayerSelector(llm, catalog).select(
+        "תמצא לי 2 בתי ספר ליד הכיכר ואיפה שהתאונה"
+    )
+
+    assert [layer.id for layer in selection.layers] == [
+        "schools", "roundabouts", "accidents"
+    ]
+    assert "Never drop the second reference layer" in llm.last_system
+
+
 def test_extract_json_plain():
     assert extract_json('{"a": 1}') == {"a": 1}
 

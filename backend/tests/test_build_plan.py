@@ -51,6 +51,35 @@ def test_valid_plan_first_attempt(catalog):
     assert "city_en" in llm.calls[0]["system"]
 
 
+def test_hebrew_multi_reference_query_builds_near_all(catalog):
+    plan_response = {
+        "explanation": "שני בתי ספר ליד כיכר ואירוע תאונה",
+        "steps": [
+            {"id": "s1", "op": "load", "layer": "schools"},
+            {"id": "s2", "op": "near_all", "input": "s1",
+             "targets": [{"layer": "roundabouts"}, {"layer": "accidents"}],
+             "distance_m": 300, "count": 2},
+        ],
+        "output": "s2",
+        "context_layers": ["roundabouts", "accidents"],
+    }
+    llm = SequenceLLM([plan_response])
+
+    result = PlanBuilder(llm, catalog).build(
+        "תמצא לי את 2 בתי הספר ליד הכיכר ואיפה שהתאונה",
+        [SCHOOLS, ROUNDABOUTS, next(l for l in LAYERS if l.id == "accidents")],
+        has_boundaries=False,
+        now=NOW,
+    )
+
+    assert result.plan is not None
+    step = result.plan.steps[1]
+    assert step.op == "near_all"
+    assert step.count == 2
+    assert [target.layer for target in step.targets] == ["roundabouts", "accidents"]
+    assert "2 soldiers near the square and the school" in llm.calls[0]["system"]
+
+
 def test_invalid_plan_retried_with_error_then_succeeds(catalog):
     llm = SequenceLLM([BAD_PLAN_UNKNOWN_LAYER, VALID_PLAN])
     result = PlanBuilder(llm, catalog).build(

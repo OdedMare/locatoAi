@@ -162,6 +162,57 @@ def test_near_target_layer_is_not_geometry_scoped(executor, providers):
     assert calls["roundabouts"] is None
 
 
+def test_cluster_finds_group_of_close_features(executor):
+    """חולון schools (שרת/קציר) are ~400m apart, isolated from the rest of
+    the layer by several km — a clean 2-member cluster with a generous
+    radius, small enough that nothing else joins in."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "cluster", "input": "s1",
+         "min_group_size": 2, "max_distance_m": 1000},
+    ], "s2")
+    holon = result[result["name"].isin({"בית ספר שרת חולון", "בית ספר קציר חולון"})]
+    assert set(holon["name"]) == {"בית ספר שרת חולון", "בית ספר קציר חולון"}
+    assert holon["cluster_id"].nunique() == 1
+
+
+def test_cluster_below_min_group_size_excludes_that_group(executor):
+    """The two-member Holon group is excluded when three are required;
+    independent larger groups may still qualify."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "cluster", "input": "s1",
+         "min_group_size": 3, "max_distance_m": 1000},
+    ], "s2")
+    assert not set(result["name"]) & {"בית ספר שרת חולון", "בית ספר קציר חולון"}
+    assert "cluster_id" in result.columns
+
+
+def test_cluster_multiple_groups_get_distinct_ids(executor):
+    """A radius wide enough to also pull in the central-Tel-Aviv schools
+    as their own separate group — two clusters, two distinct ids, and the
+    isolated Ramat Aviv school (עירוני א') stays out of both."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "cluster", "input": "s1",
+         "min_group_size": 2, "max_distance_m": 1000},
+    ], "s2")
+    assert "עירוני א' רמת אביב" not in set(result["name"])
+    assert "בית ספר יהלום" in set(result["name"])  # clusters with תיכון בליך
+    assert result["cluster_id"].nunique() >= 2
+
+
+def test_cluster_fewer_input_rows_than_min_group_size(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "roundabouts"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "name", "operator": "contains", "value": "לא-קיים"},
+        {"id": "s3", "op": "cluster", "input": "s2",
+         "min_group_size": 5, "max_distance_m": 500},
+    ], "s3")
+    assert result.empty
+
+
 def test_near_uses_meters_not_degrees(executor):
     """Schools within 300m of a square — geodesically correct set."""
     result = run_steps(executor, [

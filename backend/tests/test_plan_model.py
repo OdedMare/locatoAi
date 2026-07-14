@@ -49,6 +49,29 @@ def test_between_plan_parses():
     validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
 
 
+def test_near_all_plan_parses_and_validates_all_targets():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near_all", "input": "s1",
+         "targets": [{"layer": "roundabouts"}, {"layer": "accidents"}],
+         "distance_m": 300, "count": 2},
+    ], output="s2")
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+def test_near_all_rejects_partial_target_filter():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "near_all", "input": "s1",
+         "targets": [
+             {"layer": "roundabouts", "field": "name"},
+             {"layer": "accidents"},
+         ], "distance_m": 300},
+    ], output="s2")
+    with pytest.raises(PlanValidationError, match="supplied together"):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
 def test_temporal_filter_accepts_from_alias():
     plan = make_plan(steps=[
         {"id": "s1", "op": "load", "layer": "accidents"},

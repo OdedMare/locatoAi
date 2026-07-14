@@ -19,6 +19,8 @@ Request has drawn boundaries: {has_boundaries}
   For one specifically named reference entity, use the same three target filter fields described for near.
 - {"id": "s6", "op": "near_all", "input": "s5", "targets": [{"layer": "<reference-layer-id>", "field": "<optional field>", "operator": "<eq|contains>", "value": "<optional value>"}, {"layer": "<second-reference-layer-id>"}], "distance_m": <number>, "count": <optional number>}
   Require every input feature to be within distance_m of EVERY listed target (AND semantics), rank by mean distance to all targets, and optionally keep only count results. Use this whenever the query names two or more simultaneous proximity references, especially with ו/and/"where": "2 soldiers near the square and the school" and "2 tanks near the square where the intersection is" both require near_all with count 2. Do NOT chain nearest_n operations: that ranks only by the last target. Each named target may include the complete field/operator/value filter triple; omit all three for a whole reference layer. 2–5 targets, default distance 300m, count 1–50.
+- {"id": "s6", "op": "cluster", "input": "s5", "min_group_size": <number>, "max_distance_m": <number>}
+  Find groups of features WITHIN THE SAME LAYER that are all near one another (a self-join — no second layer involved). Use this for "find N of X close/near each other" ("תמצא מקום שיש בו 3 בסיסים אחד ליד השני" / "3 בתי ספר קרובים אחד לשני"), NOT near/near_all/nearest_n, which all compare against a DIFFERENT reference layer. Output keeps only features belonging to a qualifying group, each tagged with a cluster_id (features may form more than one separate group — group by cluster_id if the query implies exactly one place). min_group_size 2–20 (e.g. 3 for "3 בסיסים"), max_distance_m 1–5000 ("אחד ליד השני" without a number → 300).
 - {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
   The N most northern/southern/eastern/western features ("הכי צפוני" → north, count 1).
 - {"id": "s7", "op": "between", "input": "s6", "first_target_layer": "<layer-id>", "second_target_layer": "<layer-id>", "corridor_width_m": <number>, "first_target_field": "<optional field>", "first_target_operator": "<eq|contains>", "first_target_value": "<optional value>", "second_target_field": "<optional field>", "second_target_operator": "<eq|contains>", "second_target_value": "<optional value>"}
@@ -82,6 +84,13 @@ Layers available (example): id soldiers = חיילים, id squares = כיכרו�
 Query: "תמצא לי את 2 החיילים ליד הכיכר והבית ספר"
 Response:
 {"explanation": "בוחר את שני החיילים הקרובים גם לכיכר וגם לבית ספר", "steps": [{"id": "s1", "op": "load", "layer": "soldiers"}, {"id": "s2", "op": "near_all", "input": "s1", "targets": [{"layer": "squares"}, {"layer": "schools"}], "distance_m": 300, "count": 2}], "output": "s2", "context_layers": ["squares", "schools"]}
+
+## Example 5 (find a place with N close-together features in one layer)
+
+Layers available (example): id bases = בסיסים
+Query: "תמצא לי את המקום שיש בו 3 בסיסים אחד ליד השני"
+Response:
+{"explanation": "מאתר קבוצה של 3 בסיסים או יותר הקרובים זה לזה", "steps": [{"id": "s1", "op": "load", "layer": "bases"}, {"id": "s2", "op": "cluster", "input": "s1", "min_group_size": 3, "max_distance_m": 300}], "output": "s2", "context_layers": []}
 
 Respond with ONLY the JSON object — no prose, no fences.
 

@@ -38,6 +38,8 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
       return `${DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
     case "temporal_filter":
       return `סינון זמן: ${step.from} עד ${step.to}`;
+    case "cluster":
+      return `איתור קבוצות של ${step.min_group_size ?? 2}+ ישויות קרובות זו לזו (עד ${step.max_distance_m ?? 300} מ')`;
     case "count":
       return "ספירת תוצאות";
   }
