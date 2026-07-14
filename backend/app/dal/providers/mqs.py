@@ -6,16 +6,23 @@ base URL is the mqs_base_url runtime setting, read on every call). The
 last path segment is the layer id, so a bare id or a pasted full URL
 also work.
 
-Fetch strategy is fetch-all-filter-locally: GET /MoriaProject/{id}/Entities
-pages through every feature and the executor does spatial ops locally.
-Switching to the POST /MoriaProject/All/Entities search endpoint later
-only changes _entities_request.
+Fetch strategy is fetch-all-filter-locally: POST /MoriaProject/{id}/Entities
+with an empty {"filter": {}} body (per the MQS technical doc — entity
+retrieval/search is POST+filter-body, not GET+query-params) fetches every
+feature and the executor does spatial ops locally. The doc's own
+"Additional URL Parameters" section did not show a pagination parameter
+for this endpoint, so there is currently no pagination — _MAX_FEATURES
+below guards against an unexpectedly huge single response; add real
+pagination here if a live layer is ever observed being truncated.
 
-No live MQS instance existed when this was written, so every parse point
-is a small helper with candidate-key lists — adapting to a real instance
+Response shapes are confirmed against a real MQS entity payload: each
+entity carries exclusive_id (data_store_name/layer_id/entity_id/
+history_id), classification, date, link, geometry ({"wkt": ..., "geo_json":
+<geometry type>}), and properties_list (the actual attributes) — see
+_entity_to_record's properties_list branch. Adapting to any variation
 means adjusting _extract_entities / _entity_to_record / _entities_request /
-_ensure_wgs84 only. Coordinates from geo_type=GeoJSON are assumed WGS84;
-if a real instance returns ITM (EPSG:2039), fix it inside _ensure_wgs84.
+_ensure_wgs84. Coordinates from geometry.wkt are assumed WGS84; if a real
+instance returns ITM (EPSG:2039), fix it inside _ensure_wgs84.
 """
 
 import logging
@@ -36,7 +43,6 @@ from app.common.runtime_settings import RuntimeSettingsStore
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 30
-_PAGE_SIZE = 1000
 _MAX_FEATURES = 50000
 
 # Same truncation policy as the mock provider: sample values are untrusted
@@ -276,17 +282,38 @@ class MqsProvider:
         except ValueError as exc:
             raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
 
-    def _entities_request(self, layer_id: str, offset: int) -> Tuple[str, dict]:
-        # from/to are documented as offset/limit; if a live instance treats
-        # "to" as an end index, change it to offset + _PAGE_SIZE here.
+    def _post_json(self, path: str, body: dict) -> object:
+        base_url = self._base_url()
+        try:
+            with httpx.Client(
+                base_url=base_url,
+                timeout=_TIMEOUT_SECONDS,
+                transport=self._transport,
+            ) as client:
+                response = client.post(path, json=body)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"MQS request failed ({path}): {exc}")
+        except ValueError as exc:
+            raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
+
+    def _entities_request(self, layer_id: str) -> Tuple[str, dict]:
+        # Per the MQS technical doc: entity retrieval/search is POST with a
+        # {"filter": {...}} body, not GET+query-params (an earlier, wrong
+        # guess made before this doc was available). An empty filter means
+        # "no attribute/spatial/id constraint" — fetch-all, matching this
+        # provider's fetch-all-filter-locally strategy (spatial ops run in
+        # the executor, not pushed down to MQS).
+        #
+        # The doc does not show a pagination parameter for this endpoint
+        # (its "Additional URL Parameters" section was blank in the
+        # source). Until a live response proves truncation, this sends one
+        # unpaginated request; _MAX_FEATURES below still guards against an
+        # unexpectedly huge single response.
         path = f"/MoriaProject/{layer_id}/Entities"
-        params = {
-            "geo_type": "GeoJSON",
-            "result_type": "data",
-            "from": offset,
-            "to": _PAGE_SIZE,
-        }
-        return path, params
+        body = {"filter": {}}
+        return path, body
 
     # -- Provider protocol ---------------------------------------------------
 
@@ -338,32 +365,29 @@ class MqsProvider:
         # `now` is part of the Provider protocol (mock temporal synthesis);
         # MQS serves real data, so it is ignored.
         layer_id = mqs_layer_id(layer)
+        path, body = self._entities_request(layer_id)
+        entities = _extract_entities(self._post_json(path, body))
+        if len(entities) >= _MAX_FEATURES:
+            raise ProviderError(
+                f"MQS layer {layer_id} returned {len(entities)} entities, at "
+                f"or above the {_MAX_FEATURES} feature limit — narrow the "
+                "layer or raise the cap"
+            )
+
         geometries: List[BaseGeometry] = []
         attribute_rows: List[dict] = []
         skipped = 0
-        offset = 0
-        while True:
-            path, params = self._entities_request(layer_id, offset)
-            entities = _extract_entities(self._get_json(path, params))
-            for entity in entities:
-                record = _entity_to_record(entity)
-                if record is None:
-                    skipped += 1
-                    continue
-                geometries.append(record[0])
-                attribute_rows.append(record[1])
-            if len(entities) < _PAGE_SIZE:
-                break
-            offset += _PAGE_SIZE
-            if offset >= _MAX_FEATURES:
-                raise ProviderError(
-                    f"MQS layer {layer_id} exceeds the {_MAX_FEATURES} feature "
-                    "limit — narrow the layer or raise the cap"
-                )
+        for entity in entities:
+            record = _entity_to_record(entity)
+            if record is None:
+                skipped += 1
+                continue
+            geometries.append(record[0])
+            attribute_rows.append(record[1])
         if skipped:
             logger.warning(
-                "MQS layer %s: skipped %d entities without parseable geometry",
-                layer_id, skipped,
+                "MQS layer %s: skipped %d of %d entities without parseable "
+                "geometry", layer_id, skipped, len(entities),
             )
         if not geometries:
             return empty_features_gdf()
@@ -380,9 +404,9 @@ class MqsProvider:
         values = self._value_list(layer_id).get(field)
         if not values:
             values = []
-            path, params = self._entities_request(layer_id, 0)
-            for entity in _extract_entities(self._get_json(path, params)):
-                properties = entity.get("properties")
+            path, body = self._entities_request(layer_id)
+            for entity in _extract_entities(self._post_json(path, body)):
+                properties = entity.get("properties") or entity.get("properties_list")
                 source = properties if isinstance(properties, dict) else entity
                 value = source.get(field)
                 if value is None:
