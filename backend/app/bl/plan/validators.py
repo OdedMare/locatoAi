@@ -15,6 +15,7 @@ from app.bl.plan.models import (
     LoadStep,
     NearestNStep,
     NearStep,
+    NearAllStep,
     CrossesStep,
     TouchesStep,
     WithinGeometryStep,
@@ -95,6 +96,21 @@ def validate_plan(
             raise PlanValidationError(
                 f"Step '{step.id}': target_layer '{step.target_layer}' is not in the catalog"
             )
+        if isinstance(step, NearAllStep):
+            for target in step.targets:
+                if target.layer not in known_layer_ids:
+                    raise PlanValidationError(
+                        f"Step '{step.id}': target layer '{target.layer}' "
+                        "is not in the catalog"
+                    )
+                target_filter = (target.field, target.operator, target.value)
+                if any(value is not None for value in target_filter) and not all(
+                    value is not None for value in target_filter
+                ):
+                    raise PlanValidationError(
+                        f"Step '{step.id}': each near_all target's field, "
+                        "operator and value must be supplied together"
+                    )
         if isinstance(step, WithinGeometryStep) and not has_user_geometry:
             raise PlanValidationError(
                 f"Step '{step.id}': plan uses within_geometry but the request has no boundaries"

@@ -3,10 +3,12 @@
 from app.bl.executor.ops import (  # noqa: F401
     attribute_filter,
     between,
+    cluster,
     count,
     directional,
     load,
     near,
+    near_all,
     nearest_n,
     spatial_relation,
     temporal_filter,

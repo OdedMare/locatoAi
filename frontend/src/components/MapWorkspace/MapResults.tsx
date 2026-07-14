@@ -30,7 +30,11 @@ const TARGET_STYLE: L.CircleMarkerOptions = {
   fillOpacity: 0.9,
 };
 
-const INTERNAL_PROPERTIES = new Set(["nearest_target_feature"]);
+const INTERNAL_PROPERTIES = new Set([
+  "nearest_target_feature",
+  "matched_reference_features",
+  "distance_to_targets_m",
+]);
 
 function popupContent(feature: GeoJSON.Feature, title: string): HTMLElement {
   const root = document.createElement("div");
@@ -79,40 +83,46 @@ export default function MapResults({ features }: MapResultsProps) {
       onEachFeature: (feature, featureLayer) => {
         featureLayer.bindPopup(popupContent(feature, "ישות שנמצאה"));
 
-        const target = feature.properties?.nearest_target_feature as
+        const nearestTarget = feature.properties?.nearest_target_feature as
           | GeoJSON.Feature
           | undefined;
-        if (!target?.geometry) return;
-        const targetLayer = L.geoJSON(target, {
-          pointToLayer: (_targetFeature, latlng) =>
-            L.circleMarker(latlng, TARGET_STYLE),
-          style: { color: "#1d4ed8", weight: 2, fillOpacity: 0.12 },
-          onEachFeature: (targetFeature, targetFeatureLayer) => {
-            targetFeatureLayer.bindPopup(
-              popupContent(targetFeature, "ישות ייחוס")
-            );
-          },
-        });
-        targetLayer.eachLayer((item) => {
-          group.addLayer(item);
-          const from = centerOf(item);
-          const to = centerOf(featureLayer);
-          if (!from || !to) return;
-          L.polyline([from, to], {
-            color: "#475569",
-            weight: 2,
-            dashArray: "6 5",
-          }).addTo(group);
-          const angle = Math.atan2(to.lat - from.lat, to.lng - from.lng) * 180 / Math.PI;
-          L.marker(L.latLng((from.lat + to.lat) / 2, (from.lng + to.lng) / 2), {
-            interactive: false,
-            icon: L.divIcon({
-              className: "map-relation-arrow",
-              html: `<span style="display:block;transform:rotate(${-angle}deg)">➤</span>`,
-              iconSize: [18, 18],
-              iconAnchor: [9, 9],
-            }),
-          }).addTo(group);
+        const matchedTargets = feature.properties?.matched_reference_features as
+          | GeoJSON.Feature[]
+          | undefined;
+        const targets = matchedTargets ?? (nearestTarget ? [nearestTarget] : []);
+        targets.forEach((target) => {
+          if (!target?.geometry) return;
+          const targetLayer = L.geoJSON(target, {
+            pointToLayer: (_targetFeature, latlng) =>
+              L.circleMarker(latlng, TARGET_STYLE),
+            style: { color: "#1d4ed8", weight: 2, fillOpacity: 0.12 },
+            onEachFeature: (targetFeature, targetFeatureLayer) => {
+              targetFeatureLayer.bindPopup(
+                popupContent(targetFeature, "ישות ייחוס")
+              );
+            },
+          });
+          targetLayer.eachLayer((item) => {
+            group.addLayer(item);
+            const from = centerOf(item);
+            const to = centerOf(featureLayer);
+            if (!from || !to) return;
+            L.polyline([from, to], {
+              color: "#475569",
+              weight: 2,
+              dashArray: "6 5",
+            }).addTo(group);
+            const angle = Math.atan2(to.lat - from.lat, to.lng - from.lng) * 180 / Math.PI;
+            L.marker(L.latLng((from.lat + to.lat) / 2, (from.lng + to.lng) / 2), {
+              interactive: false,
+              icon: L.divIcon({
+                className: "map-relation-arrow",
+                html: `<span style="display:block;transform:rotate(${-angle}deg)">➤</span>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+              }),
+            }).addTo(group);
+          });
         });
       },
     }).addTo(group);

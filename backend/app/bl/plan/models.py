@@ -62,6 +62,24 @@ class NearestNStep(BaseModel):
     target_value: Optional[Union[str, float]] = None
 
 
+class ProximityTarget(BaseModel):
+    """One required reference in a multi-reference proximity query."""
+
+    layer: str
+    field: Optional[str] = None
+    operator: Optional[Literal["eq", "contains"]] = None
+    value: Optional[Union[str, float]] = None
+
+
+class NearAllStep(BaseModel):
+    id: str
+    op: Literal["near_all"]
+    input: str
+    targets: List[ProximityTarget] = Field(min_length=2, max_length=5)
+    distance_m: float = Field(default=300, gt=0, le=5000)
+    count: Optional[int] = Field(default=None, gt=0, le=50)
+
+
 class SpatialRelationStep(BaseModel):
     """Base fields shared by topological relations against another layer."""
 
@@ -151,6 +169,7 @@ Step = Annotated[
         AttributeFilterStep,
         NearStep,
         NearestNStep,
+        NearAllStep,
         BetweenStep,
         CrossesStep,
         TouchesStep,

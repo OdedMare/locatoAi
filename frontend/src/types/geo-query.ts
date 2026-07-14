@@ -47,6 +47,7 @@ export interface GeoPlanStep {
     | "attribute_filter"
     | "near"
     | "nearest_n"
+    | "near_all"
     | "between"
     | "crosses"
     | "touches"
@@ -73,6 +74,12 @@ export interface GeoPlanStep {
   operator?: string;
   value?: string | number;
   distance_m?: number;
+  targets?: {
+    layer: string;
+    field?: string;
+    operator?: "eq" | "contains";
+    value?: string | number;
+  }[];
   direction?: "north" | "south" | "east" | "west";
   count?: number;
   from?: string;

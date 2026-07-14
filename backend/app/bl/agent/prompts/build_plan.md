@@ -17,6 +17,8 @@ Request has drawn boundaries: {has_boundaries}
 - {"id": "s5", "op": "nearest_n", "input": "s4", "target_layer": "<layer-id>", "count": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
   Keep the N input features closest to ANY target-layer feature — ranked globally by distance, NOT a threshold (use this for "ה-N הקרובים ביותר ל..." / "the N nearest to..."). Requires a real target_layer. If the query says "הקרובים ביותר"/"nearest" but names NO second layer or landmark to be near to, do NOT invent a target_layer — respond with clarify instead.
   For one specifically named reference entity, use the same three target filter fields described for near.
+- {"id": "s6", "op": "near_all", "input": "s5", "targets": [{"layer": "<reference-layer-id>", "field": "<optional field>", "operator": "<eq|contains>", "value": "<optional value>"}, {"layer": "<second-reference-layer-id>"}], "distance_m": <number>, "count": <optional number>}
+  Require every input feature to be within distance_m of EVERY listed target (AND semantics), rank by mean distance to all targets, and optionally keep only count results. Use this whenever the query names two or more simultaneous proximity references, especially with ו/and/"where": "2 soldiers near the square and the school" and "2 tanks near the square where the intersection is" both require near_all with count 2. Do NOT chain nearest_n operations: that ranks only by the last target. Each named target may include the complete field/operator/value filter triple; omit all three for a whole reference layer. 2–5 targets, default distance 300m, count 1–50.
 - {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
   The N most northern/southern/eastern/western features ("הכי צפוני" → north, count 1).
 - {"id": "s7", "op": "between", "input": "s6", "first_target_layer": "<layer-id>", "second_target_layer": "<layer-id>", "corridor_width_m": <number>, "first_target_field": "<optional field>", "first_target_operator": "<eq|contains>", "first_target_value": "<optional value>", "second_target_field": "<optional field>", "second_target_operator": "<eq|contains>", "second_target_value": "<optional value>"}
@@ -73,6 +75,13 @@ Layers available (example): id ccc = עגלות גלידה, id ddd = פארקי�
 Query: "כמה מבין 4 עגלות הגלידה הקרובות ביותר לפארק נמצאות בתל אביב"
 Response:
 {"explanation": "בוחר את 4 עגלות הגלידה הקרובות ביותר לפארק ומחזיר את מספרן", "steps": [{"id": "s1", "op": "load", "layer": "ccc"}, {"id": "s2", "op": "nearest_n", "input": "s1", "target_layer": "ddd", "count": 4}, {"id": "s3", "op": "count", "input": "s2"}], "output": "s3", "context_layers": ["ddd"]}
+
+## Example 4 (two simultaneous proximity references + requested result count)
+
+Layers available (example): id soldiers = חיילים, id squares = כיכרות, id schools = בתי ספר
+Query: "תמצא לי את 2 החיילים ליד הכיכר והבית ספר"
+Response:
+{"explanation": "בוחר את שני החיילים הקרובים גם לכיכר וגם לבית ספר", "steps": [{"id": "s1", "op": "load", "layer": "soldiers"}, {"id": "s2", "op": "near_all", "input": "s1", "targets": [{"layer": "squares"}, {"layer": "schools"}], "distance_m": 300, "count": 2}], "output": "s2", "context_layers": ["squares", "schools"]}
 
 Respond with ONLY the JSON object — no prose, no fences.
 
