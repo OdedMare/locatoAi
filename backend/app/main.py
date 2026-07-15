@@ -104,6 +104,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
             catalog, mqs_provider, mqs_mirror,
             settings.mqs_mirror_sync_interval_seconds,
             settings.mqs_mirror_batch_size,
+            settings.mqs_mirror_layer_concurrency,
             is_configured=lambda: bool(settings_store.get().mqs_base_url),
         ) if settings.mqs_mirror_enabled else None
     )

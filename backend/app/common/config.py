@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     mqs_mirror_batch_size: int = 10000
     """Number of MQS list entities processed per mirror batch."""
 
+    mqs_mirror_layer_concurrency: int = 2
+    """Maximum layer snapshots refreshed in parallel."""
+
     mqs_detail_concurrency: int = 16
     """Maximum concurrent MQS detail requests for changed entities."""
 

@@ -492,6 +492,8 @@ class MqsProvider:
     ) -> int:
         layer_id = mqs_layer_id(layer)
         run_id = mirror.begin_snapshot(layer_id)
+        if run_id is None:
+            return 0
         try:
             count = self._sync_snapshot(layer_id, run_id, mirror, batch_size)
             mirror.complete_snapshot(layer_id, run_id)

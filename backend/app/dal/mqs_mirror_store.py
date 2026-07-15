@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from uuid import uuid4
 
+from shapely import wkt
 from shapely.geometry.base import BaseGeometry
 
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -32,13 +33,19 @@ def _history_id(entity: dict) -> str:
 def _geometry_wkt(entity: dict) -> Optional[str]:
     geo = entity.get("geo")
     value = geo.get("wkt") if isinstance(geo, dict) else None
-    return value if isinstance(value, str) and value.strip() else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return wkt.loads(value).wkt
+    except Exception:
+        return None
 
 
 class PostgresMqsMirrorStore:
     def __init__(self, settings_store: RuntimeSettingsStore):
         self._store = settings_store
         self._ready = False
+        self._locks = {}
 
     def ensure_schema(self) -> None:
         if self._ready:
@@ -109,9 +116,30 @@ class PostgresMqsMirrorStore:
     def _payload(value) -> dict:
         return json.loads(value) if isinstance(value, str) else value
 
-    def begin_snapshot(self, layer_id: str) -> str:
+    def begin_snapshot(self, layer_id: str) -> Optional[str]:
         self.ensure_schema()
         run_id = str(uuid4())
+        lock_connection = connect(self._store)
+        if not self._acquire_lock(lock_connection, layer_id):
+            lock_connection.close()
+            return None
+        try:
+            self._record_snapshot_start(layer_id, run_id)
+        except Exception:
+            lock_connection.close()
+            raise
+        self._locks[run_id] = lock_connection
+        return run_id
+
+    @staticmethod
+    def _acquire_lock(connection, layer_id: str) -> bool:
+        row = connection.execute(
+            "SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS acquired",
+            (layer_id,),
+        ).fetchone()
+        return bool(row and row["acquired"])
+
+    def _record_snapshot_start(self, layer_id: str, run_id: str) -> None:
         with connect(self._store) as conn:
             conn.execute(
                 f"""INSERT INTO {_STATE_TABLE} (layer_id, active_run, last_error)
@@ -119,7 +147,6 @@ class PostgresMqsMirrorStore:
                 active_run = EXCLUDED.active_run, last_error = NULL""",
                 (layer_id, run_id),
             )
-        return run_id
 
     def unchanged_ids(
         self, layer_id: str, versions: Sequence[Tuple[str, str]]
@@ -180,22 +207,33 @@ class PostgresMqsMirrorStore:
             mirrored_at = now()"""
 
     def complete_snapshot(self, layer_id: str, run_id: str) -> None:
-        with connect(self._store) as conn:
-            conn.execute(
-                f"DELETE FROM {_FEATURES_TABLE} WHERE layer_id = %s AND sync_run <> %s",
-                (layer_id, run_id),
-            )
-            conn.execute(
-                f"""UPDATE {_STATE_TABLE} SET active_run = NULL,
-                last_completed_at = now(), last_error = NULL
-                WHERE layer_id = %s AND active_run = %s""",
-                (layer_id, run_id),
-            )
+        try:
+            with connect(self._store) as conn:
+                conn.execute(
+                    f"DELETE FROM {_FEATURES_TABLE} WHERE layer_id = %s AND sync_run <> %s",
+                    (layer_id, run_id),
+                )
+                conn.execute(
+                    f"""UPDATE {_STATE_TABLE} SET active_run = NULL,
+                    last_completed_at = now(), last_error = NULL
+                    WHERE layer_id = %s AND active_run = %s""",
+                    (layer_id, run_id),
+                )
+        finally:
+            self._release_lock(run_id)
 
     def abort_snapshot(self, layer_id: str, run_id: str, error: str) -> None:
-        with connect(self._store) as conn:
-            conn.execute(
-                f"""UPDATE {_STATE_TABLE} SET active_run = NULL, last_error = %s
-                WHERE layer_id = %s AND active_run = %s""",
-                (error[:2000], layer_id, run_id),
-            )
+        try:
+            with connect(self._store) as conn:
+                conn.execute(
+                    f"""UPDATE {_STATE_TABLE} SET active_run = NULL, last_error = %s
+                    WHERE layer_id = %s AND active_run = %s""",
+                    (error[:2000], layer_id, run_id),
+                )
+        finally:
+            self._release_lock(run_id)
+
+    def _release_lock(self, run_id: str) -> None:
+        connection = self._locks.pop(run_id, None)
+        if connection is not None:
+            connection.close()
