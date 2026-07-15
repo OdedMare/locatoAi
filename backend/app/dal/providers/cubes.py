@@ -1,5 +1,7 @@
 """Cubes provider for metadata and time-varying entity locations."""
 
+import json
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
@@ -7,6 +9,7 @@ from urllib.parse import quote
 import geopandas as gpd
 import httpx
 from shapely import wkt
+from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.ports.layer_field import LayerField
@@ -27,6 +30,10 @@ _MAX_FIELD_SAMPLES = 5
 _MAX_SAMPLE_CHARS = 80
 _TIME_FIELD_NAMES = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
 _PARAMETER_OPERATORS = ("match", "not")
+_DEFAULT_RESULTS_LIMIT = 10000
+_MAX_CHUNK_DEPTH = 5
+_MAX_FETCHED_ROWS = 100000
+logger = logging.getLogger(__name__)
 
 
 def cubes_database_name(layer: LayerMeta) -> str:
@@ -88,16 +95,48 @@ def _query_body(geometry: Optional[BaseGeometry],
     allowed = _declared_parameter_keys(parameters or [])
     body = known if not parameters else {key: value for key, value in known.items()
                                          if key in allowed}
-    for parameter in parameters or []:
-        base, operator = _parameter_parts(parameter.name)
-        required_keys = [_parameter_key(base, operator or "match")]
-        if parameter.required and not any(key in body for key in required_keys):
-            raise ProviderError(
-                f"Cubes parameter '{parameter.name}' is required and has no configured value"
-            )
+    _validate_required_parameters(parameters or [], body)
     if geometry is not None and "arriveTime.not" in body:
         body["arriveTime.not"]["Location"] = geometry.wkt
     return body
+
+
+def _validate_required_parameters(parameters: List[LayerParameter], body: dict) -> None:
+    for parameter in parameters:
+        base, operator = _parameter_parts(parameter.name)
+        key = _parameter_key(base, operator or "match")
+        if parameter.required and key not in body:
+            raise ProviderError(
+                f"Cubes parameter '{parameter.name}' is required and has no configured value"
+            )
+
+
+def _results_limit(metadata: dict) -> int:
+    value = metadata.get("ResultsLimit")
+    return value if isinstance(value, int) and value > 0 else _DEFAULT_RESULTS_LIMIT
+
+
+def _spatial_chunks(geometry: BaseGeometry) -> List[BaseGeometry]:
+    min_x, min_y, max_x, max_y = geometry.bounds
+    middle_x = (min_x + max_x) / 2
+    middle_y = (min_y + max_y) / 2
+    tiles = (
+        box(min_x, min_y, middle_x, middle_y),
+        box(middle_x, min_y, max_x, middle_y),
+        box(min_x, middle_y, middle_x, max_y),
+        box(middle_x, middle_y, max_x, max_y),
+    )
+    return [part for tile in tiles
+            for part in [geometry.intersection(tile)]
+            if not part.is_empty and part.area > 0]
+
+
+def _deduplicate_rows(rows: List[dict]) -> List[dict]:
+    unique: Dict[str, dict] = {}
+    for row in rows:
+        key = json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
+        unique.setdefault(key, row)
+    return list(unique.values())
 
 
 def _looks_like_iso_datetime(value: object) -> bool:
@@ -123,44 +162,57 @@ def _field_type(name: str, values: List[object]) -> str:
     return "string"
 
 
-def _infer_schema(layer_id: str, rows: List[dict]) -> LayerSchema:
-    """Infer every non-geometry field from returned JSON; no Cubes schema
-    change should require a code change."""
+def _field_names(rows: List[dict]) -> List[str]:
     names: List[str] = []
     for row in rows:
         for raw_name in row:
             name = str(raw_name)
             if name != "geometry" and name not in names:
                 names.append(name)
-    fields: List[LayerField] = []
-    for name in names:
-        values = [row.get(name) for row in rows]
-        samples: List[str] = []
-        for value in values:
-            if value is None:
-                continue
-            sample = str(value)[:_MAX_SAMPLE_CHARS]
-            if sample not in samples:
-                samples.append(sample)
-            if len(samples) >= _MAX_FIELD_SAMPLES:
-                break
-        fields.append(LayerField(
-            name=name, type=_field_type(name, values), samples=samples
-        ))
+    return names
+
+
+def _samples(values: List[object]) -> List[str]:
+    present = [str(value)[:_MAX_SAMPLE_CHARS]
+               for value in values if value is not None]
+    return list(dict.fromkeys(present))[:_MAX_FIELD_SAMPLES]
+
+
+def _inferred_field(name: str, rows: List[dict]) -> LayerField:
+    values = [row.get(name) for row in rows]
+    return LayerField(name=name, type=_field_type(name, values),
+                      samples=_samples(values))
+
+
+def _infer_schema(layer_id: str, rows: List[dict]) -> LayerSchema:
+    fields = [_inferred_field(name, rows) for name in _field_names(rows)]
     field_names = {field.name for field in fields}
-    temporal_field = next(
-        (name for name in _TIME_FIELD_NAMES if name in field_names), None
-    )
-    if temporal_field is None:
-        temporal_field = next(
-            (field.name for field in fields if field.type == "date"), None
-        )
-    return LayerSchema(
-        layer_id=layer_id,
-        geometry_type="Point",
-        fields=fields,
-        temporal_field=temporal_field,
-    )
+    temporal = next((name for name in _TIME_FIELD_NAMES if name in field_names), None)
+    temporal = temporal or next((field.name for field in fields
+                                 if field.type == "date"), None)
+    return LayerSchema(layer_id=layer_id, geometry_type="Point", fields=fields,
+                       temporal_field=temporal)
+
+
+def _parse_point(row: dict) -> Optional[BaseGeometry]:
+    raw = row.get("geometry")
+    if not isinstance(raw, str):
+        return None
+    try:
+        geometry = wkt.loads(raw)
+        return geometry if geometry.geom_type == "Point" else None
+    except Exception:
+        return None
+
+
+def _rows_to_gdf(rows: List[dict]) -> gpd.GeoDataFrame:
+    parsed = [(row, _parse_point(row)) for row in rows]
+    parsed = [(row, geometry) for row, geometry in parsed if geometry is not None]
+    if not parsed:
+        return empty_features_gdf()
+    attributes = [{key: value for key, value in row.items() if key != "geometry"}
+                  for row, _ in parsed]
+    return gpd.GeoDataFrame(attributes, geometry=[item[1] for item in parsed], crs=WGS84)
 
 
 def _metadata_fields(payload: dict) -> List[LayerField]:
@@ -246,38 +298,78 @@ class CubesProvider:
         path = f"/cube/v1/{database}"
         metadata = self._get_metadata(layer)
         parameters = _metadata_parameters(metadata)
+        with self._client() as client:
+            rows = self._fetch_rows(
+                client, path, parameters, geometry, _results_limit(metadata), limit
+            )
+        self._schema_cache[layer.id] = _infer_schema(layer.id, rows)
+        return _rows_to_gdf(rows[:limit] if limit is not None else rows)
+
+    def _fetch_rows(
+        self,
+        client: httpx.Client,
+        path: str,
+        parameters: List[LayerParameter],
+        geometry: Optional[BaseGeometry],
+        results_limit: int,
+        requested_limit: Optional[int],
+    ) -> List[dict]:
+        rows = self._post_rows(client, path, _query_body(geometry, parameters))
+        if requested_limit is not None or len(rows) < results_limit:
+            return rows
+        if geometry is None:
+            raise ProviderError(
+                f"Cubes reached its {results_limit} result limit without a boundary"
+            )
+        logger.info("Cubes result cap reached; splitting boundary into chunks")
+        return self._fetch_spatial_chunks(
+            client, path, parameters, geometry, results_limit, depth=0
+        )
+
+    def _fetch_spatial_chunks(
+        self,
+        client: httpx.Client,
+        path: str,
+        parameters: List[LayerParameter],
+        geometry: BaseGeometry,
+        results_limit: int,
+        depth: int,
+    ) -> List[dict]:
+        rows: List[dict] = []
+        for chunk in _spatial_chunks(geometry):
+            chunk_rows = self._fetch_chunk(
+                client, path, parameters, chunk, results_limit, depth)
+            rows.extend(chunk_rows)
+            self._validate_row_count(rows)
+        return _deduplicate_rows(rows)
+
+    def _fetch_chunk(self, client: httpx.Client, path: str,
+                     parameters: List[LayerParameter], geometry: BaseGeometry,
+                     results_limit: int, depth: int) -> List[dict]:
+        rows = self._post_rows(client, path, _query_body(geometry, parameters))
+        if len(rows) < results_limit:
+            return rows
+        if depth >= _MAX_CHUNK_DEPTH:
+            raise ProviderError("Cubes result chunks remain capped; narrow the map boundary")
+        return self._fetch_spatial_chunks(
+            client, path, parameters, geometry, results_limit, depth + 1)
+
+    @staticmethod
+    def _validate_row_count(rows: List[dict]) -> None:
+        if len(rows) > _MAX_FETCHED_ROWS:
+            raise ProviderError(
+                f"Cubes returned more than the {_MAX_FETCHED_ROWS} row safety limit")
+
+    @staticmethod
+    def _post_rows(client: httpx.Client, path: str, body: dict) -> List[dict]:
         try:
-            with self._client() as client:
-                response = client.post(path, json=_query_body(geometry, parameters))
-                response.raise_for_status()
-                payload = response.json()
+            response = client.post(path, json=body)
+            response.raise_for_status()
+            return _records(response.json())
         except httpx.HTTPError as exc:
             raise ProviderError(f"Cubes request failed ({path}): {exc}")
         except ValueError as exc:
             raise ProviderError(f"Cubes returned invalid JSON ({path}): {exc}")
-
-        geometries: List[BaseGeometry] = []
-        attributes: List[dict] = []
-        rows = _records(payload)
-        self._schema_cache[layer.id] = _infer_schema(layer.id, rows)
-        if limit is not None:
-            rows = rows[:limit]
-        for row in rows:
-            raw_geometry = row.get("geometry")
-            if not isinstance(raw_geometry, str):
-                continue
-            try:
-                parsed = wkt.loads(raw_geometry)
-            except Exception:
-                continue
-            if parsed.geom_type != "Point":
-                continue
-            geometries.append(parsed)
-            attributes.append({key: value for key, value in row.items()
-                               if key != "geometry"})
-        if not geometries:
-            return empty_features_gdf()
-        return gpd.GeoDataFrame(attributes, geometry=geometries, crs=WGS84)
 
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20

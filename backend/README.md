@@ -299,6 +299,10 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
   from being mistaken for multiple vehicles and support trajectory questions.
+  `ResultsLimit` controls truncation detection (default 10,000). When a bounded request
+  reaches it, the provider adaptively splits only saturated spatial tiles, recursively
+  fetches them, and deduplicates complete JSON observations. Depth and a 100,000-row
+  safety ceiling prevent runaway fan-out; an unbounded capped request fails loudly.
   The generic metadata endpoint accepts a bare database name, normalizes it to
   `cubes://db/<dbname>`, fetches the known one-hour sample, and feeds the cube's official
   name/description, fields, request parameters/options, and entity samples to editable

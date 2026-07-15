@@ -27,6 +27,11 @@ and gives the official cube name/description, parameter options, and entity samp
 `LayerMetadataGenerator`. Cubes parameter operators normalize `<name>.match` to `<name>`
 and preserve `<name>.not`; a plain name enables both. Never hardcode the response field list.
 
+**Cubes result cap:** metadata `ResultsLimit` defaults to 10,000 when absent. A bounded
+query that hits the cap uses adaptive quadtree subdivision of only saturated tiles and
+deduplicates complete observation JSON. Keep recursion bounded and preserve the 100,000
+row safety ceiling. Never silently accept a capped unbounded query as complete.
+
 ## Commands
 
 ```bash
@@ -58,6 +63,11 @@ npx tsc --noEmit # typecheck only
 Run backend and frontend together for the full flow; the frontend works standalone but Run Query shows a backend-unreachable error.
 
 ## Backend architecture (N-tier + SOLID)
+
+**Code-size standard:** one top-level class per Python module. New or touched functions
+should stay at 20 lines or fewer and coordinate focused helpers; split parsing, validation,
+I/O, trace construction, and result conversion instead of growing orchestration methods.
+Small DTO/model modules and trivial protocol declarations are the intended unit of reuse.
 
 **Full architecture explanation lives in `backend/README.md`** — keep it updated when structure changes. Summary:
 

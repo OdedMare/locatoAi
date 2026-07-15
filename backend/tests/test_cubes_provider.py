@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import httpx
 import pytest
+from shapely import wkt
 from shapely.geometry import box
 
 from app.bl.ports.layer_meta import LayerMeta
@@ -228,6 +229,60 @@ def test_match_and_not_parameter_names_map_to_request_operators(tmp_path):
     body = json.loads(posted_request(handler).content)
     assert set(body) == {"eventTime", "arriveTime.not"}
     assert body["arriveTime.not"]["Location"] == boundary.wkt
+
+
+def test_result_limit_adaptively_chunks_boundary_and_deduplicates(tmp_path):
+    rows = [
+        record("south-west", "POINT (34.71 32.01)"),
+        record("south-east", "POINT (34.89 32.01)"),
+        record("north-west", "POINT (34.71 32.19)"),
+        record("north-east", "POINT (34.89 32.19)"),
+    ]
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "ResultsLimit": 2, "Parameters": [], "Fields": [],
+            })
+        location = json.loads(request.content)["arriveTime.not"]["Location"]
+        boundary = wkt.loads(location)
+        matching = [row for row in rows
+                    if boundary.covers(wkt.loads(row["geometry"]))]
+        return httpx.Response(200, json=matching[:2])
+
+    store = RuntimeSettingsStore(Settings(
+        _env_file=None,
+        runtime_settings_file=str(tmp_path / "runtime-settings.json"),
+        cubes_base_url="https://cubes.test",
+        cubes_token="jwt",
+    ))
+    provider = CubesProvider(store, httpx.MockTransport(handler))
+
+    features = provider.fetch_features(layer(), geometry=box(34.7, 32.0, 34.9, 32.2))
+
+    assert set(features["id"]) == {
+        "south-west", "south-east", "north-west", "north-east",
+    }
+    assert len([request for request in requests if request.method == "POST"]) == 5
+
+
+def test_capped_result_without_boundary_fails_instead_of_truncating(tmp_path):
+    provider, handler = make_provider(tmp_path, [record("one"), record("two")])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "ResultsLimit": 2, "Parameters": [], "Fields": [],
+            })
+        return httpx.Response(200, json=[record("one"), record("two")])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+
+    with pytest.raises(ProviderError, match="result limit without a boundary"):
+        provider.fetch_features(layer())
 
 
 def test_sample_field_values(tmp_path):
