@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple
 from psycopg.errors import UniqueViolation
 
 from app.bl.ports.layer_meta import LayerMeta
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.postgres import connect
 
 _COLUMNS = "id, name, description, tags, provider, source_url"

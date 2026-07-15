@@ -10,7 +10,7 @@ from app.bl.catalog.mqs_sync import browse_mqs_layers
 from app.common.config import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.mqs import (
     _MAX_FEATURES,
     _PAGE_SIZE,

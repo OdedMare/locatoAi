@@ -17,7 +17,7 @@ from app.common.errors.layer_not_found_error import LayerNotFoundError
 from app.common.errors.plan_validation_error import PlanValidationError
 from app.common.errors.provider_error import ProviderError
 from app.common.logging import configure_logging
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.feedback_repository import PostgresFeedbackRepository
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient

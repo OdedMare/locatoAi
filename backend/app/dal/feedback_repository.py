@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import List, Optional
 
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.postgres import connect
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from app.common.config import Settings
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.feedback_repository import PostgresFeedbackRepository
 
 

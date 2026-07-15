@@ -3,7 +3,7 @@
 import psycopg
 from psycopg.rows import dict_row
 
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 
 def connect(store: RuntimeSettingsStore) -> psycopg.Connection:

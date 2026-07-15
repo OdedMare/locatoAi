@@ -5,32 +5,15 @@ for a given query, without running the rest of the pipeline.
 """
 
 import time
-from typing import List, Optional
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
 
 from app.bl.agent.select_layers import LayerSelector
+from app.service.agent_dto.select_layers_request import SelectLayersRequest
+from app.service.agent_dto.select_layers_response import SelectLayersResponse
+from app.service.agent_dto.selected_layer import SelectedLayer
 
 router = APIRouter()
-
-
-class SelectLayersRequest(BaseModel):
-    query: str = Field(min_length=1)
-
-
-class SelectedLayer(BaseModel):
-    id: str
-    name: str
-    tags: List[str]
-
-
-class SelectLayersResponse(BaseModel):
-    layers: List[SelectedLayer]
-    clarify: Optional[str] = None
-    reasoning: str = ""
-    timing_ms: int
-    token_usage: Optional[dict] = None
 
 
 @router.post("/api/select-layers", response_model=SelectLayersResponse)

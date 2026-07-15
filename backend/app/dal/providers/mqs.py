@@ -71,7 +71,7 @@ from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 logger = logging.getLogger(__name__)
 

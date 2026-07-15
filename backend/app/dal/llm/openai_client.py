@@ -22,7 +22,7 @@ import httpx
 from openai import BadRequestError, OpenAI
 
 from app.common.errors.agent_error import AgentError
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 
 # One initial attempt + one retry with the parse error appended.

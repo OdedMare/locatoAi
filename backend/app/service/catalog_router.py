@@ -4,71 +4,29 @@ Lets users browse which data layers exist (name/description/tags) so
 they know what they can ask about. Metadata only — never features.
 """
 
-from typing import List
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
 
 from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
 from app.bl.ports.layer_meta import LayerMeta
+from app.service.catalog_dto.catalog_layer import CatalogLayer
+from app.service.catalog_dto.create_layer_request import CreateLayerRequest
+from app.service.catalog_dto.generate_layer_metadata_request import (
+    GenerateLayerMetadataRequest,
+)
+from app.service.catalog_dto.generated_layer_metadata_response import (
+    GeneratedLayerMetadataResponse,
+)
+from app.service.catalog_dto.layers_response import LayersResponse
+from app.service.catalog_dto.mqs_sync_response import MqsSyncResponse
+from app.service.catalog_dto.remote_mqs_layer_response import RemoteMqsLayerResponse
+from app.service.catalog_dto.remote_mqs_layers_response import (
+    RemoteMqsLayersResponse,
+)
 
 router = APIRouter()
-
-
-class CatalogLayer(BaseModel):
-    id: str
-    name: str
-    description: str
-    tags: List[str]
-
-
-class LayersResponse(BaseModel):
-    layers: List[CatalogLayer]
-    count: int
-
-
-class MqsSyncResponse(BaseModel):
-    added: int
-    updated: int
-    skipped: int
-    total: int
-
-
-class RemoteMqsLayerResponse(BaseModel):
-    id: str
-    name: str
-    description: str
-    tags: List[str]
-    provider: str
-    source_url: str
-
-
-class RemoteMqsLayersResponse(BaseModel):
-    layers: List[RemoteMqsLayerResponse]
-    count: int
-    skipped: int
-
-
-class CreateLayerRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=2000)
-    tags: List[str] = []
-    provider: str = Field(default="mqs", min_length=1, max_length=50)
-    source_url: str = Field(min_length=1, max_length=2000)
-
-
-class GenerateLayerMetadataRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    provider: str = Field(default="mqs", min_length=1, max_length=50)
-    source_url: str = Field(min_length=1, max_length=2000)
-
-
-class GeneratedLayerMetadataResponse(BaseModel):
-    description: str
-    tags: List[str]
-    sample_count: int
 
 
 def _normalized_source(provider: str, source_url: str) -> str:

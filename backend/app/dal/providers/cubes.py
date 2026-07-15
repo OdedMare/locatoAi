@@ -15,7 +15,7 @@ from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 _TIMEOUT_SECONDS = 30
 _RESPONSE_LIST_KEYS = (
