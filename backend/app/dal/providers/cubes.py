@@ -449,6 +449,35 @@ class CubesProvider:
             client, path, parameters, geometry, results_limit, now,
             temporal_range, query_mode, depth + 1)
 
+    def _fetch_temporal_chunks(
+        self, client: httpx.Client, path: str, parameters: List[LayerParameter],
+        results_limit: int, window: Tuple[str, str], query_mode: str, depth: int,
+    ) -> List[dict]:
+        """Same cap-recovery idea as spatial chunking, but bisects the
+        absolute time window instead of the boundary — used only when no
+        geometry was given (that path chunks spatially first)."""
+        rows: List[dict] = []
+        for half in _split_temporal_range(*window):
+            chunk_rows = self._fetch_temporal_chunk(
+                client, path, parameters, results_limit, half, query_mode, depth)
+            rows.extend(chunk_rows)
+            self._validate_row_count(rows)
+        return _deduplicate_rows(rows)
+
+    def _fetch_temporal_chunk(
+        self, client: httpx.Client, path: str, parameters: List[LayerParameter],
+        results_limit: int, window: Tuple[str, str], query_mode: str, depth: int,
+    ) -> List[dict]:
+        rows = self._post_rows(
+            client, path, _query_body(
+                None, parameters, None, window, query_mode))
+        if len(rows) < results_limit:
+            return rows
+        if depth >= _MAX_CHUNK_DEPTH:
+            raise ProviderError("Cubes result chunks remain capped; narrow the time window")
+        return self._fetch_temporal_chunks(
+            client, path, parameters, results_limit, window, query_mode, depth + 1)
+
     @staticmethod
     def _validate_row_count(rows: List[dict]) -> None:
         if len(rows) > _MAX_FETCHED_ROWS:
