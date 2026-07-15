@@ -271,9 +271,16 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
-  unset means the provider errors with a clear message → HTTP 502). It pages through
-  `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k) and follows
-  `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
+  unset means the provider errors with a clear message → HTTP 502). A background
+  `MqsMirrorWorker` scans list pages in chunks and writes current entities to the
+  PostGIS tables `public.mqs_feature_mirror` and `public.mqs_mirror_state`.
+  `history_id` equality lets subsequent scans mark unchanged rows without repeating
+  their detail request; changed details are fetched concurrently with a bounded pool.
+  PostgreSQL advisory locks serialize each layer across backend instances. Runtime
+  reads use the mirror only while its last completed snapshot meets the configured
+  30-second freshness ceiling, with automatic fallback to live MQS otherwise. Live
+  fetching pages through `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k)
+  and follows `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
   `property_list` into normal feature columns. Those columns drive schema discovery,
   value sampling, metadata/tag generation, attribute filters, displayed results, and
   every spatial operation. Property parsing accepts objects, name/value arrays,
@@ -283,7 +290,16 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   business `property_list` fields and fails if none are found rather than producing
   polygon/clearance tags. Schema and planner logs expose discovered field names and
   bounded sample counts for diagnosis. Viewport/polygon filters are pushed down with
-  POST when available and are always rechecked locally for correctness.
+  POST when available and are always rechecked locally for correctness. Bounded
+  `near`/`near_all` target loads use the request geometry expanded in a local metric CRS,
+  avoiding a complete target-layer load without excluding any possible match.
+
+  The configured PostgreSQL database must already have PostGIS installed. The backend
+  role needs permission to create/use the two mirror tables and their GIST index. The
+  `AILOCATOR_MQS_MIRROR_*` and `AILOCATOR_MQS_DETAIL_CONCURRENCY` settings are listed in
+  `.env.example`. A true MQS change feed would remove the remaining full list scan; until
+  such an endpoint exists, the worker scans summaries but fetches details only for new or
+  changed history versions.
 
 - **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider

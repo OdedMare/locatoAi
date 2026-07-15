@@ -505,7 +505,8 @@ class MqsProvider:
     def _sync_snapshot(self, layer_id, run_id, mirror, batch_size):
         count = 0
         with self._client() as client:
-            entities = self._iter_all_entities(client, layer_id)
+            entities = self._iter_all_entities(
+                client, layer_id, max_features=None)
             for batch in self._batched(entities, batch_size):
                 self._sync_batch(client, layer_id, run_id, mirror, batch)
                 count += len(batch)
@@ -676,6 +677,7 @@ class MqsProvider:
         layer_id: str,
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
+        max_features: Optional[int] = _MAX_FEATURES,
     ):
         # limit caps the *first page size* rather than truncating after a
         # full fetch — a metadata/tagging sample (limit=100) must cost one
@@ -690,10 +692,10 @@ class MqsProvider:
                 for entity in entities[: limit - (fetched - len(entities))]:
                     yield entity
                 return
-            if fetched > _MAX_FEATURES:
+            if max_features is not None and fetched > max_features:
                 raise ProviderError(
                     f"MQS layer {layer_id} returned more than the "
-                    f"{_MAX_FEATURES} feature limit — narrow the layer or "
+                    f"{max_features} feature limit — narrow the layer or "
                     "raise the cap"
                 )
             for entity in entities:

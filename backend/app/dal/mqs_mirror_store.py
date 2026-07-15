@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from uuid import uuid4
 
@@ -46,15 +47,20 @@ class PostgresMqsMirrorStore:
         self._store = settings_store
         self._ready = False
         self._locks = {}
+        self._schema_lock = Lock()
+        self._locks_guard = Lock()
 
     def ensure_schema(self) -> None:
         if self._ready:
             return
-        with connect(self._store) as conn:
-            conn.execute(self._features_ddl())
-            conn.execute(self._state_ddl())
-            conn.execute(self._spatial_index_ddl())
-        self._ready = True
+        with self._schema_lock:
+            if self._ready:
+                return
+            with connect(self._store) as conn:
+                conn.execute(self._features_ddl())
+                conn.execute(self._state_ddl())
+                conn.execute(self._spatial_index_ddl())
+            self._ready = True
 
     @staticmethod
     def _features_ddl() -> str:
@@ -128,7 +134,8 @@ class PostgresMqsMirrorStore:
         except Exception:
             lock_connection.close()
             raise
-        self._locks[run_id] = lock_connection
+        with self._locks_guard:
+            self._locks[run_id] = lock_connection
         return run_id
 
     @staticmethod
@@ -234,6 +241,7 @@ class PostgresMqsMirrorStore:
             self._release_lock(run_id)
 
     def _release_lock(self, run_id: str) -> None:
-        connection = self._locks.pop(run_id, None)
+        with self._locks_guard:
+            connection = self._locks.pop(run_id, None)
         if connection is not None:
             connection.close()

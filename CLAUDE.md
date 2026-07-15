@@ -9,7 +9,16 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus a ⚙ settings panel (LLM key/model, PG connection, layers table).
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS enriches entities from tolerant `property_list` parsing; Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Known scaling risk:** MQS performs one detail request per entity. **Next candidates:** batched detail retrieval, persistent server-side conversation context, client timezone, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS entities are continuously mirrored into PostGIS in chunked snapshots; unchanged `history_id` values skip repeated detail requests, changed details use bounded concurrency, and reads use the mirror only while its completed snapshot is at most 30 seconds old. Stale/unavailable mirrors fall back to live spatially-filtered MQS. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS delta/change feed and batch-detail endpoints, persistent server-side conversation context, client timezone, and SSE streaming.
+
+**MQS mirror:** `MqsMirrorWorker` refreshes MQS catalog layers outside request threads,
+with PostgreSQL advisory locks preventing duplicate layer snapshots across backend
+instances. Snapshot list scans are chunked and parallel across a bounded number of
+layers. `PostgresMqsMirrorStore` owns `public.mqs_feature_mirror` and
+`public.mqs_mirror_state`; the database must have PostGIS installed and the backend role
+must be allowed to create/use these tables. `near`/`near_all` target fetches use the user
+boundary expanded by the requested distance. Never serve a mirror beyond the configured
+staleness limit or remove the live-MQS fallback.
 
 **MQS business metadata:** `property_list` accepts object, name/value-array,
 camel/Pascal-case, nested-wrapper, and JSON-string variants. Fixed transport fields stay

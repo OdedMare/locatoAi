@@ -167,7 +167,14 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. The live base URL comes from runtime settings. Paginated list entities are enriched through `Entities/{entity_id}`; each detail response's `property_list` becomes ordinary feature fields used for schema/value sampling, tags, attribute filters, results, and spatial-operation outputs. The normalizer accepts object, name/value array, camel/Pascal-case, nested-wrapper, and JSON-string variants. Technical transport fields such as triangle, clearance, area, perimeter, source ID and date remain available to execution but are excluded from AI metadata generation. Description/tag generation receives real business fields such as name, essence and type, and fails clearly when none are discovered. Boundary filters are pushed down when possible and rechecked locally.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer into PostGIS in chunked snapshots. It compares the list response's `history_id` with the stored version, so unchanged entities avoid another detail request; changed details are fetched with bounded concurrency. PostgreSQL advisory locks prevent multiple backend instances from refreshing the same layer simultaneously. Query reads use the mirror only when its completed snapshot is no older than 30 seconds, otherwise they fall back to live MQS. Spatial boundaries are pushed down, and bounded `near` targets use the request boundary expanded by the requested distance. Provider filters are still rechecked locally.
+
+The mirror uses `public.mqs_feature_mirror` and `public.mqs_mirror_state`. PostGIS must
+already be installed in the configured database, and the backend database role needs
+permission to create and use these tables. Bootstrap still scans all list pages; after
+bootstrap, only changed `history_id` values require detail requests. The mirror settings
+(`enabled`, interval, staleness, batch size, layer concurrency, and detail concurrency)
+are exposed through `AILOCATOR_MQS_*` environment variables in `backend/.env.example`.
 
 ### Cubes
 
