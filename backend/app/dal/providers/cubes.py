@@ -189,6 +189,7 @@ class CubesProvider:
                 base_url=self._base_url(),
                 headers=self._headers(),
                 timeout=_TIMEOUT_SECONDS,
+                verify=False,
                 transport=self._transport,
             ) as client:
                 response = client.post(path, json=_query_body(geometry))

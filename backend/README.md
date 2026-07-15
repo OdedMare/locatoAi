@@ -71,7 +71,8 @@ app/
 │   ├── feedback_repository.py # configurable PostgreSQL feedback table
 │   ├── providers/
 │   │   ├── arcgis_mock.py   # TEST FIXTURE ONLY — used by tests/conftest.py, not production
-│   │   ├── mqs.py           # MQS (Moria Query Service) REST adapter — the only prod provider
+│   │   ├── mqs.py           # MQS REST adapter + property_list enrichment
+│   │   ├── cubes.py         # generic Cubes time-varying POINT adapter
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
 │       └── openai_client.py # OpenAI-compatible JSON-mode client (Ollama/Gemma today)
@@ -251,7 +252,7 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 
 The catalog's `provider` column routes each layer to a registered adapter
 ([`registry.py`](app/dal/providers/registry.py), wired in `main.py`). **Production
-registers only `mqs`** — `arcgis` is not a real provider anymore.
+registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
 
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
@@ -263,6 +264,15 @@ registers only `mqs`** — `arcgis` is not a real provider anymore.
   value sampling, metadata/tag generation, attribute filters, displayed results, and
   every spatial operation. Viewport/polygon filters are pushed down with POST when
   available and are always rechecked locally for correctness.
+
+- **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
+  locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
+  posts the one-hour lookback payload to `/cube/v1/<dbname>`, sends the write-only
+  Authorization token, and converts WKT POINT geometry to WGS84. Every non-geometry
+  JSON key is discovered dynamically as a `LayerField`; types, samples, and the
+  temporal field are inferred from returned values and cached after fetch. Cubes
+  schema changes therefore require no hardcoded field-list update. User geometry is
+  sent as `arriveTime.not.Location`; local executor filtering remains authoritative.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —
