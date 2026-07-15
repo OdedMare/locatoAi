@@ -69,7 +69,7 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
-from app.common.errors import ProviderError
+from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings import RuntimeSettingsStore
 

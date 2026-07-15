@@ -5,7 +5,8 @@ from shapely.geometry import Point
 
 from app.bl.executor.ops.latest_per_entity import LatestPerEntityOp
 from app.bl.executor.ops.movement_direction import MovementDirectionOp
-from app.bl.plan.models import LatestPerEntityStep, MovementDirectionStep
+from app.bl.plan.models.latest_per_entity_step import LatestPerEntityStep
+from app.bl.plan.models.movement_direction_step import MovementDirectionStep
 
 
 def observations():

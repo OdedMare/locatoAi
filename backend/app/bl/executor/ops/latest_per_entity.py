@@ -3,7 +3,7 @@ import pandas as pd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.plan.models.latest_per_entity_step import LatestPerEntityStep
-from app.common.errors import ExecutionError
+from app.common.errors.execution_error import ExecutionError
 
 
 @register_op("latest_per_entity")

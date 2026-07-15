@@ -1,9 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from app.bl.plan.models import GeoQueryPlan
+from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
-from app.common.errors import PlanValidationError
+from app.common.errors.plan_validation_error import PlanValidationError
 
 KNOWN_LAYERS = {"schools", "roundabouts", "accidents"}
 

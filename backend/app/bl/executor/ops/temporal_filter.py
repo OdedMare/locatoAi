@@ -3,7 +3,7 @@ import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.plan.models.temporal_filter_step import TemporalFilterStep
-from app.common.errors import ExecutionError
+from app.common.errors.execution_error import ExecutionError
 
 
 @register_op("temporal_filter")

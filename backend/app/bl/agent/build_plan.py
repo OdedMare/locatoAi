@@ -23,7 +23,7 @@ from app.bl.plan.validators import validate_plan
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
 from app.bl.ports.llm_client import LLMClient
-from app.common.errors import PlanValidationError
+from app.common.errors.plan_validation_error import PlanValidationError
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "build_plan.md"
 

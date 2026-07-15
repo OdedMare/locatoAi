@@ -9,7 +9,7 @@ from shapely.ops import unary_union
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.executor.ops.near import filter_reference_entities
 from app.bl.plan.models.between_step import BetweenStep
-from app.common.errors import ExecutionError
+from app.common.errors.execution_error import ExecutionError
 from app.common.geo import metric_crs_for, to_metric
 
 _MAX_REFERENCE_PAIRS = 2500

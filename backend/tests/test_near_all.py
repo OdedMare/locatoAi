@@ -4,7 +4,7 @@ import geopandas as gpd
 from shapely.geometry import Point
 
 from app.bl.executor.ops.near_all import NearAllOp
-from app.bl.plan.models import NearAllStep
+from app.bl.plan.models.near_all_step import NearAllStep
 
 
 def frame(names, points):

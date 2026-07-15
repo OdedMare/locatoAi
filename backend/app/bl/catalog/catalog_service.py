@@ -11,7 +11,8 @@ from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
 from app.bl.ports.layers_repository import LayersRepository
 from app.bl.ports.provider_registry import ProviderRegistry
-from app.common.errors import LayerNotFoundError, ProviderError
+from app.common.errors.layer_not_found_error import LayerNotFoundError
+from app.common.errors.provider_error import ProviderError
 
 
 class CatalogService:

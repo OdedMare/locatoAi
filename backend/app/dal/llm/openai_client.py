@@ -21,7 +21,7 @@ import re
 import httpx
 from openai import BadRequestError, OpenAI
 
-from app.common.errors import AgentError
+from app.common.errors.agent_error import AgentError
 from app.common.runtime_settings import RuntimeSettingsStore
 
 

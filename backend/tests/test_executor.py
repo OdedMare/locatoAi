@@ -3,8 +3,8 @@ import json
 import pytest
 from shapely.geometry import box
 
-from app.bl.plan.models import GeoQueryPlan
-from app.common.errors import ExecutionError
+from app.bl.plan.models.geo_query_plan import GeoQueryPlan
+from app.common.errors.execution_error import ExecutionError
 from tests.conftest import FIXTURES_DIR
 
 # Central Tel Aviv box: 7 of the 12 schools fall inside.
@@ -65,7 +65,7 @@ def test_within_geometry_reprojects_non_wgs84_features():
     correctly against user_geometry (always WGS84) — regression test for
     within_geometry silently comparing degrees against meters."""
     from app.bl.executor.ops.within_geometry import WithinGeometryOp
-    from app.bl.plan.models import WithinGeometryStep
+    from app.bl.plan.models.within_geometry_step import WithinGeometryStep
     from app.common.geo import ISRAEL_TM
     import geopandas as gpd
     from shapely.geometry import Point

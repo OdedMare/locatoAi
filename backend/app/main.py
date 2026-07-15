@@ -11,13 +11,11 @@ from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
 from app.bl.query_orchestrator import QueryOrchestrator
 from app.common.config import Settings, get_settings
-from app.common.errors import (
-    AgentError,
-    ExecutionError,
-    LayerNotFoundError,
-    PlanValidationError,
-    ProviderError,
-)
+from app.common.errors.agent_error import AgentError
+from app.common.errors.execution_error import ExecutionError
+from app.common.errors.layer_not_found_error import LayerNotFoundError
+from app.common.errors.plan_validation_error import PlanValidationError
+from app.common.errors.provider_error import ProviderError
 from app.common.logging import configure_logging
 from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.feedback_repository import PostgresFeedbackRepository

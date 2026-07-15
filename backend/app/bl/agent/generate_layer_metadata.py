@@ -8,7 +8,8 @@ from typing import List
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.llm_client import LLMClient
 from app.bl.ports.provider_registry import ProviderRegistry
-from app.common.errors import AgentError, ProviderError
+from app.common.errors.agent_error import AgentError
+from app.common.errors.provider_error import ProviderError
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_layer_metadata.md"
 _FETCH_LIMIT = 100

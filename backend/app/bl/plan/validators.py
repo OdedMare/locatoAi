@@ -18,7 +18,7 @@ from app.bl.plan.models.near_step import NearStep
 from app.bl.plan.models.nearest_n_step import NearestNStep
 from app.bl.plan.models.touches_step import TouchesStep
 from app.bl.plan.models.within_geometry_step import WithinGeometryStep
-from app.common.errors import PlanValidationError
+from app.common.errors.plan_validation_error import PlanValidationError
 
 
 def validate_plan(

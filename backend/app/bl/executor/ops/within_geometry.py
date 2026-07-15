@@ -2,7 +2,7 @@ import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.plan.models.within_geometry_step import WithinGeometryStep
-from app.common.errors import ExecutionError
+from app.common.errors.execution_error import ExecutionError
 from app.common.geo import WGS84, require_crs
 
 

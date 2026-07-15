@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.service.dto import QueryRequest
+from app.service.dto.query_request import QueryRequest
 
 
 def test_query_request_requires_boundaries():

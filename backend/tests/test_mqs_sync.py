@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
-from app.common.errors import ProviderError
+from app.common.errors.provider_error import ProviderError
 from app.main import _register_error_handlers
 from app.service import catalog_router
 from app.service.catalog_router import _normalized_source

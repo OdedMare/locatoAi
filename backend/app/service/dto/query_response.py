@@ -1,46 +1,11 @@
-"""HTTP request/response DTOs. The service tier translates these to/from
-BL types — no business logic here (SRP)."""
-
 from typing import Any, Dict, List, Literal, Optional
 
-import geopandas as gpd
-from pydantic import BaseModel, Field
-from shapely.geometry import shape
-from shapely.geometry.base import BaseGeometry
+from pydantic import BaseModel
 
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.query_orchestrator import QueryOutcome
-
-
-class GeoJSONMultiPolygon(BaseModel):
-    type: Literal["MultiPolygon"]
-    coordinates: List
-
-    def to_shapely(self) -> BaseGeometry:
-        return shape(self.model_dump())
-
-
-class QueryRequest(BaseModel):
-    """The contract with the frontend: exactly {query, boundaries}."""
-
-    query: str = Field(min_length=1)
-    boundaries: GeoJSONMultiPolygon
-
-
-class ExecutePlanRequest(BaseModel):
-    """Debug endpoint input: a hand-written plan (no AI involved)."""
-
-    plan: GeoQueryPlan
-    boundaries: GeoJSONMultiPolygon
-
-
-class SelectedLayerDto(BaseModel):
-    """Agent trace: one layer the model chose (for the UI's agent panel)."""
-
-    id: str
-    name: str
-    tags: List[str] = []
-    description: str = ""
+from app.service.dto.gdf_to_feature_collection import gdf_to_feature_collection
+from app.service.dto.selected_layer_dto import SelectedLayerDto
 
 
 class QueryResponse(BaseModel):
@@ -84,17 +49,3 @@ class QueryResponse(BaseModel):
             tool_calls=outcome.tool_calls,
             pipeline_trace=outcome.pipeline_trace,
         )
-
-
-def gdf_to_feature_collection(
-    gdf: Optional[gpd.GeoDataFrame],
-) -> Optional[Dict[str, Any]]:
-    """Every GeoDataFrame column becomes a GeoJSON `properties` field
-    automatically — ops that compute extra per-feature attributes (e.g.
-    NearOp's `distance_to_target_m`, ops/near.py) need no DTO change,
-    they just add a column."""
-    if gdf is None:
-        return None
-    if gdf.empty:
-        return {"type": "FeatureCollection", "features": []}
-    return gdf.__geo_interface__

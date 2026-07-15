@@ -5,7 +5,10 @@ from shapely.geometry import LineString, Point, Polygon
 
 from app.bl.executor.ops.between import BetweenOp
 from app.bl.executor.ops.spatial_relation import ContainsOp, CrossesOp, TouchesOp
-from app.bl.plan.models import BetweenStep, ContainsStep, CrossesStep, TouchesStep
+from app.bl.plan.models.between_step import BetweenStep
+from app.bl.plan.models.contains_step import ContainsStep
+from app.bl.plan.models.crosses_step import CrossesStep
+from app.bl.plan.models.touches_step import TouchesStep
 
 
 def frame(names, geometries):

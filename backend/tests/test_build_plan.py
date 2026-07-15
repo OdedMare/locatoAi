@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from app.bl.agent.build_plan import _FALLBACK_CLARIFY, PlanBuilder, preserves_constraints
-from app.bl.plan.models import GeoQueryPlan
+from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.query_orchestrator import QueryOrchestrator
 from tests.conftest import LAYERS
 

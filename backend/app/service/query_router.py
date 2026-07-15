@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, Request
 
 from app.bl.query_orchestrator import QueryOrchestrator
 from app.service.deps import get_orchestrator
-from app.service.dto import QueryRequest, QueryResponse
+from app.service.dto.query_request import QueryRequest
+from app.service.dto.query_response import QueryResponse
 
 router = APIRouter()
 
