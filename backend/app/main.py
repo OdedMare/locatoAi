@@ -72,7 +72,8 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     )
     providers.register("mqs", mqs_provider)
     providers.register("cubes", CubesProvider(settings_store))
-    providers.register("tyche", TycheProvider(settings_store))
+    tyche_provider = TycheProvider(settings_store)
+    providers.register("tyche", tyche_provider)
 
     catalog = CatalogService(
         repository, providers, schema_ttl_seconds=settings.schema_cache_ttl_seconds
@@ -91,6 +92,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     app.state.repository = repository
     app.state.feedback_repository = feedback_repository
     app.state.mqs_provider = mqs_provider  # catalog_router's sync endpoint
+    app.state.tyche_provider = tyche_provider
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.llm_client = llm

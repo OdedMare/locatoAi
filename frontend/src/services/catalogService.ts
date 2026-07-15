@@ -38,6 +38,16 @@ export async function createLayer(layer: CreateLayerRequest): Promise<CatalogLay
   return res.json();
 }
 
+/** Probe Tyche and idempotently add/refresh the Our Forces catalog layer. */
+export async function activateTycheLayer(): Promise<CatalogLayer> {
+  const res = await fetch("/api/layers/activate-tyche", { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `הפעלת שכבת Tyche נכשלה (${res.status})`);
+  }
+  return res.json();
+}
+
 /** Sample up to 10 entities and ask the LLM for editable metadata suggestions. */
 export async function generateLayerMetadata(
   layer: GenerateLayerMetadataRequest

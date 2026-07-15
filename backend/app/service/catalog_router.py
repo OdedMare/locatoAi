@@ -32,6 +32,14 @@ from app.service.catalog_dto.remote_mqs_layers_response import (
 
 router = APIRouter()
 
+_TYCHE_LAYER_NAME = "כוחותינו"
+_TYCHE_SOURCE = "tyche://ourforces"
+_TYCHE_DESCRIPTION = "מיקומים ואירועי זמן של כוחותינו ממערכת Tyche"
+_TYCHE_TAGS = [
+    "כוחותינו", "כוחות", "רכב", "יחידות", "מיקום בזמן אמת",
+    "our forces", "vehicles", "units", "live location", "tyche",
+]
+
 
 def _with_cubes_mode(source: str, mode: str) -> str:
     parsed = urlsplit(source)
@@ -106,6 +114,27 @@ def list_remote_mqs_layers(request: Request) -> RemoteMqsLayersResponse:
         ],
         count=len(layers),
         skipped=skipped,
+    )
+
+
+@router.post("/api/layers/activate-tyche", response_model=CatalogLayer)
+def activate_tyche(request: Request) -> CatalogLayer:
+    """Probe Tyche and idempotently activate its Our Forces catalog layer."""
+    layer = LayerMeta(
+        id=str(uuid4()), name=_TYCHE_LAYER_NAME,
+        description=_TYCHE_DESCRIPTION, tags=_TYCHE_TAGS,
+        provider="tyche", source_url=_TYCHE_SOURCE,
+    )
+    sample = request.app.state.tyche_provider.fetch_features(layer, limit=1)
+    activated, created = request.app.state.repository.upsert_layer(layer)
+    persisted = request.app.state.repository.get_layer(activated.id) or activated
+    request.app.state.request_log.info(
+        "tyche_layer_activated", layer_id=persisted.id, created=created,
+        sample_count=len(sample), source_url=_TYCHE_SOURCE,
+    )
+    return CatalogLayer(
+        id=persisted.id, name=persisted.name,
+        description=persisted.description, tags=persisted.tags,
     )
 
 

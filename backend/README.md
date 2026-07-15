@@ -353,6 +353,9 @@ registers `mqs`, `cubes`, and `tyche`** — `arcgis` is not a real provider anym
   geometry. The provider follows `hasMoreResults`/`pageTracker`, requests only
   the remaining rows for bounded samples, deduplicates event IDs, rejects broken
   or repeated paging tokens, and stops at a 100,000-row safety ceiling.
+  `POST /api/layers/activate-tyche` (the Layers UI's Tyche activation button)
+  first probes one bounded entity and then idempotently upserts the canonical
+  `כוחותינו` catalog row. Failed configuration/API probes never modify the catalog.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —

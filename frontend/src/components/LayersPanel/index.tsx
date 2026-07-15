@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  activateTycheLayer,
   createLayer,
   generateLayerMetadata,
   getLayers,
@@ -36,6 +37,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [saving, setSaving] = useState(false);
   const [generatingMetadata, setGeneratingMetadata] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [activatingTyche, setActivatingTyche] = useState(false);
+  const [tycheMessage, setTycheMessage] = useState<string | null>(null);
   const [showMqsBrowser, setShowMqsBrowser] = useState(false);
   const [mqsLayers, setMqsLayers] = useState<RemoteMqsLayer[] | null>(null);
   const [mqsSearch, setMqsSearch] = useState("");
@@ -189,6 +192,25 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setShowAddForm(true);
   };
 
+  const handleActivateTyche = async () => {
+    if (activatingTyche) return;
+    setActivatingTyche(true);
+    setTycheMessage("בודק חיבור ל-Tyche ומפעיל את השכבה…");
+    try {
+      const activated = await activateTycheLayer();
+      setLayers((current) => {
+        const remaining = (current ?? []).filter((item) => item.id !== activated.id);
+        return [...remaining, activated];
+      });
+      setTycheMessage("שכבת כוחותינו פעילה בקטלוג ✓");
+    } catch (err) {
+      console.error("Tyche layer activation failed", err);
+      setTycheMessage(err instanceof Error ? err.message : "הפעלת Tyche נכשלה");
+    } finally {
+      setActivatingTyche(false);
+    }
+  };
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div
@@ -226,6 +248,16 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         <button type="button" className="add-layer-toggle" onClick={startCubesLayer}>
           + הוספת שכבת Cubes
         </button>
+
+        <button
+          type="button"
+          className="add-layer-toggle"
+          onClick={() => void handleActivateTyche()}
+          disabled={activatingTyche}
+        >
+          {activatingTyche ? "מפעיל שכבת Tyche…" : "+ הפעלת שכבת Tyche"}
+        </button>
+        {tycheMessage && <p className="settings-message" dir="auto">{tycheMessage}</p>}
 
         <button
           type="button"
