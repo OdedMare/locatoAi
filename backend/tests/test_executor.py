@@ -1,9 +1,14 @@
 import json
+from unittest.mock import Mock
 
+import geopandas as gpd
 import pytest
-from shapely.geometry import box
+from shapely.geometry import Point, box
 
+from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors.execution_error import ExecutionError
 from tests.conftest import FIXTURES_DIR
 
@@ -463,6 +468,31 @@ def test_temporal_filter_yesterday(executor, frozen_now):
     ], "s2", now=frozen_now)
     # offsets -20, -26, -30 (Ayalon) and -22, -28 (Highway 6) land on Jul 8
     assert len(result) == 5
+
+
+def test_temporal_range_pushdown_is_cubes_only(frozen_now):
+    cube_layer = LayerMeta(
+        id="moving", name="moving", provider="cubes",
+        source_url="cubes://db/moving",
+    )
+    catalog, providers, cubes = Mock(), Mock(), Mock()
+    catalog.get_layer.return_value = cube_layer
+    catalog.get_schema.return_value = LayerSchema(
+        layer_id="moving", geometry_type="Point", fields=[],
+        temporal_field="eventTime")
+    providers.get.return_value = cubes
+    cubes.fetch_features.return_value = gpd.GeoDataFrame(
+        {"eventTime": ["2026-07-08T12:00:00Z"]},
+        geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
+    time_range = ("2026-07-08T00:00:00Z", "2026-07-08T23:59:59Z")
+    result = run_steps(PlanExecutor(catalog, providers), [
+        {"id": "s1", "op": "load", "layer": "moving"},
+        {"id": "s2", "op": "temporal_filter", "input": "s1",
+         "from": time_range[0], "to": time_range[1]},
+    ], "s2", now=frozen_now)
+
+    assert len(result) == 1
+    assert cubes.fetch_features.call_args.kwargs["temporal_range"] == time_range
 
 
 def test_temporal_filter_uses_schema_declared_field(executor, frozen_now):

@@ -32,13 +32,17 @@ polygon, triangle, clearance, area, perimeter, source-id, record-id, or timestam
 
 **Agent loop:** planning has up to three `sample_field` calls and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, `netId` identity, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool.
 
-**Cubes catalog workflow:** the executor's first supported request is the known one-hour
-payload. The Layers UI accepts a bare database name; the backend canonicalizes it to
+**Cubes catalog workflow:** the executor supports the legacy one-hour payload and exact
+`<field>.match`/`<field>.not` parameters declared by Cubes metadata. A temporal plan range
+is pushed to `.match` as `From`/`To`; geography is added through the available temporal
+parameter's `Location` and rechecked locally. This behavior is Cubes-only and must not
+change MQS's documented `geo_bounding_box`/`geo_polygon` requests. The Layers UI accepts
+a bare database name; the backend canonicalizes it to
 `cubes://db/<dbname>`. `CubesProvider` reads `GET /cube/v1/{cubeName}` and falls back to
 `GET /cube/v1/{cubeName}/parameters`, merges declared fields with sampled response fields,
 and gives the official cube name/description, parameter options, and entity samples to
-`LayerMetadataGenerator`. Cubes parameter operators normalize `<name>.match` to `<name>`
-and preserve `<name>.not`; a plain name enables both. Never hardcode the response field list.
+`LayerMetadataGenerator`. Suffixed parameter names are preserved exactly; a plain name
+keeps the legacy plain/`.not` pair. Never hardcode the response field list.
 
 **Cubes result cap:** metadata `ResultsLimit` defaults to 10,000 when absent. A bounded
 query that hits the cap uses adaptive quadtree subdivision of only saturated tiles and

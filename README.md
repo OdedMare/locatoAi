@@ -179,7 +179,7 @@ freshness, and the last query's spatial candidate/result counts.
 
 ### Cubes
 
-Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter posts the supported one-hour query, sends the configured secret Authorization token, parses WKT `POINT (longitude latitude)`, and sends the user boundary through `Location`. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect north/south/east/west trajectories with `movement_direction`. Deterministic operations still recheck spatial and temporal conditions locally.
+Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, sends the user boundary through `Location`, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect north/south/east/west trajectories with `movement_direction`.
 
 Cubes metadata declares `ResultsLimit` (10,000 on the current API). A boundary query
 that reaches the cap is recovered with adaptive quadtree partitioning: only saturated
@@ -191,7 +191,8 @@ The Layers UI has a dedicated first-version Cubes workflow. Enter the cube/datab
 name, run metadata generation, review the LLM-generated description/tags, then save.
 A bare database name is normalized to `cubes://db/<dbname>`. Metadata generation uses
 the cube's official name, description, fields, parameters and options together with a
-small entity sample. The initial executor supports the known one-hour request format.
+small entity sample. The executor supports both legacy relative-time and declared
+`.match`/`.not` request formats.
 
 ### LLM provider
 

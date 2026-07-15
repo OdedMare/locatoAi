@@ -313,13 +313,14 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
   reads metadata with `GET /cube/v1/<dbname>` and falls back to
   `GET /cube/v1/<dbname>/parameters` when parameter definitions are not embedded.
-  It posts the supported one-hour payload to `/cube/v1/<dbname>`, sends the write-only
+  It posts metadata-driven temporal payloads to `/cube/v1/<dbname>`, sends the write-only
   Authorization token, and converts WKT POINT geometry to WGS84. Declared fields are
   merged with every non-geometry JSON key discovered dynamically; types, samples, and
-  the temporal field are inferred and cached. Special parameter names are normalized:
-  `<name>.match` is sent as `<name>`, `<name>.not` remains `<name>.not`, and an
-  unsuffixed parameter supports both operators. User geometry is
-  sent as `arriveTime.not.Location`; local executor filtering remains authoritative.
+  the temporal field are inferred and cached. Exact `<name>.match` and `<name>.not`
+  names are preserved. `.match` receives the plan's ISO `From`/`To` range, `.not`
+  receives the relative time-back shape, and an unsuffixed parameter keeps the legacy
+  plain/`.not` pair. User geometry is sent through the available temporal parameter's
+  `Location` and is rechecked locally before applying a result limit.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
   from being mistaken for multiple vehicles and support trajectory questions.
@@ -328,7 +329,7 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   fetches them, and deduplicates complete JSON observations. Depth and a 100,000-row
   safety ceiling prevent runaway fan-out; an unbounded capped request fails loudly.
   The generic metadata endpoint accepts a bare database name, normalizes it to
-  `cubes://db/<dbname>`, fetches the known one-hour sample, and feeds the cube's official
+  `cubes://db/<dbname>`, fetches a bounded sample, and feeds the cube's official
   name/description, fields, request parameters/options, and entity samples to editable
   description/tag generation.
 
