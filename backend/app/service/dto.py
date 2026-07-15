@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from app.bl.plan.models import GeoQueryPlan
+from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.query_orchestrator import QueryOutcome
 
 

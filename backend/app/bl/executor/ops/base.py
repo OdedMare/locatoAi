@@ -13,7 +13,7 @@ import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.plan.models import Step
+from app.bl.plan.models.step import Step
 from app.bl.ports.provider_registry import ProviderRegistry
 
 

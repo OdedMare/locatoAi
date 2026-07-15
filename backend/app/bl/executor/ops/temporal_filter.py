@@ -2,7 +2,7 @@ import pandas as pd
 import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import TemporalFilterStep
+from app.bl.plan.models.temporal_filter_step import TemporalFilterStep
 from app.common.errors import ExecutionError
 
 

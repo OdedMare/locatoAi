@@ -4,7 +4,9 @@ import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
 from app.bl.executor.ops.near import filter_reference_entities
-from app.bl.plan.models import ContainsStep, CrossesStep, TouchesStep
+from app.bl.plan.models.contains_step import ContainsStep
+from app.bl.plan.models.crosses_step import CrossesStep
+from app.bl.plan.models.touches_step import TouchesStep
 
 
 def _empty_like(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
