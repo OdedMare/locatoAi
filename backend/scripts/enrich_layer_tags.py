@@ -20,7 +20,7 @@ import sys
 import psycopg
 
 from app.common.config import get_settings
-from app.common.runtime_settings import RuntimeSettingsStore
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.mqs import MqsProvider
