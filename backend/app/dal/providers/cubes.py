@@ -373,12 +373,11 @@ class CubesProvider:
         rows = self._post_rows(
             client, path, _query_body(
                 geometry, parameters, now, temporal_range, query_mode))
-        if requested_limit is not None or len(rows) < results_limit:
+        if requested_limit is not None or len(rows) < results_limit or geometry is None:
+            # Capped with no boundary to chunk by (or an explicit small
+            # limit already satisfied): return whatever Cubes gave back.
+            # There is no pagination in this API to fetch the remainder.
             return rows
-        if geometry is None:
-            raise ProviderError(
-                f"Cubes reached its {results_limit} result limit without a boundary"
-            )
         logger.info("Cubes result cap reached; splitting boundary into chunks")
         return self._fetch_spatial_chunks(
             client, path, parameters, geometry, results_limit, now,

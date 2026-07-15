@@ -313,7 +313,9 @@ def test_result_limit_adaptively_chunks_boundary_and_deduplicates(tmp_path):
     assert len([request for request in requests if request.method == "POST"]) == 5
 
 
-def test_capped_result_without_boundary_fails_instead_of_truncating(tmp_path):
+def test_capped_result_without_boundary_returns_rows_as_is(tmp_path):
+    """No boundary means there's nothing to chunk by, and Cubes has no
+    pagination — a capped response is returned as-is rather than an error."""
     provider, handler = make_provider(tmp_path, [record("one"), record("two")])
 
     def metadata_handler(request):
@@ -326,8 +328,8 @@ def test_capped_result_without_boundary_fails_instead_of_truncating(tmp_path):
 
     provider._transport = httpx.MockTransport(metadata_handler)
 
-    with pytest.raises(ProviderError, match="result limit without a boundary"):
-        provider.fetch_features(layer())
+    features = provider.fetch_features(layer())
+    assert set(features["id"]) == {"one", "two"}
 
 
 def test_sample_field_values(tmp_path):
