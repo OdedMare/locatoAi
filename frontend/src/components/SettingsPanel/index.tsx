@@ -32,6 +32,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [cubesBaseUrl, setCubesBaseUrl] = useState("");
   const [cubesToken, setCubesToken] = useState("");
   const [cubesVerifyTls, setCubesVerifyTls] = useState(true);
+  const [tycheBaseUrl, setTycheBaseUrl] = useState("");
+  const [tycheUsername, setTycheUsername] = useState("");
+  const [tycheToken, setTycheToken] = useState("");
+  const [tycheVerifyTls, setTycheVerifyTls] = useState(true);
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databaseUser, setDatabaseUser] = useState("");
   const [databasePassword, setDatabasePassword] = useState("");
@@ -72,6 +76,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setMqsVerifyTls(s.mqs_verify_tls);
         setCubesBaseUrl(s.cubes_base_url ?? "");
         setCubesVerifyTls(s.cubes_verify_tls);
+        setTycheBaseUrl(s.tyche_base_url ?? "");
+        setTycheUsername(s.tyche_username ?? "");
+        setTycheVerifyTls(s.tyche_verify_tls);
         setDatabaseUrl(s.database_url ?? "");
         setDatabaseUser(s.database_user ?? "");
         setDatabaseHost(s.database_host ?? "");
@@ -102,6 +109,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         cubes_base_url: (cubesBaseUrl ?? "").trim() === "" ? null : (cubesBaseUrl ?? "").trim(),
         cubes_token: cubesToken, // backend ignores empty
         cubes_verify_tls: cubesVerifyTls,
+        tyche_base_url: (tycheBaseUrl ?? "").trim() === "" ? null : (tycheBaseUrl ?? "").trim(),
+        tyche_username: (tycheUsername ?? "").trim() === "" ? null : (tycheUsername ?? "").trim(),
+        tyche_token: tycheToken, // backend ignores empty
+        tyche_verify_tls: tycheVerifyTls,
         database_url: databaseUrl,
         database_user: (databaseUser ?? "").trim(),
         database_password: databasePassword, // backend ignores empty
@@ -114,6 +125,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       setSettings(saved);
       setApiKey("");
       setCubesToken("");
+      setTycheToken("");
       setDatabasePassword("");
       setMessage("נשמר ✓");
     } catch (err) {
@@ -236,6 +248,54 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           </label>
           <p className="models-status" dir="auto">
             שכבת קטלוג: provider=cubes, source_url=cubes://db/&lt;dbname&gt;
+          </p>
+        </section>
+
+        <section className="settings-section">
+          <h3>שרת Tyche</h3>
+          <label className="field-label" htmlFor="set-tyche-url">
+            כתובת בסיס Tyche{" "}
+            <span className="optional">(ללא ‎/coordinate/v1/ourforces; ריק = ספק לא פעיל)</span>
+          </label>
+          <input
+            id="set-tyche-url"
+            dir="ltr"
+            className="settings-input"
+            placeholder="https://tyche.example/api"
+            value={tycheBaseUrl}
+            onChange={(e) => setTycheBaseUrl(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-tyche-username">
+            username header
+          </label>
+          <input
+            id="set-tyche-username"
+            dir="ltr"
+            className="settings-input"
+            placeholder="network username"
+            value={tycheUsername}
+            onChange={(e) => setTycheUsername(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-tyche-token">
+            Authorization token
+            {settings?.tyche_token_set && <span className="key-hint"> (נשמר)</span>}
+          </label>
+          <input
+            id="set-tyche-token"
+            dir="ltr"
+            type="password"
+            className="settings-input"
+            placeholder={settings?.tyche_token_set ? "השאירו ריק כדי לשמור" : "Bearer …"}
+            value={tycheToken}
+            onChange={(e) => setTycheToken(e.target.value)}
+          />
+          <label className="field-label">
+            <input type="checkbox" checked={tycheVerifyTls}
+              onChange={(e) => setTycheVerifyTls(e.target.checked)} />
+            אימות תעודת TLS
+          </label>
+          <p className="models-status" dir="auto">
+            שכבת קטלוג: provider=tyche, source_url=tyche://ourforces
           </p>
         </section>
 

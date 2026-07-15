@@ -51,6 +51,8 @@ def _normalized_source(
         if "://" not in source:
             source = f"cubes://db/{source.strip('/')}"
         return _with_cubes_mode(source, cubes_query_mode)
+    if provider.strip().lower() == "tyche" and "://" not in source:
+        return f"tyche://{source.strip('/')}"
     return source
 
 

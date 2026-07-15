@@ -8,6 +8,7 @@ from app.common.runtime_settings.normalizers import (
     normalize_database_url,
     normalize_llm_base_url,
     normalize_mqs_base_url,
+    normalize_tyche_base_url,
     validate_layers_table,
 )
 from app.common.runtime_settings.runtime_settings import RuntimeSettings
@@ -15,7 +16,7 @@ from app.common.runtime_settings.runtime_settings import RuntimeSettings
 # Fields where None/empty means "clear the value", not "keep current".
 _NULLABLE = (
     "database_port", "llm_base_url", "mqs_base_url", "mqs_user_id",
-    "cubes_base_url",
+    "cubes_base_url", "tyche_base_url", "tyche_username",
 )
 
 
@@ -33,6 +34,10 @@ class RuntimeSettingsStore:
             cubes_base_url=env.cubes_base_url,
             cubes_token=env.cubes_token,
             cubes_verify_tls=env.cubes_verify_tls,
+            tyche_base_url=env.tyche_base_url,
+            tyche_username=env.tyche_username,
+            tyche_token=env.tyche_token,
+            tyche_verify_tls=env.tyche_verify_tls,
             database_url=env.database_url,
             database_user=env.database_user,
             database_password=env.database_password,
@@ -80,6 +85,8 @@ class RuntimeSettingsStore:
                     value = normalize_mqs_base_url(value)
                 elif key == "cubes_base_url":
                     value = normalize_cubes_base_url(value)
+                elif key == "tyche_base_url":
+                    value = normalize_tyche_base_url(value)
             except ValueError:
                 if strict:
                     raise

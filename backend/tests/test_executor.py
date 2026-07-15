@@ -510,10 +510,14 @@ def test_temporal_filter_yesterday(executor, frozen_now):
     assert len(result) == 5
 
 
-def test_temporal_range_pushdown_is_cubes_only(frozen_now):
+@pytest.mark.parametrize("provider_name", ["cubes", "tyche"])
+def test_temporal_range_pushdown_reaches_temporal_providers(
+    frozen_now, provider_name,
+):
     cube_layer = LayerMeta(
-        id="moving", name="moving", provider="cubes",
-        source_url="cubes://db/moving",
+        id="moving", name="moving", provider=provider_name,
+        source_url=("cubes://db/moving" if provider_name == "cubes"
+                    else "tyche://ourforces"),
     )
     catalog, providers, cubes = Mock(), Mock(), Mock()
     catalog.get_layer.return_value = cube_layer

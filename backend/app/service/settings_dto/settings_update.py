@@ -14,6 +14,10 @@ class SettingsUpdate(BaseModel):
     cubes_base_url: Optional[str] = None
     cubes_token: Optional[str] = None  # empty/omitted = keep current
     cubes_verify_tls: Optional[bool] = None
+    tyche_base_url: Optional[str] = None
+    tyche_username: Optional[str] = None
+    tyche_token: Optional[str] = None  # empty/omitted = keep current
+    tyche_verify_tls: Optional[bool] = None
     database_url: Optional[str] = None
     database_user: Optional[str] = None
     database_password: Optional[str] = None  # empty/omitted = keep current

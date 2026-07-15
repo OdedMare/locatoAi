@@ -638,7 +638,7 @@ def test_full_moria_layer_object_is_normalized(tmp_path):
             "display_name": "בניינים",
             "name": "B_BUILDINGS",
             "layer_id": "614",
-            "layer_entities_link": "https://mqs-gs.dom9900.aman.idf/MQS/MoriaProject/614/Entities",
+            "layer_entities_link": "https://basef/MQS/MoriaProject/614/Entities",
         }],
     })
     layers, skipped = browse_mqs_layers(provider)

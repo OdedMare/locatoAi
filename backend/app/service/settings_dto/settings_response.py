@@ -17,6 +17,10 @@ class SettingsResponse(BaseModel):
     cubes_base_url: Optional[str]
     cubes_token_set: bool
     cubes_verify_tls: bool
+    tyche_base_url: Optional[str]
+    tyche_username: Optional[str]
+    tyche_token_set: bool
+    tyche_verify_tls: bool
     database_url: str
     database_user: str
     database_password_set: bool

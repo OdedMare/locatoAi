@@ -301,9 +301,13 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
               />
             </div>
             <label className="field-label" htmlFor="layer-source-url">
-              {provider.trim().toLowerCase() === "cubes" ? "שם Cube / database" : "כתובת המקור"}
+              {provider.trim().toLowerCase() === "cubes"
+                ? "שם Cube / database"
+                : provider.trim().toLowerCase() === "tyche"
+                  ? "מקור Tyche"
+                  : "כתובת המקור"}
             </label>
-            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : "https://provider.example/layer"} dir="ltr" />
+            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : provider.trim().toLowerCase() === "tyche" ? "ourforces (or tyche://ourforces)" : "https://provider.example/layer"} dir="ltr" />
             {provider.trim().toLowerCase() === "cubes" && (
               <fieldset className="cubes-query-mode">
                 <legend>מבנה שאילתת זמן וגיאוגרפיה</legend>

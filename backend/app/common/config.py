@@ -73,6 +73,17 @@ class Settings(BaseSettings):
 
     cubes_verify_tls: bool = True
 
+    tyche_base_url: Optional[str] = None
+    """Base URL hosting POST /coordinate/v1/ourforces."""
+
+    tyche_username: Optional[str] = None
+    """Value of Tyche's required ``username`` request header."""
+
+    tyche_token: str = ""
+    """Authorization header value for Tyche. Never returned by the API."""
+
+    tyche_verify_tls: bool = True
+
     runtime_settings_file: str = "runtime-settings.json"
     """UI-edited settings are persisted here, overriding the env defaults."""
 

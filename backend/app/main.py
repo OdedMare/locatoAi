@@ -28,6 +28,7 @@ from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.cubes import CubesProvider
 from app.dal.providers.mqs import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
+from app.dal.providers.tyche import TycheProvider
 from app.service import (
     agent_router,
     catalog_router,
@@ -71,6 +72,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     )
     providers.register("mqs", mqs_provider)
     providers.register("cubes", CubesProvider(settings_store))
+    providers.register("tyche", TycheProvider(settings_store))
 
     catalog = CatalogService(
         repository, providers, schema_ttl_seconds=settings.schema_cache_ttl_seconds

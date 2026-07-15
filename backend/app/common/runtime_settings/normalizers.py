@@ -49,6 +49,19 @@ def normalize_cubes_base_url(url: str) -> str:
     return cleaned.rstrip("/")
 
 
+def normalize_tyche_base_url(url: str) -> str:
+    cleaned = url.strip().rstrip("/")
+    suffix = "/coordinate/v1/ourforces"
+    if cleaned.lower().endswith(suffix):
+        cleaned = cleaned[: -len(suffix)]
+    if not cleaned.lower().startswith(("http://", "https://")):
+        raise ValueError(
+            "tyche_base_url must start with http:// or https:// "
+            "(e.g. https://tyche.example/api)"
+        )
+    return cleaned.rstrip("/")
+
+
 def normalize_database_url(url: str) -> str:
     cleaned = _JDBC_PREFIX.sub("", url.strip())
     if not cleaned.lower().startswith(_PG_SCHEMES):

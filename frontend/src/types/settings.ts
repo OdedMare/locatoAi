@@ -19,6 +19,10 @@ export interface AppSettings {
   cubes_base_url: string | null;
   cubes_token_set: boolean;
   cubes_verify_tls: boolean;
+  tyche_base_url: string | null;
+  tyche_username: string | null;
+  tyche_token_set: boolean;
+  tyche_verify_tls: boolean;
   database_url: string;
   database_user: string;
   database_password_set: boolean;
@@ -42,6 +46,10 @@ export interface SettingsUpdate {
   cubes_base_url?: string | null;
   cubes_token?: string;
   cubes_verify_tls?: boolean;
+  tyche_base_url?: string | null;
+  tyche_username?: string | null;
+  tyche_token?: string;
+  tyche_verify_tls?: boolean;
   database_url?: string;
   database_user?: string;
   database_password?: string;

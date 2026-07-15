@@ -44,14 +44,16 @@ class ExecutionContext:
         if geometry is None and push_down_geometry:
             geometry = self.user_geometry
         layer = self.catalog.get_layer(layer_id)
-        cube_range = temporal_range if layer.provider == "cubes" else None
-        cache_key = self._cache_key(layer_id, geometry, cube_range)
+        provider_range = (
+            temporal_range if layer.provider in ("cubes", "tyche") else None
+        )
+        cache_key = self._cache_key(layer_id, geometry, provider_range)
         if cache_key in self.feature_cache:
             return self.feature_cache[cache_key]
         provider = self.providers.get(layer.provider)
         options = {"now": self.now, "geometry": geometry}
-        if cube_range is not None:
-            options["temporal_range"] = cube_range
+        if provider_range is not None:
+            options["temporal_range"] = provider_range
         gdf = provider.fetch_features(layer, **options)
         gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
         self.feature_cache[cache_key] = gdf

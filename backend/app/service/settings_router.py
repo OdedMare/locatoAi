@@ -54,6 +54,10 @@ def _to_response(
         cubes_base_url=settings.cubes_base_url,
         cubes_token_set=bool(settings.cubes_token),
         cubes_verify_tls=settings.cubes_verify_tls,
+        tyche_base_url=settings.tyche_base_url,
+        tyche_username=settings.tyche_username,
+        tyche_token_set=bool(settings.tyche_token),
+        tyche_verify_tls=settings.tyche_verify_tls,
         database_url=_mask_db_password(settings.database_url),
         database_user=settings.database_user,
         database_password_set=bool(settings.database_password),
@@ -82,6 +86,8 @@ def update_settings(body: SettingsUpdate, request: Request) -> SettingsResponse:
         patch.pop("database_password")  # empty = keep existing password
     if patch.get("cubes_token") == "":
         patch.pop("cubes_token")  # empty = keep existing token
+    if patch.get("tyche_token") == "":
+        patch.pop("tyche_token")  # empty = keep existing token
     if not (patch.get("llm_model") or "").strip() and "llm_model" in patch:
         patch.pop("llm_model")  # a model is always required — keep existing
     try:

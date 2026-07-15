@@ -149,6 +149,29 @@ def test_cubes_settings_normalize_persist_and_clear(tmp_path):
     assert reloaded.get().cubes_base_url is None
 
 
+def test_tyche_settings_normalize_persist_and_clear(tmp_path):
+    store = make_store(tmp_path)
+    store.update({
+        "tyche_base_url": "https://tyche.example/api/coordinate/v1/ourforces/",
+        "tyche_username": "oded",
+        "tyche_token": "Bearer secret",
+        "tyche_verify_tls": False,
+    })
+    reloaded = make_store(tmp_path)
+    assert reloaded.get().tyche_base_url == "https://tyche.example/api"
+    assert reloaded.get().tyche_username == "oded"
+    assert reloaded.get().tyche_token == "Bearer secret"
+    assert reloaded.get().tyche_verify_tls is False
+    reloaded.update({"tyche_base_url": None})
+    assert reloaded.get().tyche_base_url is None
+
+
+def test_tyche_base_url_requires_scheme(tmp_path):
+    store = make_store(tmp_path)
+    with pytest.raises(ValueError, match="http"):
+        store.update({"tyche_base_url": "tyche.example/api"})
+
+
 def test_bad_saved_database_url_skipped_on_startup(tmp_path):
     store = make_store(tmp_path)
     # simulate a bad value persisted by an older version

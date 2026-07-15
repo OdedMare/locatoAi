@@ -73,6 +73,7 @@ app/
 │   ├── providers/
 │   │   ├── mqs.py           # MQS REST adapter + property_list enrichment
 │   │   ├── cubes.py         # generic Cubes time-varying POINT adapter
+│   │   ├── tyche.py         # Tyche Our Forces time/geometry query adapter
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
 │       └── openai_client.py # OpenAI-compatible JSON-mode client (Ollama/Gemma today)
@@ -104,8 +105,9 @@ The service tier exposes these routes:
 | `POST /api/models` | Probe models using unsaved URL/key overrides. |
 | `POST /api/feedback` | Persist a thumbs verdict and selection context. |
 
-`main.py` creates the settings store, repositories, provider registry, MQS
-provider, catalog, executor, LLM client, both agent stages, and orchestrator.
+`main.py` creates the settings store, repositories, provider registry, MQS,
+Cubes and Tyche providers, catalog, executor, LLM client, both agent stages,
+and orchestrator.
 These long-lived objects are attached to `app.state`; routers retrieve them
 directly or through `service/deps.py`.
 
@@ -275,7 +277,7 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 
 The catalog's `provider` column routes each layer to a registered adapter
 ([`registry.py`](app/dal/providers/registry.py), wired in `main.py`). **Production
-registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
+registers `mqs`, `cubes`, and `tyche`** — `arcgis` is not a real provider anymore.
 
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
@@ -329,6 +331,25 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   name/description, fields, request parameters/options, and entity samples to editable
   description/tag generation.
 
+- **`tyche`** — [`tyche.py`](app/dal/providers/tyche.py): the Our Forces API at
+  `POST /coordinate/v1/ourforces`. Catalog rows use
+  `source_url="tyche://ourforces"`; the live base URL, `username` header,
+  write-only `Authorization` token, and TLS verification setting are read on
+  every request. The adapter is request-scoped and stores no entity mirror.
+  Every fetch sends Tyche's required `eventTime.match.gte/lte` values in
+  `YYYY-MM-DD HH:mm:ss.SSS` format. An explicit plan `temporal_filter` is pushed
+  into that request; otherwise the provider asks for the hour ending at the
+  executor's current time. A WGS84 request boundary is sent as the documented
+  `location` object with polygon WKT and is rechecked locally for correctness.
+  The supplied ReDoc extract omitted the inner `location` schema, so its inferred
+  `{ "match": "<WKT>" }` encoding is intentionally isolated in
+  `_location_filter` for a one-line adjustment against the full OpenAPI schema.
+  Responses accept WKT, GeoJSON objects/strings, nested geometry values, and
+  longitude/latitude objects, preserving the parsed value as the GeoDataFrame
+  geometry. The provider follows `hasMoreResults`/`pageTracker`, requests only
+  the remaining rows for bounded samples, deduplicates event IDs, rejects broken
+  or repeated paging tokens, and stops at a 100,000-row safety ceiling.
+
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —
 re-syncs update name/description in place and **preserve tags** (rerun
@@ -362,7 +383,8 @@ value, GET responses expose only presence or masked hints, and the full values
 remain in the backend runtime settings file.
 
 Every deployable setting has an environment default; see [`.env.example`](.env.example).
-UI values remain live overrides. MQS and Cubes verify TLS certificates by default.
+UI values remain live overrides. MQS, Cubes, and Tyche verify TLS certificates by
+default. Cubes and Tyche Authorization tokens have write-only API/UI semantics.
 
 ---
 
