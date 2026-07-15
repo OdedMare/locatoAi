@@ -4,15 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="97cf71f2-a071-4ef9-bd37-67c59df4c0a2" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/backend/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/bl/query_orchestrator/query_orchestrator.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/query_orchestrator/query_orchestrator.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/dal/providers/cubes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/dal/providers/cubes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/scripts/eval_select_layers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/scripts/eval_select_layers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/test_cubes_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_cubes_provider.py" afterDir="false" />
-    </list>
+    <list default="true" id="97cf71f2-a071-4ef9-bd37-67c59df4c0a2" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
