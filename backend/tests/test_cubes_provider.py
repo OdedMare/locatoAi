@@ -347,9 +347,11 @@ def test_capped_result_without_boundary_chunks_by_time_window(tmp_path):
         requests.append(request)
         if request.method == "GET":
             return httpx.Response(200, json={
-                "ResultsLimit": 1, "Parameters": [], "Fields": [],
+                "ResultsLimit": 2, "Parameters": [], "Fields": [],
             })
         window = json.loads(request.content)["eventTime.match"]
+        if window["From"] == full_from and window["To"] == full_to:
+            return httpx.Response(200, json=rows)  # full range: capped at 2
         # First half of the day → "morning", second half → "evening".
         if window["To"] <= "2024-11-26T12:00:00.000Z":
             matching = [rows[0]]

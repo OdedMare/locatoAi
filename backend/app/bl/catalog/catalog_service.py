@@ -68,7 +68,8 @@ class CatalogService:
             if cached is not None:  # stale beats failed
                 return cached[0]
             raise ProviderError(
-                f"Provider '{layer.provider}' failed to describe layer {layer_id}"
+                f"Provider '{layer.provider}' failed to describe layer "
+                f"{layer_id}: {exc}"
             ) from exc
 
         self._schema_cache[layer_id] = (schema, time.monotonic())
