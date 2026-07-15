@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
@@ -116,6 +117,48 @@ def test_snapshot_skips_detail_for_unchanged_history(tmp_path):
     detail_paths = [request.url.path for request in handler.requests
                     if not request.url.path.endswith("/Entities")]
     assert detail_paths == ["/MoriaProject/42/Entities/G2"]
+
+
+def test_snapshot_prefers_full_data_endpoint_and_avoids_detail_calls(tmp_path):
+    full = entity("G1", property_list={"name": "full-data"})
+
+    def responses(request):
+        if request.url.path != "/Data/MoriaProject/42/Entities":
+            raise AssertionError("full data must not require entity detail")
+        return {"next_page": None, "entities_list": [full]}
+
+    mirror = FakeMirror()
+    provider, handler = _provider(tmp_path, responses, mirror)
+
+    assert provider.sync_layer_to_mirror(mqs_layer(), mirror, 100) == 1
+    request = handler.requests[0]
+    assert request.method == "POST"
+    assert dict(request.url.params) == {
+        "from": "0", "to": "10000", "geo_type": "wkt",
+        "result_type": "data",
+    }
+    match = json.loads(request.content)["filter"]["simple_operators"]["match"]
+    assert match["IS_DELETED"] == {"type": "IN", "values": [False]}
+    assert mirror.upserted[0]["property_list"]["name"] == "full-data"
+
+
+def test_snapshot_falls_back_when_full_data_endpoint_is_unsupported(tmp_path):
+    full = entity("G1", property_list={"name": "legacy"})
+
+    def responses(request):
+        if request.url.path.startswith("/Data/"):
+            return httpx.Response(404)
+        return {"next_page": None, "entities_list": [full]}
+
+    mirror = FakeMirror()
+    provider, handler = _provider(tmp_path, responses, mirror)
+
+    assert provider.sync_layer_to_mirror(mqs_layer(), mirror, 100) == 1
+    assert provider.sync_layer_to_mirror(mqs_layer(), mirror, 100) == 1
+    assert [request.url.path for request in handler.requests] == [
+        "/Data/MoriaProject/42/Entities", "/MoriaProject/42/Entities",
+        "/MoriaProject/42/Entities",
+    ]
 
 
 def _complete_snapshot(store, layer_id, entities):

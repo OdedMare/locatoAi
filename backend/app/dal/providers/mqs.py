@@ -81,6 +81,7 @@ logger = logging.getLogger(__name__)
 _TIMEOUT_SECONDS = 30
 _MAX_FEATURES = 50000
 _PAGE_SIZE = 10000  # matches the doc's default `to` value
+_DATA_STORE_NAME = "MoriaProject"
 
 # Same truncation policy as the mock provider: sample values are untrusted
 # text that ends up in LLM prompts.
@@ -345,6 +346,18 @@ def _geometry_filter_body(geometry: BaseGeometry) -> dict:
     }
 
 
+def _replication_filter_body() -> dict:
+    return {
+        "filter": {
+            "simple_operators": {
+                "match": {
+                    "IS_DELETED": {"type": "IN", "values": [False]}
+                }
+            }
+        }
+    }
+
+
 def _ensure_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """MQS WKT is assumed WGS84 lon/lat (per the doc's note to confirm the
     SRID with the service owner). If a live instance turns out to serve
@@ -377,6 +390,7 @@ class MqsProvider:
         self._transport = transport  # tests inject httpx.MockTransport
         self._mirror = mirror
         self._detail_concurrency = max(1, detail_concurrency)
+        self._data_endpoint_support: Dict[str, bool] = {}
 
     # -- Provider protocol ---------------------------------------------------
 
@@ -520,12 +534,43 @@ class MqsProvider:
     def _sync_snapshot(self, layer_id, run_id, mirror, batch_size):
         count = 0
         with self._client() as client:
-            entities = self._iter_all_entities(
-                client, layer_id, max_features=None)
+            entities = self._iter_snapshot_entities(client, layer_id)
             for batch in self._batched(entities, batch_size):
                 self._sync_batch(client, layer_id, run_id, mirror, batch)
                 count += len(batch)
         return count
+
+    def _iter_snapshot_entities(self, client, layer_id):
+        if self._data_endpoint_support.get(layer_id) is False:
+            yield from self._iter_all_entities(
+                client, layer_id, max_features=None)
+            return
+        params = self._data_page_params()
+        fetched = False
+        while True:
+            page = self._data_entities_page(client, layer_id, params)
+            if page is None and not fetched:
+                self._data_endpoint_support[layer_id] = False
+                yield from self._iter_all_entities(
+                    client, layer_id, max_features=None)
+                return
+            if page is None:
+                raise ProviderError("MQS Data endpoint disappeared during pagination")
+            self._data_endpoint_support[layer_id] = True
+            entities, next_page = page
+            fetched = True
+            yield from entities
+            if next_page is None:
+                return
+            params = self._data_page_params(self._next_page_params(next_page))
+
+    @staticmethod
+    def _data_page_params(values: Optional[dict] = None) -> dict:
+        params = {"from": 0, "to": _PAGE_SIZE}
+        params.update(values or {})
+        params["geo_type"] = "wkt"
+        params["result_type"] = "data"
+        return params
 
     def _sync_batch(self, client, layer_id, run_id, mirror, batch):
         versions = [(_entity_id(item), _history_id(item)) for item in batch]
@@ -678,6 +723,26 @@ class MqsProvider:
             )
         next_page = payload.get("next_page") if isinstance(payload, dict) else None
         return entities, (next_page if isinstance(next_page, str) and next_page else None)
+
+    def _data_entities_page(self, client, layer_id, params):
+        path = f"/Data/{_DATA_STORE_NAME}/{layer_id}/Entities"
+        try:
+            response = client.post(path, json=_replication_filter_body(), params=params)
+            logger.info("MQS POST %s -> %s", response.request.url,
+                        response.status_code)
+            if response.status_code in (404, 405):
+                return None
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"MQS request failed ({path}): {exc}")
+        except ValueError as exc:
+            raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
+        entities = _find_list(payload, _ENTITY_LIST_KEYS)
+        if entities is None:
+            raise ProviderError(f"MQS layer {layer_id} returned invalid Data response")
+        next_page = payload.get("next_page") if isinstance(payload, dict) else None
+        return entities, next_page if isinstance(next_page, str) and next_page else None
 
     @staticmethod
     def _next_page_params(next_page_url: str) -> dict:

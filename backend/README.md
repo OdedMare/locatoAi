@@ -273,10 +273,12 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
   unset means the provider errors with a clear message → HTTP 502). A background
-  `MqsMirrorWorker` scans list pages in chunks and keeps current entities in compressed
-  process memory with an immutable Shapely STRtree per completed layer snapshot.
-  `history_id` equality lets subsequent scans mark unchanged rows without repeating
-  their detail request; changed details are fetched concurrently with a bounded pool.
+  `MqsMirrorWorker` scans full-data pages in chunks and keeps current entities in compressed
+  process memory with an immutable Shapely STRtree per completed layer snapshot. Refresh
+  prefers `POST /Data/MoriaProject/{id}/Entities` with `result_type=data`, `geo_type=wkt`,
+  and `IS_DELETED=false`; 404/405 falls back to the legacy list endpoint.
+  Full-data rows that include `property_list` require no detail request. On legacy fallback,
+  `history_id` equality avoids unchanged details and changed details use a bounded pool.
   Atomic per-layer snapshots isolate concurrent activity. Runtime reads always use the
   latest completed snapshot while the next one is built. Snapshot age is still measured
   against the configured 30-second target, but stale data never triggers a heavy live-MQS
@@ -305,9 +307,9 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   operation to avoid loading two large changed batches simultaneously; completed layers
   remain concurrently queryable.
   The `AILOCATOR_MQS_MIRROR_*` and `AILOCATOR_MQS_DETAIL_CONCURRENCY` settings are listed
-  in `.env.example`. A true MQS change feed would remove the remaining full list scan; until
-  such an endpoint exists, the worker scans summaries but fetches details only for new or
-  changed history versions.
+  in `.env.example`. Replication diff can remove the remaining full page scan once its exact
+  cursor/header contract is available; the current full-data endpoint already removes the
+  normal per-entity detail fan-out.
 
 - **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider

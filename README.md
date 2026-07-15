@@ -167,11 +167,11 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer inside the backend process in chunked snapshots. It compares the list response's `history_id` with the stored version, so unchanged entities avoid another detail request; changed details are fetched with bounded concurrency. Entity JSON is compressed and each completed snapshot has an immutable Shapely STRtree, preventing full layers from being scanned or expanded into GeoDataFrames. Queries always read the latest completed snapshot while refresh continues in the background; the 30-second value is a monitored freshness target, not a trigger for live fallback. Spatial boundaries are indexed and rechecked locally, and bounded `near` targets use the request boundary expanded by the requested distance.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer inside the backend process in chunked snapshots. Refresh prefers the full-data `/Data/MoriaProject/<id>/Entities` endpoint with WKT output and excludes deleted rows. Complete rows avoid per-entity detail calls; unsupported servers fall back to the legacy list/detail flow with `history_id` change checks. Entity JSON is compressed and each completed snapshot has an immutable Shapely STRtree, preventing full layers from being scanned or expanded into GeoDataFrames. Queries always read the latest completed snapshot while refresh continues in the background; the 30-second value is a monitored freshness target, not a trigger for live fallback. Spatial boundaries are indexed and rechecked locally, and bounded `near` targets use the request boundary expanded by the requested distance.
 
 The entity mirror makes no SQL connection and creates no additional tables. It is rebuilt
-after a backend restart. Bootstrap still scans all list pages; after bootstrap, only
-changed `history_id` values require detail requests. The mirror settings
+after a backend restart. Bootstrap still scans full-data pages, but normally needs no
+detail fan-out; legacy fallback fetches details only for changed `history_id` values. The mirror settings
 (`enabled`, interval, staleness, batch size, layer concurrency, and detail concurrency)
 are exposed through `AILOCATOR_MQS_*` environment variables in `backend/.env.example`.
 `GET /api/mqs-mirror/status` reports the entity count, active run, last error, lag,
@@ -296,4 +296,4 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 - Runtime settings persist to a local JSON file and are not multi-user settings.
 - There is no streaming progress channel; the UI shows a single loading phase.
 - The production provider registry registers MQS and Cubes only. Test providers and fixtures live outside `backend/app` and are excluded from the image.
-- MQS performs one detail request per returned entity for `property_list`; high-volume production needs batching or a richer list endpoint.
+- MQS replication diff is not wired yet, so refresh still traverses full-data pages even though it no longer normally performs per-entity detail calls.
