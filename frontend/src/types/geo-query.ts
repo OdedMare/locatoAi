@@ -129,7 +129,7 @@ export interface GeoQueryResponse {
 }
 
 export interface PipelineTraceEntry {
-  stage: "layer_selection" | "plan_building" | "plan_validation" | "execute_step" | "response";
+  stage: "layer_selection" | "plan_building" | "plan_validation" | "execute_step" | "zero_result_diagnosis" | "response";
   status: "completed" | "clarify" | "error";
   duration_ms?: number;
   explanation?: string | null;

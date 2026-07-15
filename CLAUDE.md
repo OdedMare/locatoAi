@@ -11,6 +11,8 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 
 **Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS enriches entities from `property_list`; Cubes infers arbitrary JSON schemas and WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Known scaling risk:** MQS performs one detail request per entity. **Next candidates:** batched detail retrieval, multi-turn clarification, client timezone, and SSE streaming.
 
+**Agent loop:** planning has up to three `sample_field` calls and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, `netId` identity, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool.
+
 ## Commands
 
 ```bash

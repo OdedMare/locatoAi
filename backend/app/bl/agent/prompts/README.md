@@ -41,6 +41,10 @@ The model may return a `sample_field` tool request to inspect additional distinc
 
 The final response must be either a plan matching `GeoQueryPlan` or a short Hebrew clarification. Invalid plans receive one correction attempt containing a bounded validation error and the rejected JSON.
 
+After deterministic execution, zero rows may invoke the planner once more with the
+previous plan. The revision must pass normal validation and the code-level
+constraint-preservation gate before one re-execution.
+
 ### `generate_layer_metadata.md`
 
 Used while a user prepares a catalog layer. The backend fetches the source through

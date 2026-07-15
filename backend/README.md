@@ -214,6 +214,15 @@ usage, tool calls, and `pipeline_trace`: safe stage/step metadata with durations
 counts, parameters, and statuses (not private model chain-of-thought). Routers write structured request events, while user votes
 go to the configured PostgreSQL feedback table.
 
+### Bounded agent loop
+
+The planner can sample fields up to three times and correct one invalid plan.
+Execution exposes deterministic per-step row counts. Zero rows permit exactly one
+tool-assisted diagnosis, revised plan, and re-execution. `preserves_constraints`
+rejects revisions that remove or widen time, distance, geography, count, target,
+attribute, identity, or movement constraints. The agent has no SQL, arbitrary HTTP,
+or unbounded-loop capability.
+
 ## The agent
 
 **Call 1 — layer selection (live).** The catalog (25+ Hebrew layers from Postgres:

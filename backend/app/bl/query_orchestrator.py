@@ -142,10 +142,32 @@ class QueryOrchestrator:
             build.plan, user_geometry=boundaries, now=now
         )
         timer.mark("execute")
+        plan = build.plan
+        trace = [selection_trace, planning_trace, *result.step_traces]
+        if len(result.features) == 0:
+            revised = self._builder.replan_after_empty(
+                query, selection.layers, plan, boundaries is not None, now
+            )
+            usage = _sum_usage(usage, revised.token_usage)
+            build.tool_calls.extend(revised.tool_calls)
+            trace.append({
+                "stage": "zero_result_diagnosis",
+                "status": "completed" if revised.plan else "clarify",
+                "attempts": revised.attempts,
+                "tool_calls": revised.tool_calls,
+                "explanation": revised.plan.explanation if revised.plan else revised.clarify,
+            })
+            if revised.plan is not None:
+                plan = revised.plan
+                result = self._executor.execute_detailed(
+                    plan, user_geometry=boundaries, now=now
+                )
+                timer.mark("re_execute")
+                trace.extend(result.step_traces)
 
         return QueryOutcome(
             status="ok",
-            plan=build.plan,
+            plan=plan,
             features=result.features,
             scalar_result=result.scalar_result,
             timing_ms=timer.timing,
@@ -154,9 +176,7 @@ class QueryOrchestrator:
             reasoning=selection.reasoning,
             tool_calls=build.tool_calls,
             pipeline_trace=[
-                selection_trace,
-                planning_trace,
-                *result.step_traces,
+                *trace,
                 {
                     "stage": "response",
                     "status": "completed",

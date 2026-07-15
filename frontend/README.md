@@ -108,7 +108,7 @@ The chat-style left workspace. It composes navigation, welcome/conversation stat
 
 ### `AgentTrace`
 
-The explainability surface. It displays a safe operational timeline (selection, planning, each execution step, and response), selected catalog layers and tags, layer-selection reasoning, plan steps translated into Hebrew, `sample_field` calls, timings, aggregate token usage, and feedback controls. The timeline is execution metadata, not private model chain-of-thought.
+The explainability surface. It displays a safe operational timeline (selection, planning, execution, optional zero-result diagnosis/replan, and response), selected layers, reasoning, plan steps, tool calls, timings, token usage, and feedback. This is operational metadata, not private chain-of-thought.
 
 ### `ResultsPanel`
 

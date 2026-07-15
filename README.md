@@ -73,8 +73,8 @@ locatoAi/
 5. FastAPI validates the transport DTO and converts a boundary to a Shapely geometry.
 6. `LayerSelector` reads layer metadata from the PostgreSQL catalog, sanitizes it, and asks the configured model to return known layer IDs or a short Hebrew clarification.
 7. `PlanBuilder` obtains provider schemas and sample values for the selected layers. The model may request up to three additional `sample_field` rounds.
-8. The model returns a `GeoQueryPlan`. Pydantic validates its shape; semantic validation checks references, catalog IDs, boundary use, and terminal count rules. An invalid model response gets one correction attempt.
-9. `PlanExecutor` runs the steps in order. It resolves features through a provider registry and dispatches each operation through an operation registry.
+8. The model returns a `GeoQueryPlan`. Shape and semantic errors are fed back for one bounded correction.
+9. The executor records per-step counts. Zero rows permit one tool-assisted diagnosis and replan; code rejects any revision that removes or widens an original user constraint before re-execution.
 10. The backend returns GeoJSON features and an optional `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans keep the geometries that were counted.
 11. The frontend shows the pipeline timeline, agent trace, and results. GeoJSON is drawn with Leaflet and the map fits the result bounds.
 12. A thumbs-up/down vote posts the selection context to the configurable PostgreSQL feedback table.
@@ -127,6 +127,7 @@ The common response includes:
 - `timing_ms`: select, plan, and execute stage timings.
 - `token_usage`: summed usage from model calls when the provider reports it.
 - `pipeline_trace`: safe operational events for layer selection, planning, every executor step, and response assembly (not private chain-of-thought).
+- Zero-result runs may include `zero_result_diagnosis`, revised tool calls, and one second execution trace.
 
 ### GeoQueryPlan
 

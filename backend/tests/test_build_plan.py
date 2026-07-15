@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
-from app.bl.agent.build_plan import _FALLBACK_CLARIFY, PlanBuilder
+from app.bl.agent.build_plan import _FALLBACK_CLARIFY, PlanBuilder, preserves_constraints
+from app.bl.plan.models import GeoQueryPlan
 from app.bl.query_orchestrator import QueryOrchestrator
 from tests.conftest import LAYERS
 
@@ -179,6 +180,31 @@ def test_sample_field_budget_exhausted_falls_back_to_retry_policy(catalog):
     assert result.clarify == _FALLBACK_CLARIFY
     assert len(result.tool_calls) == 3
     assert len(llm.calls) == 5
+
+
+def test_zero_result_replan_preserves_constraints(catalog):
+    previous = GeoQueryPlan.model_validate(VALID_PLAN)
+    revised = dict(VALID_PLAN)
+    revised["explanation"] = "revised ordering"
+    result = PlanBuilder(SequenceLLM([revised]), catalog).replan_after_empty(
+        "q", [SCHOOLS, ROUNDABOUTS], previous, False, NOW
+    )
+    assert result.plan is not None
+
+
+def test_zero_result_replan_rejects_wider_distance(catalog):
+    previous = GeoQueryPlan.model_validate(VALID_PLAN)
+    widened = {
+        **VALID_PLAN,
+        "steps": [VALID_PLAN["steps"][0], {**VALID_PLAN["steps"][1],
+                                            "distance_m": 1000}],
+    }
+    result = PlanBuilder(SequenceLLM([widened]), catalog).replan_after_empty(
+        "q", [SCHOOLS, ROUNDABOUTS], previous, False, NOW
+    )
+    assert result.plan is None
+    assert "שינתה מגבלה" in result.clarify
+    assert not preserves_constraints(previous, GeoQueryPlan.model_validate(widened))
 
 
 def test_orchestrator_full_flow_returns_features(catalog, executor):

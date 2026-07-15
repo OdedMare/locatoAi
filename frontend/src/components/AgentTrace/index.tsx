@@ -54,6 +54,7 @@ const STAGE_HE: Record<string, string> = {
   plan_building: "בניית תוכנית",
   plan_validation: "אימות תוכנית",
   execute_step: "ביצוע פעולה",
+  zero_result_diagnosis: "אבחון תוצאה ריקה",
   response: "הכנת תשובה",
 };
 
