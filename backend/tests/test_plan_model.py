@@ -138,6 +138,12 @@ def test_within_geometry_requires_boundaries():
     validate_plan(plan, KNOWN_LAYERS, has_user_geometry=True)  # ok with geometry
 
 
+def test_boundaries_require_within_geometry_step():
+    plan = make_plan()
+    with pytest.raises(PlanValidationError, match="must apply within_geometry"):
+        validate_plan(plan, KNOWN_LAYERS, has_user_geometry=True)
+
+
 def test_empty_plan_rejected():
     plan = GeoQueryPlan(explanation="x", steps=[], output="s1")
     with pytest.raises(PlanValidationError, match="no steps"):
