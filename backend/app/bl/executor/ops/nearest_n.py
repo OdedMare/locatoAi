@@ -26,6 +26,10 @@ class NearestNOp(OpHandler):
 
     def run(self, step: NearestNStep, ctx: ExecutionContext) -> gpd.GeoDataFrame:
         gdf = ctx.results[step.input]
+        # Deliberately unbuffered (unlike near/near_all/between): nearest_n
+        # has no distance threshold to buffer by — the whole point is a
+        # global top-N search, so an arbitrary cap here would silently
+        # exclude a legitimately-nearest target sitting just outside it.
         target = ctx.load_layer_features(step.target_layer)
         target = filter_reference_entities(
             target, step.target_field, step.target_operator, step.target_value

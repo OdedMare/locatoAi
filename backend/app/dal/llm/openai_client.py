@@ -17,9 +17,16 @@ Robustness (ported policy from the MVP guide):
 
 import json
 import re
+import time
 
 import httpx
-from openai import BadRequestError, OpenAI
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    BadRequestError,
+    OpenAI,
+    RateLimitError,
+)
 
 from app.common.errors.agent_error import AgentError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -32,6 +39,14 @@ _TEMPERATURE = 0
 # The SDK requires a non-empty key; local servers/gateways ignore it.
 # "null" is the value spear_presenton uses against the same gateways.
 _LOCAL_SERVER_KEY_PLACEHOLDER = "null"
+
+# A momentary rate-limit/connection blip must not fail the whole
+# select/build/tool-round pipeline outright. Short fixed delay, not
+# exponential backoff — this sits in the interactive request path, so
+# total added worst-case latency must stay well under a second.
+_TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError)
+_MAX_TRANSIENT_ATTEMPTS = 2
+_TRANSIENT_RETRY_DELAY_SECONDS = 0.3
 
 
 def extract_json(text: str) -> dict:
@@ -67,6 +82,23 @@ def extract_model_ids(payload) -> list:
             if model_id:
                 ids.add(str(model_id))
     return sorted(ids)
+
+
+def _create_with_retry(client: "OpenAI", model: str, kwargs: dict):
+    """One bounded retry for transient rate-limit/connection/timeout
+    errors — BadRequestError (the degradation ladder's own signal) is
+    never retried here, it propagates straight to the caller's ladder."""
+    last_error = None
+    for attempt in range(_MAX_TRANSIENT_ATTEMPTS):
+        try:
+            return client.chat.completions.create(
+                model=model, temperature=_TEMPERATURE, **kwargs
+            )
+        except _TRANSIENT_ERRORS as exc:
+            last_error = exc
+            if attempt + 1 < _MAX_TRANSIENT_ATTEMPTS:
+                time.sleep(_TRANSIENT_RETRY_DELAY_SECONDS)
+    raise last_error
 
 
 def _merge_system_into_user(messages: list) -> list:
@@ -181,9 +213,7 @@ class OpenAIJsonClient:
         last_bad_request = None
         for kwargs in attempts:
             try:
-                response = client.chat.completions.create(
-                    model=model, temperature=_TEMPERATURE, **kwargs
-                )
+                response = _create_with_retry(client, model, kwargs)
                 break
             except BadRequestError as exc:
                 last_bad_request = exc

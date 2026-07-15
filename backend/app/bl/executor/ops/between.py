@@ -23,14 +23,18 @@ class BetweenOp(OpHandler):
 
     def run(self, step: BetweenStep, ctx: ExecutionContext) -> gpd.GeoDataFrame:
         gdf = ctx.results[step.input]
+        # Narrow both target fetches to the request geometry buffered by
+        # the corridor width — anything farther out can't intersect the
+        # corridor anyway, same optimization as near/near_all's distance_m.
+        geometry_hint = ctx.proximity_geometry(step.corridor_width_m)
         first = filter_reference_entities(
-            ctx.load_layer_features(step.first_target_layer),
+            ctx.load_layer_features(step.first_target_layer, geometry_hint=geometry_hint),
             step.first_target_field,
             step.first_target_operator,
             step.first_target_value,
         )
         second = filter_reference_entities(
-            ctx.load_layer_features(step.second_target_layer),
+            ctx.load_layer_features(step.second_target_layer, geometry_hint=geometry_hint),
             step.second_target_field,
             step.second_target_operator,
             step.second_target_value,
