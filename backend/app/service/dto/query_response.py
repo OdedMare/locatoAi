@@ -10,6 +10,8 @@ from app.service.dto.selected_layer_dto import SelectedLayerDto
 
 class QueryResponse(BaseModel):
     status: Literal["ok", "clarify", "error"]
+    request_id: Optional[str] = None
+    """Correlates UI diagnostics with console and JSONL events."""
     clarify: Optional[str] = None
     plan: Optional[GeoQueryPlan] = None
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection

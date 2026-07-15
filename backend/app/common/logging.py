@@ -1,15 +1,55 @@
-"""Structured request logging to JSON lines and the server console."""
+"""Structured request logging to the console first, then JSON lines."""
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import structlog
 
 _REQUEST_LOGGER_NAME = "ailocator.requests"
+_REQUEST_CONSOLE_LOGGER_NAME = "ailocator.requests.console"
 
 
-def configure_logging(request_log_path: str) -> structlog.stdlib.BoundLogger:
-    """Configure structlog to append JSON lines to the request log file."""
+class ConsoleFirstLogger:
+    """Write every structured event to the console before the JSONL file."""
+
+    def __init__(self, console: Any, persistent: Any):
+        self._console = console
+        self._persistent = persistent
+
+    def bind(self, **context: Any) -> "ConsoleFirstLogger":
+        return ConsoleFirstLogger(
+            self._console.bind(**context), self._persistent.bind(**context)
+        )
+
+    def info(self, event: str, **context: Any) -> None:
+        self._write("info", event, context)
+
+    def warning(self, event: str, **context: Any) -> None:
+        self._write("warning", event, context)
+
+    def error(self, event: str, **context: Any) -> None:
+        self._write("error", event, context)
+
+    def exception(self, event: str, **context: Any) -> None:
+        context.setdefault("exc_info", True)
+        self._write("error", event, context)
+
+    def _write(self, level: str, event: str, context: Any) -> None:
+        getattr(self._console, level)(event, **context)
+        getattr(self._persistent, level)(event, **context)
+
+
+def _replace_handlers(name: str, handler: logging.Handler) -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.handlers = [handler]
+    logger.propagate = False
+    return logger
+
+
+def configure_logging(request_log_path: str) -> ConsoleFirstLogger:
+    """Configure ordered console and persistent structured request logging."""
     log_file = Path(request_log_path)
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -19,15 +59,12 @@ def configure_logging(request_log_path: str) -> structlog.stdlib.BoundLogger:
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    file_logger = logging.getLogger(_REQUEST_LOGGER_NAME)
-    file_logger.setLevel(logging.INFO)
-    file_logger.handlers = [file_handler, console_handler]
-    file_logger.propagate = False
+    file_logger = _replace_handlers(_REQUEST_LOGGER_NAME, file_handler)
+    console_logger = _replace_handlers(
+        _REQUEST_CONSOLE_LOGGER_NAME, console_handler
+    )
 
-    app_logger = logging.getLogger("app")
-    app_logger.setLevel(logging.INFO)
-    app_logger.handlers = [console_handler]
-    app_logger.propagate = False
+    _replace_handlers("app", console_handler)
 
     structlog.configure(
         processors=[
@@ -38,4 +75,7 @@ def configure_logging(request_log_path: str) -> structlog.stdlib.BoundLogger:
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
     )
-    return structlog.wrap_logger(file_logger)
+    return ConsoleFirstLogger(
+        structlog.wrap_logger(console_logger),
+        structlog.wrap_logger(file_logger),
+    )

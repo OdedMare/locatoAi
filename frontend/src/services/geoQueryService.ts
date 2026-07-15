@@ -31,6 +31,7 @@ export async function submitQuery(
   request: GeoQueryRequest
 ): Promise<GeoQueryResponse> {
   let res: Response;
+  console.info("Query pipeline started", request);
   try {
     res = await fetch("/api/query", {
       method: "POST",
@@ -57,14 +58,24 @@ export async function submitQuery(
   if (!res.ok) {
     const raw = await res.text().catch(() => "");
     let detail = "";
+    let body: Record<string, unknown> = {};
     try {
-      detail = errorDetail(JSON.parse(raw));
+      body = JSON.parse(raw) as Record<string, unknown>;
+      detail = errorDetail(body);
     } catch {
       detail = raw;
     }
     const message = detail || `השרת החזיר שגיאה ${res.status}`;
+    console.error("Query pipeline failed", {
+      status: res.status,
+      requestId: body.request_id,
+      pipelineTrace: body.pipeline_trace,
+      errorType: body.error_type,
+      detail: message,
+    });
     return {
       status: "error",
+      request_id: typeof body.request_id === "string" ? body.request_id : null,
       clarify: message,
       plan: null,
       features: null,
@@ -74,8 +85,12 @@ export async function submitQuery(
       selected_layers: [],
       reasoning: "",
       tool_calls: [],
-      pipeline_trace: [],
+      pipeline_trace: Array.isArray(body.pipeline_trace)
+        ? body.pipeline_trace as GeoQueryResponse["pipeline_trace"]
+        : [],
     };
   }
-  return res.json();
+  const response = await res.json() as GeoQueryResponse;
+  console.info("Query pipeline completed", response);
+  return response;
 }

@@ -100,7 +100,9 @@ Tiers under `backend/app/` — dependency direction is service → bl ← dal (D
 
 **Test temporal data:** `data/accidents.geojson` uses `timestamp_offset_hours`; the test provider converts it relative to frozen `now` values.
 
-Every request is logged to `backend/logs/requests.jsonl` and the server console. Errors
+Every request is logged to the server console first and then to
+`backend/logs/requests.jsonl`. Query logs carry request IDs, live pipeline stage/step
+events, layer and plan diagnostics, and result counts without dumping feature bodies. Errors
 include method, path, status, exception type/message, and traceback. MQS schema discovery
 and plan formatting log dynamic field names and bounded sample counts; frontend failures
 also go to the browser console.

@@ -53,9 +53,15 @@ const STAGE_HE: Record<string, string> = {
   layer_selection: "בחירת שכבות",
   plan_building: "בניית תוכנית",
   plan_validation: "אימות תוכנית",
+  execution: "ביצוע התוכנית",
   execute_step: "ביצוע פעולה",
   zero_result_diagnosis: "אבחון תוצאה ריקה",
+  re_execution: "ביצוע תוכנית מתוקנת",
   response: "הכנת תשובה",
+};
+
+const STATUS_MARK: Record<string, string> = {
+  started: "◌", completed: "✓", clarify: "?", failed: "✕", error: "✕",
 };
 
 const OP_HE: Record<string, string> = {
@@ -73,12 +79,16 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
   if (trace.length === 0) return null;
   return (
     <div className="plan-trace pipeline-timeline" dir="auto">
-      <p className="agent-step done">✓ פירוט מלא של הצינור:</p>
+      <p className="agent-step done">פירוט מלא של הצינור:</p>
+      {response.request_id && (
+        <p className="plan-explanation" dir="ltr">request_id: {response.request_id}</p>
+      )}
       <ol className="plan-steps">
         {trace.map((entry, index) => (
           <li key={`${entry.stage}-${entry.step_id ?? index}`} className="plan-step">
             <div>
-              <strong>{STAGE_HE[entry.stage] ?? entry.stage}</strong>
+              <strong>{STATUS_MARK[entry.status] ?? "•"} {STAGE_HE[entry.stage] ?? entry.stage}</strong>
+              <span dir="ltr"> · {entry.status}</span>
               {entry.operation && <span dir="ltr"> · {entry.operation}</span>}
               {typeof entry.duration_ms === "number" && ` · ${entry.duration_ms} מ״ש`}
             </div>
@@ -86,6 +96,12 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
               <div>שכבות: {entry.selected_layer_names.join(", ")}</div>
             ) : null}
             {entry.explanation && <div>{entry.explanation}</div>}
+            {entry.clarify && <div>{entry.clarify}</div>}
+            {entry.error && (
+              <div className="agent-step clarify" dir="auto">
+                {entry.error_type ? `${entry.error_type}: ` : ""}{entry.error}
+              </div>
+            )}
             {typeof entry.attempts === "number" && <div>ניסיונות תכנון: {entry.attempts}</div>}
             {(entry.input_count !== undefined || entry.output_count !== undefined) && (
               <div>
@@ -101,6 +117,12 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
                 <pre dir="ltr">{JSON.stringify(entry.parameters, null, 2)}</pre>
               </details>
             )}
+            {entry.diagnostics?.length ? (
+              <details>
+                <summary>אבחון תכנון מלא</summary>
+                <pre dir="ltr">{JSON.stringify(entry.diagnostics, null, 2)}</pre>
+              </details>
+            ) : null}
           </li>
         ))}
       </ol>

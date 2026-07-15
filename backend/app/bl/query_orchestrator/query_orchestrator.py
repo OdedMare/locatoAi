@@ -6,7 +6,7 @@ error appended before falling back to clarify.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from shapely.geometry.base import BaseGeometry
 
@@ -37,15 +37,20 @@ class QueryOrchestrator:
         self._selector = layer_selector
         self._builder = plan_builder
 
-    def run_query(self, query: str, boundaries: Optional[BaseGeometry]) -> QueryOutcome:
+    def run_query(
+        self, query: str, boundaries: Optional[BaseGeometry],
+        event_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> QueryOutcome:
         if self._selector is None or self._builder is None:
             return self._disconnected_outcome()
         now = datetime.now(timezone.utc)
         timer = StageTimer()
-        selection, selection_trace = self._select(query, timer)
+        selection, selection_trace = self._select(query, timer, event_sink)
         if selection.clarify:
             return self._selection_clarify(selection, selection_trace, timer)
-        build, planning_trace = self._build(query, boundaries, now, selection, timer)
+        build, planning_trace = self._build(
+            query, boundaries, now, selection, timer, event_sink
+        )
         usage = sum_usage(selection.token_usage, build.token_usage)
         if build.plan is None:
             return self._planning_clarify(
@@ -53,66 +58,100 @@ class QueryOrchestrator:
             )
         return self._execute_query(
             query, boundaries, now, selection, build,
-            [selection_trace, planning_trace], timer, usage,
+            [selection_trace, planning_trace], timer, usage, event_sink,
         )
 
-    def _select(self, query: str, timer: StageTimer) -> Tuple[LayerSelection, dict]:
-        selection = self._selector.select(query)
+    def _select(self, query: str, timer: StageTimer, event_sink
+                ) -> Tuple[LayerSelection, dict]:
+        selection = self._run_stage(
+            "layer_selection", lambda: self._selector.select(query), event_sink
+        )
         timer.mark("select")
         trace = {
             "stage": "layer_selection", "duration_ms": timer.timing["select"],
             "status": "completed" if selection.layers else "clarify",
             "selected_layer_ids": [layer.id for layer in selection.layers],
             "selected_layer_names": [layer.name for layer in selection.layers],
+            "requested_layer_ids": selection.requested_layer_ids,
+            "dropped_layer_ids": selection.dropped_layer_ids,
+            "clarify": selection.clarify,
             "explanation": selection.reasoning,
         }
+        self._emit(event_sink, trace)
         return selection, trace
 
     def _build(self, query: str, boundaries: Optional[BaseGeometry],
                now: datetime, selection: LayerSelection,
-               timer: StageTimer) -> Tuple[PlanBuildResult, dict]:
-        build = self._builder.build(query, selection.layers,
-                                    boundaries is not None, now)
+               timer: StageTimer, event_sink) -> Tuple[PlanBuildResult, dict]:
+        build = self._run_stage(
+            "plan_building",
+            lambda: self._builder.build(
+                query, selection.layers, boundaries is not None, now
+            ),
+            event_sink,
+        )
         timer.mark("plan")
         trace = {
             "stage": "plan_building", "duration_ms": timer.timing["plan"],
             "status": "completed" if build.plan is not None else "clarify",
             "attempts": build.attempts, "tool_calls": build.tool_calls,
+            "diagnostics": build.diagnostics,
             "explanation": build.plan.explanation if build.plan else build.clarify,
         }
+        self._emit(event_sink, trace)
         return build, trace
 
     def _execute_query(self, query: str, boundaries: Optional[BaseGeometry],
                        now: datetime, selection: LayerSelection,
                        build: PlanBuildResult, trace: List[Dict[str, Any]],
-                       timer: StageTimer, usage: Optional[Dict[str, int]]) -> QueryOutcome:
-        result = self._executor.execute_detailed(build.plan, boundaries, now)
+                       timer: StageTimer, usage: Optional[Dict[str, int]],
+                       event_sink) -> QueryOutcome:
+        result = self._run_stage(
+            "execution",
+            lambda: self._executor.execute_detailed(
+                build.plan, boundaries, now, trace_sink=event_sink
+            ),
+            event_sink,
+        )
         timer.mark("execute")
         trace.extend(result.step_traces)
         if self._has_results(result):
             return self._success(selection, build, build.plan, result,
-                                 trace, timer, usage)
+                                 trace, timer, usage, event_sink)
         return self._handle_empty(query, boundaries, now, selection, build,
-                                  result, trace, timer, usage)
+                                  result, trace, timer, usage, event_sink)
 
     def _handle_empty(self, query: str, boundaries: Optional[BaseGeometry],
                       now: datetime, selection: LayerSelection,
                       build: PlanBuildResult, result: ExecutionOutput,
                       trace: List[Dict[str, Any]], timer: StageTimer,
-                      usage: Optional[Dict[str, int]]) -> QueryOutcome:
-        revised = self._builder.replan_after_empty(
-            query, selection.layers, build.plan, boundaries is not None, now)
+                      usage: Optional[Dict[str, int]], event_sink) -> QueryOutcome:
+        revised = self._run_stage(
+            "zero_result_diagnosis",
+            lambda: self._builder.replan_after_empty(
+                query, selection.layers, build.plan, boundaries is not None, now
+            ),
+            event_sink,
+        )
         build.tool_calls.extend(revised.tool_calls)
         usage = sum_usage(usage, revised.token_usage)
-        trace.append(self._revision_trace(revised))
+        revision_trace = self._revision_trace(revised)
+        trace.append(revision_trace)
+        self._emit(event_sink, revision_trace)
         if revised.plan is None:
             return self._empty_clarify(selection, build, result, trace, timer, usage,
                                        revised.clarify)
-        result = self._executor.execute_detailed(revised.plan, boundaries, now)
+        result = self._run_stage(
+            "re_execution",
+            lambda: self._executor.execute_detailed(
+                revised.plan, boundaries, now, trace_sink=event_sink
+            ),
+            event_sink,
+        )
         timer.mark("re_execute")
         trace.extend(result.step_traces)
         return self._success(selection, build, revised.plan, result,
-                             trace, timer, usage)
+                             trace, timer, usage, event_sink)
 
     @staticmethod
     def _has_results(result: ExecutionOutput) -> bool:
@@ -126,8 +165,26 @@ class QueryOrchestrator:
             "stage": "zero_result_diagnosis",
             "status": "completed" if revised.plan else "clarify",
             "attempts": revised.attempts, "tool_calls": revised.tool_calls,
+            "diagnostics": revised.diagnostics,
             "explanation": revised.plan.explanation if revised.plan else revised.clarify,
         }
+
+    @staticmethod
+    def _emit(event_sink, event: Dict[str, Any]) -> None:
+        if event_sink is not None:
+            event_sink(event)
+
+    @staticmethod
+    def _run_stage(stage: str, action, event_sink):
+        QueryOrchestrator._emit(event_sink, {"stage": stage, "status": "started"})
+        try:
+            return action()
+        except Exception as exc:
+            QueryOrchestrator._emit(event_sink, {
+                "stage": stage, "status": "failed",
+                "error_type": type(exc).__name__, "error": str(exc),
+            })
+            raise
 
     @staticmethod
     def _disconnected_outcome() -> QueryOutcome:
@@ -173,8 +230,10 @@ class QueryOrchestrator:
     def _success(selection: LayerSelection, build: PlanBuildResult,
                  plan: GeoQueryPlan, result: ExecutionOutput,
                  trace: List[dict], timer: StageTimer,
-                 usage: Optional[Dict[str, int]]) -> QueryOutcome:
-        trace.append(QueryOrchestrator._response_trace(result))
+                 usage: Optional[Dict[str, int]], event_sink=None) -> QueryOutcome:
+        response_trace = QueryOrchestrator._response_trace(result)
+        trace.append(response_trace)
+        QueryOrchestrator._emit(event_sink, response_trace)
         return QueryOutcome(
             status="ok", plan=plan, features=result.features,
             scalar_result=result.scalar_result, timing_ms=timer.timing,

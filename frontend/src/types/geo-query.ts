@@ -105,6 +105,8 @@ export interface GeoQueryPlanDto {
 /** Backend response (backend/app/service/dto.py QueryResponse). */
 export interface GeoQueryResponse {
   status: "ok" | "clarify" | "error";
+  /** Correlates UI diagnostics with backend console/JSONL events. */
+  request_id?: string | null;
   clarify: string | null;
   /** The Geo Query Plan the agent built and executed. */
   plan: GeoQueryPlanDto | null;
@@ -129,14 +131,18 @@ export interface GeoQueryResponse {
 }
 
 export interface PipelineTraceEntry {
-  stage: "layer_selection" | "plan_building" | "plan_validation" | "execute_step" | "zero_result_diagnosis" | "response";
-  status: "completed" | "clarify" | "error";
+  stage: "layer_selection" | "plan_building" | "plan_validation" | "execution" | "execute_step" | "zero_result_diagnosis" | "re_execution" | "response";
+  status: "started" | "completed" | "clarify" | "failed" | "error";
   duration_ms?: number;
   explanation?: string | null;
   attempts?: number;
   tool_calls?: { layer_id: string; field: string }[];
   selected_layer_ids?: string[];
   selected_layer_names?: string[];
+  requested_layer_ids?: string[];
+  dropped_layer_ids?: string[];
+  clarify?: string | null;
+  diagnostics?: Record<string, unknown>[];
   step_id?: string;
   operation?: GeoPlanStep["op"];
   input_count?: number | null;
@@ -145,6 +151,8 @@ export interface PipelineTraceEntry {
   feature_count?: number;
   scalar_result?: number | null;
   geometry_returned?: boolean;
+  error_type?: string;
+  error?: string;
 }
 
 /** Live map view state reported by the map component (UI-internal). */

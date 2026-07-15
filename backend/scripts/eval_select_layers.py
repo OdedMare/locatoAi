@@ -70,6 +70,8 @@ CASES = [
      {"אירועי תאונות"}, set()),
     ("מגרשי כדורגל",  # nothing fits — must not guess playgrounds
      {CLARIFY}, set()),
+    ("תביא לי את כל הכיכרות שליד בית ומטע זיתים",
+     {CLARIFY}, set()),
 ]
 
 

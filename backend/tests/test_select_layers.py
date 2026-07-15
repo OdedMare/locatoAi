@@ -38,6 +38,13 @@ def test_hallucinated_ids_are_dropped_and_deduped(catalog):
     assert [l.id for l in selection.layers] == ["schools"]
 
 
+def test_malformed_layer_ids_are_dropped_without_crashing(catalog):
+    llm = FakeLLM({"layer_ids": [{"id": "schools"}, "roundabouts"]})
+    selection = LayerSelector(llm, catalog).select("roundabouts")
+    assert [layer.id for layer in selection.layers] == ["roundabouts"]
+    assert selection.dropped_layer_ids == ["{'id': 'schools'}"]
+
+
 def test_clarify_passthrough(catalog):
     llm = FakeLLM({"layer_ids": [], "clarify": "איזה סוג מבנים?"})
     selection = LayerSelector(llm, catalog).select("תראה לי מבנים")
@@ -106,6 +113,11 @@ def test_extract_json_with_prose():
 def test_extract_json_garbage_raises():
     with pytest.raises(json.JSONDecodeError):
         extract_json("no json here")
+
+
+def test_extract_json_array_raises_instead_of_reaching_pipeline():
+    with pytest.raises(json.JSONDecodeError, match="Expected a JSON object"):
+        extract_json('[{"layer_ids": ["schools"]}]')
 
 
 def test_extract_model_ids_handles_all_shapes():

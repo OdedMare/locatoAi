@@ -114,6 +114,9 @@ def _register_error_handlers(app: FastAPI) -> None:
                 "error": str(exc),
             }
             request_logger = getattr(request.app.state, "request_log", None)
+            request_id = getattr(request.state, "request_id", None)
+            pipeline_trace = getattr(request.state, "pipeline_trace", [])
+            context["request_id"] = request_id
             if request_logger is not None:
                 request_logger.error("request_failed", **context, exc_info=True)
             else:
@@ -122,7 +125,10 @@ def _register_error_handlers(app: FastAPI) -> None:
                 status_code=status_code,
                 content={
                     "status": "error",
+                    "request_id": request_id,
                     "detail": str(exc) if status_code != 500 else "Internal server error",
+                    "error_type": type(exc).__name__,
+                    "pipeline_trace": pipeline_trace,
                 },
             )
 

@@ -57,12 +57,16 @@ def extract_json(text: str) -> dict:
         cleaned = re.sub(r"^```[A-Za-z]*\s*", "", cleaned)
         cleaned = re.sub(r"```\s*$", "", cleaned).strip()
     try:
-        return json.loads(cleaned)
+        parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         start, end = cleaned.find("{"), cleaned.rfind("}")
         if start != -1 and end > start:
-            return json.loads(cleaned[start : end + 1])
-        raise
+            parsed = json.loads(cleaned[start : end + 1])
+        else:
+            raise
+    if not isinstance(parsed, dict):
+        raise json.JSONDecodeError("Expected a JSON object", cleaned, 0)
+    return parsed
 
 
 def extract_model_ids(payload) -> list:

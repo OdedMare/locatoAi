@@ -86,12 +86,14 @@ class PlanBuilder:
         usage = UsageAccumulator()
         tool_notes: List[str] = []
         tool_calls: List[Dict[str, str]] = []
+        diagnostics: List[dict] = []
         attempt = 0
         while attempt < _MAX_ATTEMPTS:
             data = self._llm.complete_json(system=system, user=user)
             usage.add(data.pop(_USAGE_KEY, None))
 
             if data.get("tool") == _TOOL_NAME and len(tool_calls) < _MAX_TOOL_ROUNDS:
+                diagnostics.append(self._diagnostic(data, "tool_requested", attempt + 1))
                 tool_notes.append(self._run_sample_tool(
                     data, selected_ids, tool_calls, diet=diet
                 ))
@@ -101,19 +103,24 @@ class PlanBuilder:
             attempt += 1
             clarify = data.get("clarify")
             if isinstance(clarify, str) and clarify.strip() and not data.get("steps"):
+                diagnostics.append(self._diagnostic(data, "clarify", attempt))
                 return PlanBuildResult(
                     clarify=clarify.strip(), attempts=attempt,
                     token_usage=usage.total, tool_calls=tool_calls,
+                    diagnostics=diagnostics,
                 )
 
             try:
                 plan = GeoQueryPlan.model_validate(data)
                 validate_plan(plan, selected_ids, has_user_geometry=has_boundaries)
+                diagnostics.append(self._diagnostic(data, "accepted", attempt))
                 return PlanBuildResult(
                     plan=plan, attempts=attempt,
                     token_usage=usage.total, tool_calls=tool_calls,
+                    diagnostics=diagnostics,
                 )
             except (ValidationError, PlanValidationError) as exc:
+                diagnostics.append(self._diagnostic(data, "rejected", attempt, exc))
                 user = self._correction_message(
                     query, data, exc, tool_notes, diet=diet
                 )
@@ -121,7 +128,18 @@ class PlanBuilder:
         return PlanBuildResult(
             clarify=_FALLBACK_CLARIFY, attempts=_MAX_ATTEMPTS,
             token_usage=usage.total, tool_calls=tool_calls,
+            diagnostics=diagnostics,
         )
+
+    @staticmethod
+    def _diagnostic(data: dict, status: str, attempt: int,
+                    error: Exception = None) -> dict:
+        diagnostic = {"attempt": attempt, "status": status, "model_output": data}
+        if error is not None:
+            diagnostic.update({
+                "error_type": type(error).__name__, "error": str(error),
+            })
+        return diagnostic
 
     def replan_after_empty(self, query: str, layers: List[LayerMeta],
                            previous: GeoQueryPlan, has_boundaries: bool,

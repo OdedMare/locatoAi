@@ -7,7 +7,7 @@ nothing about individual ops (OCP): it dispatches via the op registry.
 
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -54,6 +54,7 @@ class PlanExecutor:
         plan: GeoQueryPlan,
         user_geometry: Optional[BaseGeometry] = None,
         now: Optional[datetime] = None,
+        trace_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> ExecutionOutput:
         """Return matching geometries or a scalar count.
 
@@ -77,11 +78,16 @@ class PlanExecutor:
                 if input_ref is not None and input_ref in ctx.results
                 else None
             )
+            self._emit(trace_sink, self._started_trace(step, input_count))
             started = time.perf_counter()
-            result = handler.run(step, ctx)
+            try:
+                result = handler.run(step, ctx)
+            except Exception as exc:
+                self._emit(trace_sink, self._failed_trace(step, input_count, exc))
+                raise
             duration_ms = int((time.perf_counter() - started) * 1000)
             output_count = result if isinstance(result, int) else len(result)
-            step_traces.append({
+            trace = {
                 "stage": "execute_step",
                 "step_id": step.id,
                 "operation": step.op,
@@ -92,7 +98,9 @@ class PlanExecutor:
                     by_alias=True, exclude={"id", "op", "input"}
                 ),
                 "status": "completed",
-            })
+            }
+            step_traces.append(trace)
+            self._emit(trace_sink, trace)
             if isinstance(step, CountStep):
                 return ExecutionOutput(
                     features=None, scalar_result=result,
@@ -102,6 +110,30 @@ class PlanExecutor:
         return ExecutionOutput(
             features=ctx.results[plan.output], step_traces=step_traces
         )
+
+    @staticmethod
+    def _emit(trace_sink, trace: Dict[str, Any]) -> None:
+        if trace_sink is not None:
+            trace_sink(trace)
+
+    @staticmethod
+    def _started_trace(step, input_count) -> Dict[str, Any]:
+        return {
+            "stage": "execute_step", "status": "started",
+            "step_id": step.id, "operation": step.op,
+            "input_count": input_count,
+            "parameters": step.model_dump(
+                by_alias=True, exclude={"id", "op", "input"}
+            ),
+        }
+
+    @staticmethod
+    def _failed_trace(step, input_count, exc: Exception) -> Dict[str, Any]:
+        return {
+            **PlanExecutor._started_trace(step, input_count),
+            "status": "failed", "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
 
     @staticmethod
     def _load_temporal_ranges(plan: GeoQueryPlan):

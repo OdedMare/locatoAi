@@ -215,7 +215,11 @@ GeoDataFrames through `__geo_interface__`, preserving computed fields such as
 `distance_to_target_m`. Responses carry the agent trace, stage timings, token
 usage, tool calls, and `pipeline_trace`: safe stage/step metadata with durations,
 counts, parameters, and statuses (not private model chain-of-thought). Structured
-request events are written both to JSON lines and the server console. Domain and
+request events are written to the server console first and then to JSON lines. Query
+logging includes a request ID, boundary summary, live stage transitions, selected and
+dropped layer IDs, raw plan-validation diagnostics, per-step parameters/counts, and the
+complete final plan/trace. Result feature bodies are intentionally summarized by count.
+Domain and
 unexpected exceptions log method, path, status, type, message, and traceback; the UI
 also writes failed network/API operations to the browser console. User votes go to the
 configured PostgreSQL feedback table.

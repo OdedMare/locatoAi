@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 
@@ -12,3 +12,5 @@ class PlanBuildResult:
     token_usage: Optional[Dict[str, int]] = None
     tool_calls: List[Dict[str, str]] = field(default_factory=list)
     """sample_field rounds the model requested ({layer_id, field} each)."""
+    diagnostics: List[Dict[str, Any]] = field(default_factory=list)
+    """Safe raw model outputs and validation outcomes for troubleshooting."""

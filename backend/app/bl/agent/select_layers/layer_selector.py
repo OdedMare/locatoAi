@@ -66,20 +66,26 @@ class LayerSelector:
         raw_ids = data.get("layer_ids") or []
         if not isinstance(raw_ids, list):
             raw_ids = []
+        requested_ids = [str(layer_id) for layer_id in raw_ids]
         by_id = {layer.id: layer for layer in layers}
         # dedupe while preserving order; drop hallucinated ids
-        picked = [by_id[i] for i in dict.fromkeys(raw_ids) if i in by_id]
+        picked = [
+            by_id[i] for i in dict.fromkeys(requested_ids) if i in by_id
+        ]
+        dropped = list(dict.fromkeys(i for i in requested_ids if i not in by_id))
 
         if picked:
             return LayerSelection(
-                layers=picked, reasoning=reasoning, token_usage=usage
+                layers=picked, reasoning=reasoning, token_usage=usage,
+                requested_layer_ids=requested_ids, dropped_layer_ids=dropped,
             )
 
         clarify = data.get("clarify")
         if not isinstance(clarify, str) or not clarify.strip():
             clarify = _FALLBACK_CLARIFY
         return LayerSelection(
-            clarify=clarify.strip(), reasoning=reasoning, token_usage=usage
+            clarify=clarify.strip(), reasoning=reasoning, token_usage=usage,
+            requested_layer_ids=requested_ids, dropped_layer_ids=dropped,
         )
 
     @staticmethod
