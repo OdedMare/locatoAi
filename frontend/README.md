@@ -87,7 +87,11 @@ Component-local state is used for modal forms, catalog searches, feedback voting
    - `RequestPreview` displays the exact request and full response diagnostics and can copy the combined debug payload.
 7. Voting calls `feedbackService`; failure is intentionally non-blocking for the main query experience.
 
-Network failures and non-2xx query responses are normalized by `geoQueryService` into `status: "error"`, giving components one stable response shape.
+Network failures and non-2xx query responses are normalized by `geoQueryService` into
+`status: "error"`, giving components one stable response shape. Backend failures retain
+their `request_id` and all pipeline events collected before the exception, so `AgentTrace`
+shows the failed stage/step, parameters, and error details instead of an empty timeline.
+The same request lifecycle is also written to the browser console.
 
 ## Map architecture
 

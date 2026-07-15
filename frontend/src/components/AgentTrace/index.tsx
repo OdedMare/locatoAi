@@ -95,6 +95,16 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
             {entry.selected_layer_names?.length ? (
               <div>שכבות: {entry.selected_layer_names.join(", ")}</div>
             ) : null}
+            {(entry.requested_layer_ids?.length || entry.dropped_layer_ids?.length) ? (
+              <details>
+                <summary>מזהי שכבות מהמודל</summary>
+                <pre dir="ltr">{JSON.stringify({
+                  requested: entry.requested_layer_ids ?? [],
+                  selected: entry.selected_layer_ids ?? [],
+                  dropped: entry.dropped_layer_ids ?? [],
+                }, null, 2)}</pre>
+              </details>
+            ) : null}
             {entry.explanation && <div>{entry.explanation}</div>}
             {entry.clarify && <div>{entry.clarify}</div>}
             {entry.error && (
@@ -103,6 +113,12 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
               </div>
             )}
             {typeof entry.attempts === "number" && <div>ניסיונות תכנון: {entry.attempts}</div>}
+            {entry.tool_calls?.length ? (
+              <details>
+                <summary>קריאות כלי תכנון</summary>
+                <pre dir="ltr">{JSON.stringify(entry.tool_calls, null, 2)}</pre>
+              </details>
+            ) : null}
             {(entry.input_count !== undefined || entry.output_count !== undefined) && (
               <div>
                 קלט: {entry.input_count ?? "—"} · פלט: {entry.output_count ?? "—"}
