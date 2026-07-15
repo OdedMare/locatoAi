@@ -1,6 +1,8 @@
 import geopandas as gpd
 
-from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
+from app.bl.executor.ops.base.execution_context import ExecutionContext
+from app.bl.executor.ops.base.op_handler import OpHandler
+from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.executor.ops.near import (
     DISTANCE_COLUMN,
     MATCH_REASON_COLUMN,

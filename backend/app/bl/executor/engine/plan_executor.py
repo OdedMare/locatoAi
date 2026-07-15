@@ -16,7 +16,8 @@ from shapely.geometry.base import BaseGeometry
 import app.bl.executor.ops  # noqa: F401
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.execution_output import ExecutionOutput
-from app.bl.executor.ops.base import ExecutionContext, get_op_handler
+from app.bl.executor.ops.base.execution_context import ExecutionContext
+from app.bl.executor.ops.base.op_registry import get_op_handler
 from app.bl.plan.models.count_step import CountStep
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.ports.provider_registry import ProviderRegistry

@@ -1,7 +1,9 @@
 import geopandas as gpd
 import pandas as pd
 
-from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
+from app.bl.executor.ops.base.execution_context import ExecutionContext
+from app.bl.executor.ops.base.op_handler import OpHandler
+from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.plan.models.latest_per_entity_step import LatestPerEntityStep
 from app.common.errors.execution_error import ExecutionError
 

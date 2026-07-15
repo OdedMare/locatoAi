@@ -1,14 +1,8 @@
-"""Topological relations between the current result and a reference layer."""
-
 import geopandas as gpd
 
 from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_handler import OpHandler
-from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.executor.ops.near import filter_reference_entities
-from app.bl.plan.models.contains_step import ContainsStep
-from app.bl.plan.models.crosses_step import CrossesStep
-from app.bl.plan.models.touches_step import TouchesStep
 
 
 def _empty_like(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -17,7 +11,7 @@ def _empty_like(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return result
 
 
-class _SpatialRelationOp(OpHandler):
+class SpatialRelationOp(OpHandler):
     predicate = ""
     reason = ""
 
@@ -41,21 +35,3 @@ class _SpatialRelationOp(OpHandler):
         result = gdf.loc[indexes].copy()
         result["match_reason"] = self.reason
         return result
-
-
-@register_op("crosses")
-class CrossesOp(_SpatialRelationOp):
-    predicate = "crosses"
-    reason = "הישות חוצה ישות בשכבת הייחוס."
-
-
-@register_op("touches")
-class TouchesOp(_SpatialRelationOp):
-    predicate = "touches"
-    reason = "גבול הישות נוגע בגבול ישות בשכבת הייחוס ללא חפיפה פנימית."
-
-
-@register_op("contains")
-class ContainsOp(_SpatialRelationOp):
-    predicate = "contains"
-    reason = "הישות מכילה במלואה ישות משכבת הייחוס."

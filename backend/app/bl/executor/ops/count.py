@@ -1,4 +1,6 @@
-from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
+from app.bl.executor.ops.base.execution_context import ExecutionContext
+from app.bl.executor.ops.base.op_handler import OpHandler
+from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.plan.models.count_step import CountStep
 
 

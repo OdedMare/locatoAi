@@ -6,7 +6,9 @@ import geopandas as gpd
 from shapely.geometry import LineString
 from shapely.ops import unary_union
 
-from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
+from app.bl.executor.ops.base.execution_context import ExecutionContext
+from app.bl.executor.ops.base.op_handler import OpHandler
+from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.executor.ops.near import filter_reference_entities
 from app.bl.plan.models.between_step import BetweenStep
 from app.common.errors.execution_error import ExecutionError
