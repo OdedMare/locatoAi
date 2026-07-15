@@ -23,14 +23,14 @@ POST /api/query {query, boundaries: MultiPolygon}
 
 The model never writes SQL and never invents data sources: it chooses from a
 **Postgres layer catalog** and emits a **plan** — a small, validated JSON program
-over 14 spatial, filtering, and aggregation operations.
+over 16 spatial, filtering, movement, and aggregation operations.
 
 ---
 
 ## Architecture: N-tier + SOLID
 
 Dependency direction: **service → bl ← dal**. The BL owns its interfaces
-([`bl/ports.py`](app/bl/ports.py)); the DAL implements them; only
+([`bl/ports/`](app/bl/ports/)); the DAL implements them; only
 [`main.py`](app/main.py) (composition root) knows every tier.
 
 ```
@@ -38,7 +38,8 @@ app/
 ├── main.py                  # composition root: wiring + error mapping, nothing else
 │
 ├── service/                 # ── HTTP tier: routers + DTOs, zero logic ──
-│   ├── dto.py               # request/response models; QueryResponse.from_outcome()
+│   ├── dto/                 # query/plan request and response models
+│   ├── *_dto/               # router-specific settings/catalog/agent DTOs
 │   ├── query_router.py      # POST /api/query           (NL entry point)
 │   ├── plan_router.py       # POST /api/execute-plan    (debug: run a raw plan)
 │   ├── agent_router.py      # POST /api/select-layers   (debug: LLM call 1 only)
@@ -48,15 +49,15 @@ app/
 │   └── deps.py              # FastAPI dependency accessors (app.state)
 │
 ├── bl/                      # ── Business logic tier ──
-│   ├── ports.py             # Protocols the BL depends on (DIP):
-│   │                        #   LayersRepository, Provider, ProviderRegistry, LLMClient
+│   ├── ports/               # one BL-owned protocol/model per focused module
 │   ├── query_orchestrator.py# the select → plan → validate → execute flow + retry policy
 │   ├── agent/
-│   │   ├── select_layers.py # call 1: catalog → prompt → layer ids (drops hallucinated ids)
-│   │   ├── build_plan.py    # call 2: query+schemas → plan (+ sample_field tool rounds)
+│   │   ├── select_layers/   # call 1: catalog → prompt → layer ids
+│   │   ├── build_plan/      # call 2: schemas → plan, tools, constraint preservation
+│   │   ├── generate_layer_metadata/ # provider business fields → editable metadata
 │   │   └── prompts/         # prompts are FILES; tuning ≠ code change
 │   ├── plan/
-│   │   ├── models.py        # GeoQueryPlan: discriminated union of 16 step types
+│   │   ├── models/          # one Pydantic model per plan step + discriminated union
 │   │   └── validators.py    # semantic checks with agent-readable error messages
 │   ├── executor/
 │   │   ├── engine.py        # runs steps in order, dispatches via the op registry
@@ -78,10 +79,10 @@ app/
 │
 └── common/                  # ── Cross-cutting, no business rules ──
     ├── config.py            # env defaults (AILOCATOR_*, OPENAI_API_KEY)
-    ├── runtime_settings.py  # UI-editable settings; JSON file overrides env
-    ├── errors.py            # domain exceptions (mapped to HTTP in main.py)
+    ├── runtime_settings/    # model, normalizers, persisted live-override store
+    ├── errors/              # focused domain exceptions (mapped in main.py)
     ├── geo.py               # CRS helpers — ALL meters math goes through here
-    └── logging.py           # structlog → logs/requests.jsonl
+    └── logging.py           # structured JSON file + server-console logging
 ```
 
 The service tier exposes these routes:
@@ -115,7 +116,7 @@ directly or through `service/deps.py`.
 | SRP | routers translate HTTP only; each executor op is one module; DAL repositories own SQL |
 | OCP | new op = new file in `executor/ops/` (engine untouched); new provider = one `register()` call |
 | LSP/ISP | `Provider` is three methods (`describe_schema`, `fetch_features`, `sample_field_values`) — any adapter drops in |
-| DIP | BL imports nothing from DAL; it depends on `bl/ports.py` Protocols, wired in `main.py` |
+| DIP | BL imports nothing from DAL; it depends on `bl/ports/` Protocols, wired in `main.py` |
 
 ---
 
@@ -167,7 +168,7 @@ prompt input (sanitized + truncated) · clarify is a first-class response, alway
 
 ### Stage 0: transport and boundary conversion
 
-`service/dto.py` accepts a non-empty query and a required GeoJSON
+`service/dto/query_request.py` accepts a non-empty query and a required GeoJSON
 `MultiPolygon`. The router converts the boundary to Shapely and passes domain
 values into `QueryOrchestrator`. DTOs contain translation, not planning rules.
 
@@ -211,8 +212,11 @@ WGS84 GeoDataFrame so the HTTP response can show and map what was counted.
 GeoDataFrames through `__geo_interface__`, preserving computed fields such as
 `distance_to_target_m`. Responses carry the agent trace, stage timings, token
 usage, tool calls, and `pipeline_trace`: safe stage/step metadata with durations,
-counts, parameters, and statuses (not private model chain-of-thought). Routers write structured request events, while user votes
-go to the configured PostgreSQL feedback table.
+counts, parameters, and statuses (not private model chain-of-thought). Structured
+request events are written both to JSON lines and the server console. Domain and
+unexpected exceptions log method, path, status, type, message, and traceback; the UI
+also writes failed network/API operations to the browser console. User votes go to the
+configured PostgreSQL feedback table.
 
 ### Bounded agent loop
 
@@ -272,8 +276,14 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
   `property_list` into normal feature columns. Those columns drive schema discovery,
   value sampling, metadata/tag generation, attribute filters, displayed results, and
-  every spatial operation. Viewport/polygon filters are pushed down with POST when
-  available and are always rechecked locally for correctness.
+  every spatial operation. Property parsing accepts objects, name/value arrays,
+  camel/Pascal-case names, nested wrappers, and JSON-encoded strings. Fixed transport
+  fields (`triangle`, `clearence_level`, `source_id`, `date`, `area`, `perimeter`) remain
+  queryable but have `metadata_relevant=false`; description/tag generation receives only
+  business `property_list` fields and fails if none are found rather than producing
+  polygon/clearance tags. Schema and planner logs expose discovered field names and
+  bounded sample counts for diagnosis. Viewport/polygon filters are pushed down with
+  POST when available and are always rechecked locally for correctness.
 
 - **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
@@ -297,8 +307,6 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —
 re-syncs update name/description in place and **preserve tags** (rerun
-`scripts/enrich_layer_tags.py` after syncing new layers).
-
 Test-only GIS adapters live under `tests/`; no mock provider is shipped in `app/`
 or copied into the production container.
 
@@ -306,7 +314,7 @@ or copied into the production container.
 
 ## Settings
 
-Two layers, one store ([`runtime_settings.py`](app/common/runtime_settings.py)):
+Two layers, one store ([`runtime_settings_store.py`](app/common/runtime_settings/runtime_settings_store.py)):
 
 1. **Env defaults** — `AILOCATOR_*` vars / `OPENAI_API_KEY` ([`config.py`](app/common/config.py)).
 2. **UI overrides** — whatever is saved in the ⚙ panel persists to `runtime-settings.json`
@@ -360,7 +368,7 @@ annotations that pydantic/FastAPI evaluate — use `typing.Optional/Union/List/D
 
 ## Tests
 
-`tests/` runs without Postgres or an LLM: fakes implement the `bl/ports.py` protocols
+`tests/` runs without Postgres or an LLM: fakes implement the `bl/ports/` protocols
 (this is DIP paying rent). Mock data lives in `data/*.geojson`; accident timestamps are
 generated relative to `now`, which tests freeze (`frozen_now` fixture). Golden plans:
 `tests/fixtures/plans/`.

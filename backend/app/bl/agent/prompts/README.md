@@ -54,6 +54,11 @@ name. The model returns a concise Hebrew description and searchable Hebrew/Engli
 tags. These are suggestions only: the frontend fills editable form fields, and no
 catalog row is written until the user explicitly submits it.
 
+For MQS, fixed transport/geometry fields are marked `metadata_relevant=false` and
+removed from both the schema preview and sampled records. Only normalized
+`property_list` business fields may drive descriptions and tags; missing business
+fields produce a provider error instead of generic polygon/clearance metadata.
+
 ## Rules split between prompts and code
 
 Prompts express model behavior, examples, and response format. Code remains authoritative for security and correctness:
@@ -70,7 +75,7 @@ Do not rely on prompt wording as the only enforcement for a rule that protects d
 ## Tuning workflow
 
 1. Change the smallest relevant prompt.
-2. Keep JSON field names synchronized with the parser in `select_layers.py` or `build_plan.py`.
+2. Keep JSON field names synchronized with the parsers under `select_layers/` or `build_plan/`.
 3. Run the backend unit tests.
 4. Run `scripts/eval_select_layers.py` after selection-prompt changes.
 5. Inspect Hebrew and English cases, ambiguity/clarification cases, token usage, and behavior with untrusted catalog text.

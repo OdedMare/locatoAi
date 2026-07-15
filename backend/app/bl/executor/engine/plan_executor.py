@@ -5,7 +5,6 @@ an earlier step, so list order IS a topological order. The engine knows
 nothing about individual ops (OCP): it dispatches via the op registry.
 """
 
-from dataclasses import dataclass
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
@@ -16,19 +15,11 @@ from shapely.geometry.base import BaseGeometry
 # Importing the package registers all op handlers (see ops/__init__.py).
 import app.bl.executor.ops  # noqa: F401
 from app.bl.catalog.catalog_service import CatalogService
+from app.bl.executor.engine.execution_output import ExecutionOutput
 from app.bl.executor.ops.base import ExecutionContext, get_op_handler
 from app.bl.plan.models.count_step import CountStep
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.ports.provider_registry import ProviderRegistry
-
-
-@dataclass
-class ExecutionOutput:
-    """Detailed result used by the API so every success keeps geometry."""
-
-    features: gpd.GeoDataFrame
-    scalar_result: Optional[int] = None
-    step_traces: List[Dict[str, Any]] = None
 
 
 class PlanExecutor:

@@ -76,10 +76,10 @@ locatoAi/
 8. The model returns a `GeoQueryPlan`. Shape and semantic errors are fed back for one bounded correction.
 9. The executor records per-step counts. Zero rows permit one tool-assisted diagnosis and replan; code rejects any revision that removes or widens an original user constraint before re-execution.
 10. The backend returns GeoJSON features and an optional `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans keep the geometries that were counted.
-11. The frontend shows the pipeline timeline, agent trace, and results. GeoJSON is drawn with Leaflet and the map fits the result bounds.
+11. The frontend shows the pipeline timeline, agent trace, results, bounded conversation history, and copyable debug data. GeoJSON is drawn with Leaflet and the map fits the result bounds.
 12. A thumbs-up/down vote posts the selection context to the configurable PostgreSQL feedback table.
 
-Clarification is a successful product outcome, not an exception. Either agent stage can return `status: "clarify"` when the request is ambiguous or unsupported. Infrastructure and domain failures use typed errors mapped to HTTP status codes.
+Clarification is a successful product outcome, not an exception. Either agent stage can return `status: "clarify"` when the request is ambiguous or unsupported, and an unsafe zero-result revision is also returned as a clarification. The UI threads the next reply into the previous request as explicit clarification context. Infrastructure and domain failures use typed errors mapped to HTTP status codes and produce structured console/file diagnostics.
 
 ## Architectural boundaries
 
@@ -87,7 +87,7 @@ The backend follows `service → business logic ← data access`:
 
 - `service/` owns HTTP details only.
 - `bl/` owns the domain contracts and orchestration.
-- `dal/` implements interfaces owned by `bl/ports.py`.
+- `dal/` implements focused interfaces owned by `bl/ports/`.
 - `main.py` is the only composition root that creates concrete adapters and connects them.
 
 The frontend follows one-way state flow:
@@ -167,7 +167,7 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. The live base URL comes from runtime settings. Paginated list entities are enriched through `Entities/{entity_id}`; each detail response's `property_list` becomes ordinary feature fields used for schema/value sampling, tags, attribute filters, results, and spatial-operation outputs. Boundary filters are pushed down when possible and rechecked locally.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. The live base URL comes from runtime settings. Paginated list entities are enriched through `Entities/{entity_id}`; each detail response's `property_list` becomes ordinary feature fields used for schema/value sampling, tags, attribute filters, results, and spatial-operation outputs. The normalizer accepts object, name/value array, camel/Pascal-case, nested-wrapper, and JSON-string variants. Technical transport fields such as triangle, clearance, area, perimeter, source ID and date remain available to execution but are excluded from AI metadata generation. Description/tag generation receives real business fields such as name, essence and type, and fails clearly when none are discovered. Boundary filters are pushed down when possible and rechecked locally.
 
 ### Cubes
 
@@ -186,6 +186,8 @@ The LLM client uses an OpenAI-compatible API. The default points to local Ollama
 ### Map tiles
 
 The UI offers Esri World Imagery and OpenStreetMap base layers. These browser-side tile requests are separate from the catalog/provider architecture used for query data.
+
+The map workspace includes a live HUD and a non-overlapping coordinate console for its center point. Coordinates can be copied as `lat, lon`, `lon, lat`, DMS, or WKT. The chat keeps up to eight completed turns in memory, retains recent turns in the sidebar, and exposes a one-click debug export containing the exact request, response, plan, selected layers, tool calls, token usage, and pipeline trace. Quick-question presets are intentionally not shown.
 
 ## Configuration model
 
@@ -274,7 +276,7 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 ## Current limitations
 
 - Every query is geographically scoped; unbounded/global queries are not exposed by the current UI/API contract.
-- Clarification is single-turn; the next message does not yet carry conversation history.
+- Clarification follow-ups include the immediately preceding request as textual context; this is bounded UI context, not a persistent server-side conversation or general conversational memory.
 - MQS uses fetch-all-then-filter-locally with a 50,000-feature safety cap.
 - Runtime settings persist to a local JSON file and are not multi-user settings.
 - There is no streaming progress channel; the UI shows a single loading phase.

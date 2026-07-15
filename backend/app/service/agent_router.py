@@ -8,7 +8,7 @@ import time
 
 from fastapi import APIRouter, Request
 
-from app.bl.agent.select_layers import LayerSelector
+from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.service.agent_dto.select_layers_request import SelectLayersRequest
 from app.service.agent_dto.select_layers_response import SelectLayersResponse
 from app.service.agent_dto.selected_layer import SelectedLayer

@@ -214,7 +214,7 @@ def test_orchestrator_full_flow_returns_features(catalog, executor):
         "layer_ids": ["schools", "roundabouts"],
         "clarify": None,
     }
-    from app.bl.agent.select_layers import LayerSelector
+    from app.bl.agent.select_layers.layer_selector import LayerSelector
 
     selector = LayerSelector(SequenceLLM([selection_response]), catalog)
     builder = PlanBuilder(SequenceLLM([VALID_PLAN]), catalog)
@@ -254,7 +254,7 @@ def test_orchestrator_surfaces_clarify_after_empty_result(catalog, executor):
         "context_layers": [],
     }
     clarify = "לא נמצאו תוצאות. האם לחפש באזור או בזמן אחר?"
-    from app.bl.agent.select_layers import LayerSelector
+    from app.bl.agent.select_layers.layer_selector import LayerSelector
 
     orchestrator = QueryOrchestrator(
         catalog,

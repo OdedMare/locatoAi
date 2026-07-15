@@ -15,10 +15,13 @@ The frontend:
 - Presents selected layers, model reasoning, tool calls, plans, timing, and token use.
 - Renders spatial results in a table and on an interactive map.
 - Renders scalar count results without expecting GeoJSON.
+- Keeps up to eight completed turns in memory and carries direct clarification replies forward as context.
+- Copies map-center coordinates in four formats and exports complete request/response debug bundles.
 - Provides searchable layer catalog and remote MQS browsing workflows.
 - Provides live-editable LLM, MQS, Cubes, PostgreSQL, and table settings.
 - Persists light/dark theme preference in browser local storage.
 - Sends thumbs-up/down feedback to backend PostgreSQL persistence.
+- Logs failed query, settings, layer, metadata, and coordinate-copy operations to the browser console.
 
 It does not select layers, construct plans, validate plans, execute spatial operations, connect to PostgreSQL, or call MQS directly.
 
@@ -60,6 +63,8 @@ src/app/layout.tsx
 | `mapView` | Live map center, zoom, and bounding box. |
 | `lastRequest` | Exact query DTO sent to the backend and shown in debug UI. |
 | `lastResponse` | Backend response used by trace, results, and map. |
+| `lastDisplayQuery` | User-visible text for the active turn; may differ from the contextual backend query. |
+| `history` | Up to eight completed in-memory request/response turns rendered in the conversation. |
 | `isSubmitting` | Prevents duplicate submissions and drives loading UI. |
 | Dialog flags | Settings and layer-browser visibility. |
 | `isDarkMode` | Theme state synchronized with `data-theme` and local storage. |
@@ -72,14 +77,14 @@ Component-local state is used for modal forms, catalog searches, feedback voting
 2. `GeographyControls` chooses scope:
    - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon (the default).
    - `polygon` or `rectangle`: Leaflet Draw produces a Polygon, then `polygonToMultiPolygon` wraps it for the API.
-3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`.
+3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`. Before a later submission, the completed turn moves into bounded history. When the previous response asked for clarification, the new text is appended to that request as explicit clarification context.
 4. `geoQueryService.submitQuery()` posts JSON to `/api/query`.
 5. While waiting, `AgentTrace` shows the selection loading state.
 6. When the response arrives:
    - `AgentTrace` resolves plan layer IDs to selected layer names and displays the structured pipeline timeline, selection reasoning, sampled fields, the plan, timing, and token use.
    - `ResultsPanel` shows a clarification, error, scalar count, or feature-property table.
    - `MapResults` renders feature geometry and fits the map to its bounds.
-   - `RequestPreview` displays the exact request and response metadata.
+   - `RequestPreview` displays the exact request and full response diagnostics and can copy the combined debug payload.
 7. Voting calls `feedbackService`; failure is intentionally non-blocking for the main query experience.
 
 Network failures and non-2xx query responses are normalized by `geoQueryService` into `status: "error"`, giving components one stable response shape.
@@ -93,6 +98,7 @@ Leaflet reads `window` during import, so `MapWorkspace` loads `LeafletMap` with 
 - `MapResults` uses an imperative `L.geoJSON` layer because React Leaflet's GeoJSON component does not reliably update when data changes. It styles points and shapes, binds a popup when a feature has `properties.name`, and removes the old result layer during effect cleanup.
 - `MapLayers` renders the selected base tile layer.
 - `LayerPicker` switches between Esri World Imagery and OpenStreetMap.
+- `MapWorkspace` overlays a live status HUD and a top-center coordinate console that does not overlap the layer picker. The current map center can be copied as latitude/longitude, longitude/latitude, DMS, or WKT.
 
 Coordinates in frontend GeoJSON are always `[longitude, latitude]`; Leaflet component centers use `[latitude, longitude]`, so conversion is explicit at the map boundary.
 
@@ -104,7 +110,7 @@ The page controller and sole owner of shared state. It builds backend requests, 
 
 ### `QueryPanel`
 
-The chat-style left workspace. It composes navigation, welcome/conversation states, the query composer, geography controls, agent trace, results, and request preview.
+The chat-style left workspace. It composes navigation, the spatial-intelligence welcome state, bounded conversation history, the query composer, geography controls, agent trace, results, and request preview. It intentionally has no quick-question presets.
 
 ### `AgentTrace`
 
@@ -131,7 +137,9 @@ MQS and Cubes TLS verification is enabled by default and independently editable.
 
 ### `RequestPreview`
 
-A developer-oriented transparency panel showing the exact structured request and backend status/timing.
+A developer-oriented transparency panel showing the exact structured request, status,
+timings, plan, selected layers, tool calls, token usage, and pipeline trace. One button
+copies the complete request/response debug bundle.
 
 ## Source layout
 
@@ -143,7 +151,7 @@ src/
 ├── components/
 │   ├── AppShell/               # shared state and orchestration
 │   ├── QueryPanel/             # chat/navigation composition
-│   ├── GeoQueryInput/          # text input and examples
+│   ├── GeoQueryInput/          # controlled text input
 │   ├── GeographyControls/      # query-boundary mode
 │   ├── AgentTrace/             # agent observability and votes
 │   ├── ResultsPanel/           # feature/scalar result rendering
@@ -228,8 +236,8 @@ Remote map tiles require browser network access to Esri and OpenStreetMap tile h
 
 ## Current limitations
 
-- Only the most recent request/response is kept; the “history” is not persistent chat history.
-- Clarification responses are not automatically threaded into a follow-up request.
+- Up to eight completed turns are kept in browser memory only; history is neither persisted nor stored as a server-side conversation.
+- Only clarification follow-ups receive prior textual context. Ordinary later turns remain independent backend queries.
 - Query progress is not streamed by stage.
 - There is no dedicated frontend test suite yet; lint, TypeScript checking, and production build are the current automated frontend gates.
 - The result table shows at most 20 rows, while the map may display the full returned collection.

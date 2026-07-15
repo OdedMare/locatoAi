@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.bl.agent.select_layers import _FALLBACK_CLARIFY, LayerSelector
+from app.bl.agent.select_layers.layer_selector import _FALLBACK_CLARIFY, LayerSelector
 from app.dal.llm.openai_client import extract_json
 
 

@@ -6,7 +6,7 @@ import pytest
 from shapely.geometry import Polygon, box
 
 from app.bl.ports.layer_meta import LayerMeta
-from app.bl.catalog.mqs_sync import browse_mqs_layers
+from app.bl.catalog.mqs_sync.browse_mqs_layers import browse_mqs_layers
 from app.common.config import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84

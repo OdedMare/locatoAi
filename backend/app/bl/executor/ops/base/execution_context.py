@@ -1,19 +1,11 @@
-"""Op interface + registry.
-
-OCP: adding op #7 means adding one module with @register_op — the engine
-never changes. Each op handler does exactly one spatial operation (SRP).
-"""
-
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Dict, Optional, Type, Union
+from typing import Dict, Optional
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.plan.models.step import Step
 from app.bl.ports.provider_registry import ProviderRegistry
 
 
@@ -50,31 +42,3 @@ class ExecutionContext:
         gdf = provider.fetch_features(layer, now=self.now, geometry=geometry)
         gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
         return gdf
-
-
-class OpHandler(ABC):
-    """One handler per plan op."""
-
-    @abstractmethod
-    def run(self, step: Step, ctx: ExecutionContext) -> Union[gpd.GeoDataFrame, int]:
-        """A GeoDataFrame for every op except a terminal `count` step,
-        which returns a plain int (see engine.py and ops/count.py)."""
-        ...
-
-
-_REGISTRY: Dict[str, OpHandler] = {}
-
-
-def register_op(op_name: str) -> Callable[[Type[OpHandler]], Type[OpHandler]]:
-    def decorator(cls: Type[OpHandler]) -> Type[OpHandler]:
-        _REGISTRY[op_name] = cls()
-        return cls
-
-    return decorator
-
-
-def get_op_handler(op_name: str) -> OpHandler:
-    handler = _REGISTRY.get(op_name)
-    if handler is None:
-        raise KeyError(f"No handler registered for op '{op_name}'")
-    return handler

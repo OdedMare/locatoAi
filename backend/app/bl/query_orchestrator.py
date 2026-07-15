@@ -14,9 +14,9 @@ import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.agent.build_plan.plan_builder import PlanBuilder
-from app.bl.agent.select_layers import LayerSelector
+from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.executor.engine import PlanExecutor
+from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
 from app.bl.ports.layer_meta import LayerMeta

@@ -6,15 +6,15 @@ the prompt). Output: the chosen LayerMeta objects, or a clarify question.
 """
 
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
 
+from app.bl.agent.select_layers.layer_selection import LayerSelection
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.llm_client import LLMClient
 
-_PROMPT_PATH = Path(__file__).parent / "prompts" / "select_layers.md"
+_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "select_layers.md"
 
 # Clarify questions are ALWAYS Hebrew (product decision, see prompt).
 _FALLBACK_CLARIFY = "לא הצלחתי להתאים שכבת מידע לבקשה — אפשר לנסח מחדש?"
@@ -26,15 +26,6 @@ _MAX_NAME_CHARS = 80
 
 def _sanitize(text: str, limit: int) -> str:
     return re.sub(r"\s+", " ", text or "").strip()[:limit]
-
-
-@dataclass
-class LayerSelection:
-    layers: List[LayerMeta] = field(default_factory=list)
-    clarify: Optional[str] = None
-    reasoning: str = ""
-    token_usage: Optional[Dict[str, int]] = None
-    """The model's short Hebrew 'why' — shown in the UI agent panel."""
 
 
 class LayerSelector:

@@ -11,7 +11,8 @@ from fastapi import APIRouter, HTTPException, Request
 from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
     LayerMetadataGenerator,
 )
-from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
+from app.bl.catalog.mqs_sync.browse_mqs_layers import browse_mqs_layers
+from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
 from app.bl.ports.layer_meta import LayerMeta
 from app.service.catalog_dto.catalog_layer import CatalogLayer
 from app.service.catalog_dto.create_layer_request import CreateLayerRequest
