@@ -5,12 +5,9 @@ Hebrew); validation failures inside plan building retry once with the
 error appended before falling back to clarify.
 """
 
-import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.agent.build_plan.plan_builder import PlanBuilder
@@ -19,51 +16,9 @@ from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
-from app.bl.ports.layer_meta import LayerMeta
-
-
-@dataclass
-class QueryOutcome:
-    status: str  # "ok" | "clarify" | "error"
-    clarify: Optional[str] = None
-    plan: Optional[GeoQueryPlan] = None
-    features: Optional[gpd.GeoDataFrame] = None
-    scalar_result: Optional[int] = None
-    """For count plans, set alongside the geometries that were counted."""
-    timing_ms: Optional[Dict[str, int]] = None
-    token_usage: Optional[Dict[str, int]] = None
-    # Agent trace — what the model chose and why (the UI's "thinking" view).
-    selected_layers: List[LayerMeta] = field(default_factory=list)
-    reasoning: str = ""
-    tool_calls: List[Dict[str, str]] = field(default_factory=list)
-    """sample_field rounds the plan builder ran ({layer_id, field} each)."""
-    pipeline_trace: List[Dict[str, Any]] = field(default_factory=list)
-    """User-visible operational trace; never private model chain-of-thought."""
-
-
-def _sum_usage(*usages) -> Optional[Dict[str, int]]:
-    total: Optional[Dict[str, int]] = None
-    for usage in usages:
-        if not isinstance(usage, dict):
-            continue
-        if total is None:
-            total = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-        for key in total:
-            total[key] += int(usage.get(key, 0))
-    return total
-
-
-class _StageTimer:
-    """Collects per-stage elapsed milliseconds."""
-
-    def __init__(self) -> None:
-        self.timing: Dict[str, int] = {}
-        self._started = time.perf_counter()
-
-    def mark(self, stage: str) -> None:
-        now = time.perf_counter()
-        self.timing[stage] = int((now - self._started) * 1000)
-        self._started = now
+from app.bl.query_orchestrator.query_outcome import QueryOutcome
+from app.bl.query_orchestrator.stage_timer import StageTimer
+from app.bl.query_orchestrator.sum_usage import sum_usage
 
 
 class QueryOrchestrator:
@@ -88,7 +43,7 @@ class QueryOrchestrator:
             )
 
         now = datetime.now(timezone.utc)
-        timer = _StageTimer()
+        timer = StageTimer()
 
         # 1. Layer selection (agent call 1)
         selection = self._selector.select(query)
@@ -116,7 +71,7 @@ class QueryOrchestrator:
             query, selection.layers, has_boundaries=boundaries is not None, now=now
         )
         timer.mark("plan")
-        usage = _sum_usage(selection.token_usage, build.token_usage)
+        usage = sum_usage(selection.token_usage, build.token_usage)
         planning_trace = {
             "stage": "plan_building",
             "status": "completed" if build.plan is not None else "clarify",
@@ -148,7 +103,7 @@ class QueryOrchestrator:
             revised = self._builder.replan_after_empty(
                 query, selection.layers, plan, boundaries is not None, now
             )
-            usage = _sum_usage(usage, revised.token_usage)
+            usage = sum_usage(usage, revised.token_usage)
             build.tool_calls.extend(revised.tool_calls)
             trace.append({
                 "stage": "zero_result_diagnosis",
@@ -208,7 +163,7 @@ class QueryOrchestrator:
         known_ids = {layer.id for layer in self._catalog.list_layers()}
         validate_plan(plan, known_ids, has_user_geometry=boundaries is not None)
 
-        timer = _StageTimer()
+        timer = StageTimer()
         result = self._executor.execute_detailed(plan, user_geometry=boundaries)
         timer.mark("execute")
 

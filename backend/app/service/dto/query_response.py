@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel
 
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
-from app.bl.query_orchestrator import QueryOutcome
+from app.bl.query_orchestrator.query_outcome import QueryOutcome
 from app.service.dto.gdf_to_feature_collection import gdf_to_feature_collection
 from app.service.dto.selected_layer_dto import SelectedLayerDto
 

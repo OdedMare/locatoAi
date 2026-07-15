@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from app.bl.agent.build_plan.plan_builder import _FALLBACK_CLARIFY, PlanBuilder
 from app.bl.agent.build_plan.preserves_constraints import preserves_constraints
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
-from app.bl.query_orchestrator import QueryOrchestrator
+from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from tests.conftest import LAYERS
 
 NOW = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)

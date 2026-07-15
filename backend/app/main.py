@@ -13,7 +13,7 @@ from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
 from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor
-from app.bl.query_orchestrator import QueryOrchestrator
+from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.common.config import Settings, get_settings
 from app.common.errors.agent_error import AgentError
 from app.common.errors.execution_error import ExecutionError

@@ -6,7 +6,7 @@ test the executor in isolation.
 
 from fastapi import APIRouter, Depends, Request
 
-from app.bl.query_orchestrator import QueryOrchestrator
+from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.service.deps import get_orchestrator
 from app.service.dto.execute_plan_request import ExecutePlanRequest
 from app.service.dto.query_response import QueryResponse

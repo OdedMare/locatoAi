@@ -2,7 +2,7 @@
 
 from fastapi import Request
 
-from app.bl.query_orchestrator import QueryOrchestrator
+from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 
 
 def get_orchestrator(request: Request) -> QueryOrchestrator:
