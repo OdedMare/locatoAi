@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Check, Copy } from "lucide-react";
 import type { GeoQueryRequest, GeoQueryResponse } from "@/types/geo-query";
 
 interface RequestPreviewProps {
@@ -12,11 +14,26 @@ interface RequestPreviewProps {
  * response status (clarify text / timings) once it answers.
  */
 export default function RequestPreview({ request, response }: RequestPreviewProps) {
+  const [copied, setCopied] = useState(false);
+  const debugPayload = { request, response };
+  const copyDebug = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(debugPayload, null, 2));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch (error) {
+      console.error("Debug payload copy failed", error);
+    }
+  };
   return (
     <section className="request-preview">
       <header className="panel-section-header">
         <h2>תצוגת הבקשה</h2>
         <span className="badge">ניפוי שגיאות</span>
+        <button className="debug-copy-button" type="button" onClick={copyDebug}>
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "הועתק" : "העתקת debug"}
+        </button>
       </header>
       {request ? (
         <>
@@ -34,6 +51,10 @@ export default function RequestPreview({ request, response }: RequestPreviewProp
                   status: response.status,
                   timing_ms: response.timing_ms,
                   plan: response.plan,
+                  selected_layers: response.selected_layers,
+                  tool_calls: response.tool_calls,
+                  pipeline_trace: response.pipeline_trace,
+                  token_usage: response.token_usage,
                   execution: response.timing_ms?.execute !== undefined
                     ? {
                         completed: true,
