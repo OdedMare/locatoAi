@@ -11,3 +11,4 @@ class LayerField(BaseModel):
     type: str
     description: str = ""
     samples: List[str] = []
+    metadata_relevant: bool = True

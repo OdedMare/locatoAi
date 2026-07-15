@@ -1,12 +1,14 @@
 import json
 
 import geopandas as gpd
+import pytest
 from shapely.geometry import Point
 
 from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_schema import LayerSchema
 from app.dal.providers.registry import InMemoryProviderRegistry
+from app.common.errors.provider_error import ProviderError
 from tests.test_cubes_provider import make_provider as make_cubes_provider
 
 
@@ -93,3 +95,51 @@ def test_generates_metadata_from_known_cubes_request(tmp_path):
     assert {"netId", "forceType", "eventTime"} <= fields
     assert len(llm.user["random_entity_sample"]) == 10
     assert result.sample_count == 10
+
+
+class MqsMetadataProvider:
+    def __init__(self, include_business=True):
+        self.include_business = include_business
+
+    def fetch_features(self, layer, now=None, geometry=None, limit=None):
+        data = {"triangle": ["A"], "clearence_level": [2]}
+        if self.include_business:
+            data.update({"שם": ["בית הכנסת הגדול"], "מהות": ["בית כנסת"]})
+        return gpd.GeoDataFrame(data, geometry=[Point(34.8, 32.1)], crs="EPSG:4326")
+
+    def describe_schema(self, layer):
+        fields = [
+            LayerField(name="triangle", type="string", metadata_relevant=False),
+            LayerField(name="clearence_level", type="number", metadata_relevant=False),
+        ]
+        if self.include_business:
+            fields.extend([
+                LayerField(name="שם", type="string", samples=["בית הכנסת הגדול"]),
+                LayerField(name="מהות", type="string", samples=["בית כנסת"]),
+            ])
+        return LayerSchema(layer_id=layer.id, geometry_type="Polygon", fields=fields)
+
+
+def test_mqs_metadata_uses_only_property_list_business_fields():
+    providers = InMemoryProviderRegistry()
+    providers.register("mqs", MqsMetadataProvider())
+    llm = CapturingLlm()
+
+    LayerMetadataGenerator(llm, providers).generate(
+        name="מקומות", provider_name="mqs", source_url="42"
+    )
+
+    assert {field["name"] for field in llm.user["fields"]} == {"שם", "מהות"}
+    assert llm.user["random_entity_sample"] == [{
+        "שם": "בית הכנסת הגדול", "מהות": "בית כנסת",
+    }]
+
+
+def test_mqs_metadata_fails_when_property_list_is_missing():
+    providers = InMemoryProviderRegistry()
+    providers.register("mqs", MqsMetadataProvider(include_business=False))
+
+    with pytest.raises(ProviderError, match="property_list fields were not found"):
+        LayerMetadataGenerator(CapturingLlm(), providers).generate(
+            name="מקומות", provider_name="mqs", source_url="42"
+        )

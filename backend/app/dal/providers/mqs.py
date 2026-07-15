@@ -107,12 +107,12 @@ _PROPERTY_VALUE_KEYS = (
 # Fixed transport fields present alongside dynamic property_list attributes.
 # `clearence_level` is the service's own (misspelled) name; preserve it.
 _FIXED_FIELDS = (
-    LayerField(name="triangle", type="string", description="קוד מיון (Triangle classification code)"),
-    LayerField(name="clearence_level", type="string", description="רמת הסיווג/הרשאה (Clearance level)"),
-    LayerField(name="source_id", type="number", description="מזהה מערכת המקור (Source system id)"),
-    LayerField(name="date", type="date", description="תאריך ושעת הרשומה (Record date)"),
-    LayerField(name="area", type="number", description="שטח הפוליגון (Polygon area)"),
-    LayerField(name="perimeter", type="number", description="היקף הפוליגון (Polygon perimeter)"),
+    LayerField(name="triangle", type="string", description="קוד מיון (Triangle classification code)", metadata_relevant=False),
+    LayerField(name="clearence_level", type="string", description="רמת הסיווג/הרשאה (Clearance level)", metadata_relevant=False),
+    LayerField(name="source_id", type="number", description="מזהה מערכת המקור (Source system id)", metadata_relevant=False),
+    LayerField(name="date", type="date", description="תאריך ושעת הרשומה (Record date)", metadata_relevant=False),
+    LayerField(name="area", type="number", description="שטח הפוליגון (Polygon area)", metadata_relevant=False),
+    LayerField(name="perimeter", type="number", description="היקף הפוליגון (Polygon perimeter)", metadata_relevant=False),
 )
 _TEMPORAL_FIELD = "date"  # the only date-typed field that exists
 

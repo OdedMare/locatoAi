@@ -61,12 +61,19 @@ class LayerMetadataGenerator:
         if features.empty:
             raise ProviderError("The layer has no entities to sample")
 
+        metadata_fields = [field for field in schema.fields if field.metadata_relevant]
+        if layer.provider == "mqs" and not metadata_fields:
+            raise ProviderError(
+                "MQS property_list fields were not found in the entity detail response"
+            )
+        field_names = {field.name for field in metadata_fields}
         sample_count = min(_SAMPLE_SIZE, len(features))
         sampled = features.sample(n=sample_count)
         records = []
         for raw_record in sampled.drop(columns=["geometry"], errors="ignore").to_dict("records"):
             record = {}
-            for key, value in list(raw_record.items())[:_MAX_FIELDS]:
+            business_items = [item for item in raw_record.items() if item[0] in field_names]
+            for key, value in business_items[:_MAX_FIELDS]:
                 record[str(key)[:_MAX_TAG_CHARS]] = str(value)[:_MAX_VALUE_CHARS]
             records.append(record)
 
@@ -79,7 +86,7 @@ class LayerMetadataGenerator:
                 "fields": [
                     {"name": item.name, "type": item.type,
                      "description": item.description}
-                    for item in schema.fields[:_MAX_FIELDS]
+                    for item in metadata_fields[:_MAX_FIELDS]
                 ],
                 "parameters": [item.model_dump() for item in schema.parameters[:_MAX_FIELDS]],
                 "random_entity_sample": records,
