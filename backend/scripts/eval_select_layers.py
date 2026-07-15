@@ -13,7 +13,7 @@ Add every real-world miss as a new case here.
 import sys
 import time
 
-from app.bl.agent.select_layers import LayerSelector
+from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.common.config import get_settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
