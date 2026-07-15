@@ -9,15 +9,16 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus a ⚙ settings panel (LLM key/model, PG connection, layers table).
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS enriches entities from `property_list`; Cubes infers arbitrary JSON schemas and WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Known scaling risk:** MQS performs one detail request per entity. **Next candidates:** batched detail retrieval, multi-turn clarification, client timezone, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS enriches entities from `property_list`; Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Known scaling risk:** MQS performs one detail request per entity. **Next candidates:** batched detail retrieval, multi-turn clarification, client timezone, and SSE streaming.
 
 **Agent loop:** planning has up to three `sample_field` calls and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, `netId` identity, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool.
 
-**Cubes catalog workflow:** the first supported request is the known one-hour payload.
-The Layers UI accepts a bare database name; the backend canonicalizes it to
-`cubes://db/<dbname>`, samples through `CubesProvider`, infers every non-geometry JSON
-field, and uses `LayerMetadataGenerator` for editable description/tags. Do not hardcode
-response fields. Future per-cube parameter templates need an explicit discovery contract.
+**Cubes catalog workflow:** the executor's first supported request is the known one-hour
+payload. The Layers UI accepts a bare database name; the backend canonicalizes it to
+`cubes://db/<dbname>`. `CubesProvider` reads `GET /cube/v1/{cubeName}` and falls back to
+`GET /cube/v1/{cubeName}/parameters`, merges declared fields with sampled response fields,
+and gives the official cube name/description, parameter options, and entity samples to
+`LayerMetadataGenerator`. Never hardcode the response field list.
 
 ## Commands
 

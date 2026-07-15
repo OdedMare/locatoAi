@@ -120,7 +120,8 @@ Loads and searches catalog metadata. It supports manual layer creation and brows
 
 “Add Cubes layer” presets `provider=cubes`. The user supplies a display name and a
 cube/database name; the backend normalizes it, executes the known request, dynamically
-infers fields and samples, and returns editable AI-generated description/tags before save.
+discovers cube fields and parameters, samples entities, and returns editable AI-generated
+description/tags before save.
 
 ### `SettingsPanel`
 

@@ -184,6 +184,27 @@ def test_discovers_parameters_from_dedicated_endpoint(tmp_path):
     ]
 
 
+def test_rejects_unknown_required_parameter_instead_of_guessing(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "forceType", "IsRequired": True,
+                    "IsSingleValue": True, "Type": "String",
+                    "Options": [{"Name": "Bus", "Value": "bus"}],
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    with pytest.raises(ProviderError, match="forceType.*no configured value"):
+        provider.fetch_features(layer())
+
+
 def test_sample_field_values(tmp_path):
     provider, _ = make_provider(tmp_path, [
         record("bus-1"), record("bus-2"), record("bus-1")

@@ -277,18 +277,20 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
 
 - **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
-  posts the one-hour lookback payload to `/cube/v1/<dbname>`, sends the write-only
-  Authorization token, and converts WKT POINT geometry to WGS84. Every non-geometry
-  JSON key is discovered dynamically as a `LayerField`; types, samples, and the
-  temporal field are inferred from returned values and cached after fetch. Cubes
-  schema changes therefore require no hardcoded field-list update. User geometry is
+  reads metadata with `GET /cube/v1/<dbname>` and falls back to
+  `GET /cube/v1/<dbname>/parameters` when parameter definitions are not embedded.
+  It posts the supported one-hour payload to `/cube/v1/<dbname>`, sends the write-only
+  Authorization token, and converts WKT POINT geometry to WGS84. Declared fields are
+  merged with every non-geometry JSON key discovered dynamically; types, samples, and
+  the temporal field are inferred and cached. User geometry is
   sent as `arriveTime.not.Location`; local executor filtering remains authoritative.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
   from being mistaken for multiple vehicles and support trajectory questions.
   The generic metadata endpoint accepts a bare database name, normalizes it to
-  `cubes://db/<dbname>`, fetches the known one-hour sample, infers all response fields,
-  and feeds those fields and entity samples to editable description/tag generation.
+  `cubes://db/<dbname>`, fetches the known one-hour sample, and feeds the cube's official
+  name/description, fields, request parameters/options, and entity samples to editable
+  description/tag generation.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —

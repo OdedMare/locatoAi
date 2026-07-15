@@ -1,10 +1,4 @@
-"""Cubes provider for time-varying entity locations.
-
-Catalog rows use provider="cubes" and source_url="cubes://db/<dbname>".
-The adapter POSTs a one-hour lookback query to /cube/v1/<dbname>, parses
-WKT POINT geometry, and preserves every returned JSON field as a feature
-property. `eventTime` is the provider-declared temporal field.
-"""
+"""Cubes provider for metadata and time-varying entity locations."""
 
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -67,17 +61,16 @@ def _query_body(geometry: Optional[BaseGeometry],
         "arriveTime": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
         "arriveTime.not": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
     }
+    declared = {parameter.name for parameter in parameters or []}
     body = dict(known) if not parameters else {
-        parameter.name: known[parameter.name]
-        for parameter in parameters if parameter.name in known
+        name: value for name, value in known.items()
+        if name.removesuffix(".not") in declared
     }
     for parameter in parameters or []:
         if parameter.required and parameter.name not in body:
-            if not parameter.options:
-                raise ProviderError(
-                    f"Cubes parameter '{parameter.name}' is required and has no configured value"
-                )
-            body[parameter.name] = parameter.options[0]
+            raise ProviderError(
+                f"Cubes parameter '{parameter.name}' is required and has no configured value"
+            )
     if geometry is not None and "arriveTime.not" in body:
         body["arriveTime.not"]["Location"] = geometry.wkt
     return body
