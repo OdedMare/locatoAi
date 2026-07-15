@@ -39,7 +39,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   useEffect(() => {
     getLayers()
       .then((data) => setLayers(data.layers))
-      .catch(() => setError("לא ניתן לטעון שכבות — האם השרת פועל?"));
+      .catch((err) => {
+        console.error("Layer loading failed", err);
+        setError(err instanceof Error ? err.message : "לא ניתן לטעון שכבות");
+      });
   }, []);
 
   const filtered = useMemo(() => {
@@ -106,6 +109,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setSourceUrl("");
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
     } catch (err) {
+      console.error("Layer creation failed", err);
       setFormMessage(err instanceof Error ? err.message : "לא ניתן להוסיף את השכבה");
     } finally {
       setSaving(false);
@@ -122,6 +126,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setMqsLayers(result.layers);
       if (result.skipped) setMqsMessage(`${result.skipped} רשומות לא תקינות דולגו`);
     } catch (err) {
+      console.error("MQS layer browsing failed", err);
       setMqsMessage(err instanceof Error ? err.message : "טעינת שכבות MQS נכשלה");
     }
   };
@@ -144,6 +149,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
     } catch (err) {
+      console.error("Layer metadata generation failed", err);
       setFormMessage(err instanceof Error ? err.message : "יצירת התיאור והתגיות נכשלה");
     } finally {
       setGeneratingMetadata(false);

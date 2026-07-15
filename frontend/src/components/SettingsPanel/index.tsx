@@ -52,6 +52,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       // Send what's typed in the form — tests the values BEFORE saving.
       setAvailableModels(await fetchModels(baseUrl, apiKey));
     } catch (err) {
+      console.error("Model loading failed", err);
       setModelsError(err instanceof Error ? err.message : "טעינת המודלים נכשלה");
     } finally {
       setModelsLoading(false);
@@ -78,7 +79,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setFeedbackTable(s.feedback_table ?? "");
         void fetchModels(s.llm_base_url ?? "", "").then(setAvailableModels);
       })
-      .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
+      .catch((err) => {
+        console.error("Settings loading failed", err);
+        setMessage(err instanceof Error ? err.message : "לא ניתן לטעון את ההגדרות");
+      });
   }, []);
 
   const handleSave = async () => {
@@ -110,6 +114,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       setDatabasePassword("");
       setMessage("נשמר ✓");
     } catch (err) {
+      console.error("Settings save failed", err);
       setMessage(err instanceof Error ? err.message : "השמירה נכשלה");
     } finally {
       setSaving(false);

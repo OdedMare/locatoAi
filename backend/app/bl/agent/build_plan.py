@@ -10,6 +10,7 @@ clarify. Both attempts are visible in `attempts`.
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,7 @@ from app.bl.ports.llm_client import LLMClient
 from app.common.errors.plan_validation_error import PlanValidationError
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "build_plan.md"
+logger = logging.getLogger(__name__)
 
 # Clarify is ALWAYS Hebrew (product decision, same as selection).
 _FALLBACK_CLARIFY = "לא הצלחתי לבנות שאילתה מהבקשה — אפשר לנסח אותה אחרת?"
@@ -214,6 +216,11 @@ class PlanBuilder:
         lines = []
         for layer in layers:
             schema = self._catalog.get_schema(layer.id)
+            logger.info(
+                "Plan schema layer=%s fields=%d samples=%s",
+                layer.id, len(schema.fields),
+                {field.name: len(field.samples) for field in schema.fields},
+            )
             lines.append(
                 "- id: {id} | name: {name} | geometry: {geom}\n  fields: {fields}".format(
                     id=layer.id,

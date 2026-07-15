@@ -8,8 +8,10 @@ RUN pip install --no-cache-dir --upgrade "pip<25" \
 
 COPY pyproject.toml ./
 COPY app ./app
+COPY tests ./tests
+COPY data ./data
 
-RUN pip install --no-cache-dir -e . \
+RUN pip install --no-cache-dir -e ".[dev]" \
     && mkdir -p /srv/backend/logs \
     && chown -R app:app /srv/backend
 

@@ -55,6 +55,7 @@ client-side, so an instance that ignores the filter body stays correct,
 just slower.
 """
 
+import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -90,13 +91,17 @@ _ENTITY_LIST_KEYS = (
 _LAYER_LIST_KEYS = ("layers_list", "LayersList", "layers", "Layers")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
 _PROPERTY_LIST_KEYS = (
-    "property_list", "propertyList", "PropertyList", "properties", "Properties",
+    "property_list", "propertyList", "PropertyList", "Property_List",
+    "properties", "Properties",
 )
 _PROPERTY_NAME_KEYS = (
-    "name", "Name", "key", "Key", "field", "field_name", "property_name",
+    "name", "Name", "key", "Key", "field", "fieldName", "FieldName",
+    "field_name", "propertyName", "PropertyName", "property_name",
 )
 _PROPERTY_VALUE_KEYS = (
-    "value", "Value", "field_value", "property_value", "display_value",
+    "value", "Value", "fieldValue", "FieldValue", "field_value",
+    "propertyValue", "PropertyValue", "property_value", "displayValue",
+    "DisplayValue", "display_value",
 )
 
 # Fixed transport fields present alongside dynamic property_list attributes.
@@ -213,7 +218,15 @@ def _property_attributes(entity: dict) -> Dict[str, object]:
     """
     raw = _first_key(entity, _PROPERTY_LIST_KEYS)
     attributes: Dict[str, object] = {}
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return attributes
     if isinstance(raw, dict):
+        nested = _first_key(raw, _PROPERTY_LIST_KEYS)
+        if isinstance(nested, (dict, list)):
+            return _property_attributes({"property_list": nested})
         for key, value in raw.items():
             name = str(key).strip()
             if name and name != "geometry":
@@ -383,6 +396,10 @@ class MqsProvider:
                         )
                     elif sample not in existing.samples and len(existing.samples) < 5:
                         existing.samples.append(sample)
+        logger.info(
+            "MQS schema layer=%s dynamic_fields=%d names=%s",
+            layer_id, len(dynamic), list(dynamic),
+        )
         return LayerSchema(
             layer_id=layer.id,
             geometry_type="Polygon",

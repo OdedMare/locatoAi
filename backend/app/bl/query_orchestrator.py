@@ -157,6 +157,20 @@ class QueryOrchestrator:
                 "tool_calls": revised.tool_calls,
                 "explanation": revised.plan.explanation if revised.plan else revised.clarify,
             })
+            if revised.plan is None:
+                return QueryOutcome(
+                    status="clarify",
+                    clarify=revised.clarify or "לא נמצאו תוצאות. אפשר לחדד את הבקשה?",
+                    plan=plan,
+                    features=result.features,
+                    scalar_result=result.scalar_result,
+                    timing_ms=timer.timing,
+                    token_usage=usage,
+                    selected_layers=selection.layers,
+                    reasoning=selection.reasoning,
+                    tool_calls=build.tool_calls,
+                    pipeline_trace=trace,
+                )
             if revised.plan is not None:
                 plan = revised.plan
                 result = self._executor.execute_detailed(

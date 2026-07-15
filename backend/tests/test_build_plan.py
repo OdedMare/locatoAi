@@ -238,3 +238,33 @@ def test_orchestrator_full_flow_returns_features(catalog, executor):
     ]
     assert outcome.pipeline_trace[-1]["geometry_returned"] is True
     assert outcome.pipeline_trace[-1]["feature_count"] == 4
+
+
+def test_orchestrator_surfaces_clarify_after_empty_result(catalog, executor):
+    selection = {
+        "reasoning": "נבחרה שכבה ריקה",
+        "layer_ids": ["empty-layer"],
+        "clarify": None,
+    }
+    plan = {
+        "explanation": "טעינת השכבה",
+        "steps": [{"id": "load_empty", "op": "load", "layer": "empty-layer"}],
+        "output": "load_empty",
+        "context_layers": [],
+    }
+    clarify = "לא נמצאו תוצאות. האם לחפש באזור או בזמן אחר?"
+    from app.bl.agent.select_layers import LayerSelector
+
+    orchestrator = QueryOrchestrator(
+        catalog,
+        executor,
+        layer_selector=LayerSelector(SequenceLLM([selection]), catalog),
+        plan_builder=PlanBuilder(SequenceLLM([plan, {"clarify": clarify}]), catalog),
+    )
+
+    outcome = orchestrator.run_query("מצא משהו", boundaries=None)
+
+    assert outcome.status == "clarify"
+    assert outcome.clarify == clarify
+    assert outcome.features.empty
+    assert outcome.pipeline_trace[-1]["stage"] == "zero_result_diagnosis"

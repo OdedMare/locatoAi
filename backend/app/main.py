@@ -1,6 +1,8 @@
 """Composition root: wires DAL implementations into BL ports and mounts
 the service routers. The only module that knows every tier."""
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -41,6 +43,7 @@ _ERROR_STATUS = {
     ExecutionError: 400,
     AgentError: 503,
 }
+_LOGGER = logging.getLogger("ailocator")
 
 _ROUTERS = (
     query_router,
@@ -92,15 +95,31 @@ def _register_error_handlers(app: FastAPI) -> None:
 
     def make_handler(status_code: int):
         async def handler(request: Request, exc: Exception) -> JSONResponse:
+            context = {
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": status_code,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            }
+            request_logger = getattr(request.app.state, "request_log", None)
+            if request_logger is not None:
+                request_logger.error("request_failed", **context, exc_info=True)
+            else:
+                _LOGGER.exception("request_failed %s", context)
             return JSONResponse(
                 status_code=status_code,
-                content={"status": "error", "detail": str(exc)},
+                content={
+                    "status": "error",
+                    "detail": str(exc) if status_code != 500 else "Internal server error",
+                },
             )
 
         return handler
 
     for error_type, status_code in _ERROR_STATUS.items():
         app.add_exception_handler(error_type, make_handler(status_code))
+    app.add_exception_handler(Exception, make_handler(500))
 
 
 def create_app() -> FastAPI:

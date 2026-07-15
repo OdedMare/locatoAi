@@ -19,10 +19,11 @@ export async function submitQuery(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     });
-  } catch {
+  } catch (error) {
+    console.error("Query request could not reach the backend", error);
     return {
       status: "error",
-      clarify: null,
+      clarify: "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.",
       plan: null,
       features: null,
       scalar_result: null,
@@ -36,7 +37,15 @@ export async function submitQuery(
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const raw = await res.text().catch(() => "");
+    let detail = raw;
+    try {
+      const parsed = JSON.parse(raw) as { detail?: string };
+      detail = parsed.detail ?? raw;
+    } catch {
+      detail = raw;
+    }
+    console.error("Query backend error", { status: res.status, detail });
     return {
       status: "error",
       clarify: detail || `השרת החזיר שגיאה ${res.status}`,

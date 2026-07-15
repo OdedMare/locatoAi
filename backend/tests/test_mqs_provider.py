@@ -199,6 +199,33 @@ def test_fetch_features_accepts_property_list_name_value_array(tmp_path):
     assert row["סוג"] == "כיכר"
 
 
+def test_property_list_accepts_camel_case_and_json_string(tmp_path):
+    properties = json.dumps([
+        {"propertyName": "שם", "propertyValue": "בית הכנסת הגדול"},
+        {"FieldName": "מהות", "FieldValue": "בית כנסת"},
+    ], ensure_ascii=False)
+    provider, _ = make_provider(tmp_path, lambda request: [entity(
+        "{G1}", property_list=properties,
+    )])
+
+    row = provider.fetch_features(mqs_layer()).iloc[0]
+
+    assert row["שם"] == "בית הכנסת הגדול"
+    assert row["מהות"] == "בית כנסת"
+
+
+def test_property_list_accepts_nested_properties_wrapper(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: [entity(
+        "{G1}", property_list={"Properties": [
+            {"PropertyName": "סוג", "PropertyValue": "ציבורי"},
+        ]},
+    )])
+
+    row = provider.fetch_features(mqs_layer()).iloc[0]
+
+    assert row["סוג"] == "ציבורי"
+
+
 def test_describe_schema_and_sample_values_use_property_list(tmp_path):
     detailed = entity("G1", property_list={"שם": "גן העיר", "סוג": "ציבורי"})
 
