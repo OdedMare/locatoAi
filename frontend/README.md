@@ -177,6 +177,9 @@ src/
 
 The TypeScript interfaces intentionally mirror Pydantic DTOs. When an API contract changes, update both sides in the same change.
 
+Moving Cubes entities use `netId` as their stable identity. Agent traces describe
+`latest_per_entity` deduplication and `movement_direction` trajectory detection.
+
 ## Styling and directionality
 
 The document root is `lang="he" dir="rtl"`. Inputs and technical values selectively use `dir="ltr"` or `dir="auto"`. Global CSS contains desktop layout, responsive breakpoints, modal styling, map controls, and theme overrides driven by `:root[data-theme="dark"]`.

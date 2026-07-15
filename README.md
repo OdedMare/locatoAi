@@ -141,6 +141,8 @@ A plan is an ordered DAG. Each step has a unique ID, and any `input` must refer 
 | `nearest_n` | Returns the globally nearest N input features to a target layer. |
 | `near_all` | Requires proximity to every one of 2–5 target references and can rank/limit matches. |
 | `cluster` | Finds same-layer groups whose members are mutually close. |
+| `latest_per_entity` | Keeps the newest observation for each stable entity identity. |
+| `movement_direction` | Detects dominant first-to-last trajectory direction and returns each matching entity's latest position. |
 | `between` | Keeps features inside a metric corridor between two references. |
 | `crosses` | Keeps input geometries crossing a target geometry. |
 | `touches` | Keeps input geometries touching a target boundary without interior overlap. |
@@ -168,7 +170,7 @@ MQS is the production feature provider. Catalog entries use `provider="mqs"` and
 
 ### Cubes
 
-Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter posts a one-hour lookback query to `/cube/v1/<dbname>`, sends the configured secret Authorization token, parses WKT `POINT (longitude latitude)`, preserves all JSON fields, declares `eventTime` as the temporal field, and sends the user boundary through `Location`. Deterministic operations still recheck spatial and temporal conditions locally.
+Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter posts a one-hour lookback query to `/cube/v1/<dbname>`, sends the configured secret Authorization token, parses WKT `POINT (longitude latitude)`, preserves all JSON fields, declares `eventTime` as the temporal field, and sends the user boundary through `Location`. `netId` is the stable entity identity. Plans can collapse repeated observations with `latest_per_entity` or detect north/south/east/west trajectories with `movement_direction`. Deterministic operations still recheck spatial and temporal conditions locally.
 
 ### LLM provider
 

@@ -151,6 +151,24 @@ class ClusterStep(BaseModel):
     max_distance_m: float = Field(gt=0, le=5000)
 
 
+class LatestPerEntityStep(BaseModel):
+    id: str
+    op: Literal["latest_per_entity"]
+    input: str
+    entity_field: str = "netId"
+    time_field: str = "eventTime"
+
+
+class MovementDirectionStep(BaseModel):
+    id: str
+    op: Literal["movement_direction"]
+    input: str
+    direction: Literal["north", "south", "east", "west"]
+    entity_field: str = "netId"
+    time_field: str = "eventTime"
+    min_distance_m: float = Field(default=50, ge=0, le=50000)
+
+
 class CountStep(BaseModel):
     """Terminal aggregation: row count of the upstream step, as a plain
     int. No grouping/aggregation by attribute. Must be the plan's `output`
@@ -177,6 +195,8 @@ Step = Annotated[
         DirectionalStep,
         TemporalFilterStep,
         ClusterStep,
+        LatestPerEntityStep,
+        MovementDirectionStep,
         CountStep,
     ],
     Field(discriminator="op"),

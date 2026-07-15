@@ -73,3 +73,6 @@ Do not rely on prompt wording as the only enforcement for a rule that protects d
 6. Turn real downvotes from the PostgreSQL feedback table into regression cases.
 
 When introducing a new plan operation, update the Pydantic model, validator/executor behavior, this prompt, frontend plan trace, tests, and architecture documentation together.
+
+Cubes trajectory recipes use `netId` as entity identity and `eventTime` as observation
+time. Apply temporal filtering before `latest_per_entity` or `movement_direction`.

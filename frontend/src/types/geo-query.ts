@@ -55,6 +55,8 @@ export interface GeoPlanStep {
     | "directional"
     | "temporal_filter"
     | "cluster"
+    | "latest_per_entity"
+    | "movement_direction"
     | "count";
   input?: string;
   layer?: string;
@@ -87,6 +89,9 @@ export interface GeoPlanStep {
   to?: string;
   min_group_size?: number;
   max_distance_m?: number;
+  entity_field?: string;
+  time_field?: string;
+  min_distance_m?: number;
 }
 
 /** The plan the agent built (mirrors backend GeoQueryPlan). */

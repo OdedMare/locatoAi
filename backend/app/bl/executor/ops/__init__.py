@@ -7,6 +7,8 @@ from app.bl.executor.ops import (  # noqa: F401
     count,
     directional,
     load,
+    latest_per_entity,
+    movement_direction,
     near,
     near_all,
     nearest_n,

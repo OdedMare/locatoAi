@@ -56,7 +56,7 @@ app/
 │   │   ├── build_plan.py    # call 2: query+schemas → plan (+ sample_field tool rounds)
 │   │   └── prompts/         # prompts are FILES; tuning ≠ code change
 │   ├── plan/
-│   │   ├── models.py        # GeoQueryPlan: discriminated union of 14 step types
+│   │   ├── models.py        # GeoQueryPlan: discriminated union of 16 step types
 │   │   └── validators.py    # semantic checks with agent-readable error messages
 │   ├── executor/
 │   │   ├── engine.py        # runs steps in order, dispatches via the op registry
@@ -147,6 +147,8 @@ Plans are DAGs of steps chained by `id`/`input`. Validators guarantee every
 | `nearest_n` | globally nearest N features to a target layer | adds `distance_to_target_m` |
 | `near_all` | require proximity to every one of 2–5 targets | AND semantics; optional ranking limit |
 | `cluster` | find mutually close groups within the input layer | adds `cluster_id` |
+| `latest_per_entity` | newest observation per identity | Cubes defaults: `netId` + `eventTime` |
+| `movement_direction` | dominant trajectory direction | latest matching position + distance |
 | `between` | keep features in a corridor between two references | metric corridor width |
 | `crosses` | input crosses target | topological relation |
 | `touches` | input touches target without interior overlap | topological relation |
@@ -272,6 +274,9 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   temporal field are inferred from returned values and cached after fetch. Cubes
   schema changes therefore require no hardcoded field-list update. User geometry is
   sent as `arriveTime.not.Location`; local executor filtering remains authoritative.
+  Moving-entity plans use `netId` as identity and `eventTime` as time. The
+  `latest_per_entity` and `movement_direction` operations prevent repeated observations
+  from being mistaken for multiple vehicles and support trajectory questions.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —

@@ -40,6 +40,10 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
       return `סינון זמן: ${step.from} עד ${step.to}`;
     case "cluster":
       return `איתור קבוצות של ${step.min_group_size ?? 2}+ ישויות קרובות זו לזו (עד ${step.max_distance_m ?? 300} מ')`;
+    case "latest_per_entity":
+      return `המיקום האחרון לכל ישות לפי ${step.entity_field ?? "netId"}`;
+    case "movement_direction":
+      return `ישויות שנעו ${DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? 50} מ'`;
     case "count":
       return "ספירת תוצאות";
   }

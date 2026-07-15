@@ -83,6 +83,17 @@ def test_temporal_filter_accepts_from_alias():
     assert plan.steps[1].from_ == "2026-07-08T00:00:00Z"
 
 
+def test_moving_entity_steps_parse():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "accidents"},
+        {"id": "s2", "op": "movement_direction", "input": "s1",
+         "direction": "south", "entity_field": "netId",
+         "time_field": "eventTime", "min_distance_m": 100},
+        {"id": "s3", "op": "latest_per_entity", "input": "s2"},
+    ], output="s3")
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
 def test_unknown_op_rejected_at_parse_time():
     with pytest.raises(ValidationError):
         make_plan(steps=[{"id": "s1", "op": "drop_table", "layer": "schools"}])
