@@ -40,6 +40,10 @@ def test_movement_direction_returns_latest_matching_vehicle_position():
     assert list(result["netId"]) == ["bus-south"]
     assert result.geometry.iloc[0].y == 32.08
     assert result.iloc[0]["movement_distance_m"] > 100
+    assert result.iloc[0]["movement_path"] == {
+        "type": "LineString",
+        "coordinates": ((34.78, 32.10), (34.78, 32.08)),
+    }
 
 
 def test_movement_direction_ignores_single_observation_entities():

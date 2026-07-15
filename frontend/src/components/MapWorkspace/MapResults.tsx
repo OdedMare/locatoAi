@@ -34,7 +34,14 @@ const INTERNAL_PROPERTIES = new Set([
   "nearest_target_feature",
   "matched_reference_features",
   "distance_to_targets_m",
+  "movement_path",
 ]);
+
+const MOVEMENT_STYLE: L.PolylineOptions = {
+  color: "#be123c",
+  weight: 4,
+  opacity: 0.85,
+};
 
 function popupContent(feature: GeoJSON.Feature, title: string): HTMLElement {
   const root = document.createElement("div");
@@ -116,6 +123,29 @@ export default function MapResults({ features }: MapResultsProps) {
           maxWidth: 360,
           minWidth: 260,
         });
+
+        const movementPath = feature.properties?.movement_path as
+          | GeoJSON.LineString
+          | undefined;
+        if (movementPath?.type === "LineString" && movementPath.coordinates.length > 1) {
+          const positions = movementPath.coordinates.map(([lng, lat]) =>
+            L.latLng(lat, lng)
+          );
+          L.polyline(positions, MOVEMENT_STYLE).addTo(group);
+
+          const from = positions[positions.length - 2];
+          const to = positions[positions.length - 1];
+          const angle = Math.atan2(to.lat - from.lat, to.lng - from.lng) * 180 / Math.PI;
+          L.marker(to, {
+            interactive: false,
+            icon: L.divIcon({
+              className: "map-relation-arrow",
+              html: `<span style="display:block;color:#be123c;transform:rotate(${-angle}deg)">➤</span>`,
+              iconSize: [18, 18],
+              iconAnchor: [9, 9],
+            }),
+          }).addTo(group);
+        }
 
         const nearestTarget = feature.properties?.nearest_target_feature as
           | GeoJSON.Feature

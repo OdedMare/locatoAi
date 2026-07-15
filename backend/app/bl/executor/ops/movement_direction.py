@@ -1,5 +1,6 @@
 import geopandas as gpd
 import pandas as pd
+from shapely.geometry import LineString, mapping
 
 from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_handler import OpHandler
@@ -28,10 +29,11 @@ class MovementDirectionOp(OpHandler):
         data["_time"] = pd.to_datetime(data[step.time_field], utc=True, errors="coerce")
         data = data.dropna(subset=[step.entity_field, "_time"]).sort_values("_time")
         metric = to_metric(data, metric_crs_for(data))
-        positions, distances = self._moving_entities(metric, step)
+        positions, distances, paths = self._moving_entities(metric, data, step)
         result = data.iloc[positions].copy()
         result["movement_distance_m"] = distances
         result["movement_direction"] = step.direction
+        result["movement_path"] = paths
         return result.drop(columns=["_time"])
 
     def _validate(self, data: gpd.GeoDataFrame, step: MovementDirectionStep) -> None:
@@ -40,8 +42,9 @@ class MovementDirectionOp(OpHandler):
             raise ExecutionError(f"movement_direction missing fields: {sorted(missing)}")
 
     def _moving_entities(self, data: gpd.GeoDataFrame,
+                         source: gpd.GeoDataFrame,
                          step: MovementDirectionStep):
-        positions, distances = [], []
+        positions, distances, paths = [], [], []
         for _, group in data.groupby(step.entity_field, sort=False):
             if len(group) < 2:
                 continue
@@ -51,4 +54,7 @@ class MovementDirectionOp(OpHandler):
             if distance >= step.min_distance_m and _matches(step.direction, dx, dy):
                 positions.append(data.index.get_loc(group.index[-1]))
                 distances.append(round(distance, 2))
-        return positions, distances
+                paths.append(mapping(LineString(
+                    [(point.x, point.y) for point in source.loc[group.index].geometry]
+                )))
+        return positions, distances, paths
