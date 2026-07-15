@@ -5,6 +5,7 @@ from typing import Optional
 @dataclass
 class RuntimeSettings:
     llm_model: str
+    llm_diet_mode: bool
     llm_base_url: Optional[str]
     openai_api_key: str
     mqs_base_url: Optional[str]

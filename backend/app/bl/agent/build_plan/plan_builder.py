@@ -13,7 +13,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Callable, Dict, List, Set
 
 from pydantic import ValidationError
 
@@ -29,6 +29,7 @@ from app.bl.ports.llm_client import LLMClient
 from app.common.errors.plan_validation_error import PlanValidationError
 
 _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "build_plan.md"
+_DIET_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "build_plan_diet.md"
 logger = logging.getLogger(__name__)
 
 # Clarify is ALWAYS Hebrew (product decision, same as selection).
@@ -48,13 +49,22 @@ _TOOL_NAME = "sample_field"
 _MAX_TOOL_ROUNDS = 3
 _SAMPLE_LIMIT = 20
 _MAX_SAMPLE_CHARS = 40
+_DIET_SAMPLE_LIMIT = 8
+_DIET_MAX_SAMPLE_CHARS = 24
+_DIET_MAX_ERROR_CHARS = 300
+_DIET_MAX_PREVIOUS_PLAN_CHARS = 800
 
 
 class PlanBuilder:
-    def __init__(self, llm: LLMClient, catalog: CatalogService):
+    def __init__(
+        self, llm: LLMClient, catalog: CatalogService,
+        diet_mode: Callable[[], bool] = lambda: False,
+    ):
         self._llm = llm
         self._catalog = catalog
         self._template = _PROMPT_PATH.read_text(encoding="utf-8")
+        self._diet_template = _DIET_PROMPT_PATH.read_text(encoding="utf-8")
+        self._diet_mode = diet_mode
 
     def build(
         self,
@@ -63,10 +73,12 @@ class PlanBuilder:
         has_boundaries: bool,
         now: datetime,
     ) -> PlanBuildResult:
+        diet = self._diet_mode()
+        template = self._diet_template if diet else self._template
         system = (
-            self._template.replace("{now}", now.isoformat())
+            template.replace("{now}", now.isoformat())
             .replace("{has_boundaries}", "yes" if has_boundaries else "no")
-            .replace("{layers}", self._format_layers(layers))
+            .replace("{layers}", self._format_layers(layers, diet=diet))
         )
         selected_ids = {layer.id for layer in layers}
 
@@ -80,7 +92,9 @@ class PlanBuilder:
             usage.add(data.pop(_USAGE_KEY, None))
 
             if data.get("tool") == _TOOL_NAME and len(tool_calls) < _MAX_TOOL_ROUNDS:
-                tool_notes.append(self._run_sample_tool(data, selected_ids, tool_calls))
+                tool_notes.append(self._run_sample_tool(
+                    data, selected_ids, tool_calls, diet=diet
+                ))
                 user = self._with_tool_notes(query, tool_notes)
                 continue  # a tool round does not consume the validation retry
 
@@ -100,7 +114,9 @@ class PlanBuilder:
                     token_usage=usage.total, tool_calls=tool_calls,
                 )
             except (ValidationError, PlanValidationError) as exc:
-                user = self._correction_message(query, data, exc, tool_notes)
+                user = self._correction_message(
+                    query, data, exc, tool_notes, diet=diet
+                )
 
         return PlanBuildResult(
             clarify=_FALLBACK_CLARIFY, attempts=_MAX_ATTEMPTS,
@@ -129,6 +145,7 @@ class PlanBuilder:
         data: dict,
         selected_ids: Set[str],
         tool_calls: List[Dict[str, str]],
+        diet: bool = False,
     ) -> str:
         """Execute one sample_field round; always returns a note for the
         next prompt (values or a "no values" line — never an exception,
@@ -137,17 +154,19 @@ class PlanBuilder:
         field_name = str(data.get("field") or "").strip()
         tool_calls.append({"layer_id": layer_id, "field": field_name})
         values: List[str] = []
+        sample_limit = _DIET_SAMPLE_LIMIT if diet else _SAMPLE_LIMIT
+        sample_chars = _DIET_MAX_SAMPLE_CHARS if diet else _MAX_SAMPLE_CHARS
         if layer_id in selected_ids and field_name:
             try:
                 values = self._catalog.sample_field(
-                    layer_id, field_name, limit=_SAMPLE_LIMIT
+                    layer_id, field_name, limit=sample_limit
                 )
             except Exception:
                 values = []  # sampling is best-effort; the note says so
         if not values:
             return f"No values available for layer {layer_id} field {field_name}."
         rendered = json.dumps(
-            [str(v)[:_MAX_SAMPLE_CHARS] for v in values[:_SAMPLE_LIMIT]],
+            [str(v)[:sample_chars] for v in values[:sample_limit]],
             ensure_ascii=False,
         )
         return f"Field values for layer {layer_id} field {field_name}: {rendered}"
@@ -163,20 +182,23 @@ class PlanBuilder:
 
     @staticmethod
     def _correction_message(
-        query: str, data: dict, error: Exception, tool_notes: List[str]
+        query: str, data: dict, error: Exception, tool_notes: List[str],
+        diet: bool = False,
     ) -> str:
+        error_chars = _DIET_MAX_ERROR_CHARS if diet else _MAX_ERROR_CHARS
+        plan_chars = _DIET_MAX_PREVIOUS_PLAN_CHARS if diet else 1500
         notes = ("\n" + "\n".join(tool_notes)) if tool_notes else ""
         return (
             query.strip()
             + notes
             + "\n\nYour previous plan was REJECTED: "
-            + str(error)[:_MAX_ERROR_CHARS]
+            + str(error)[:error_chars]
             + "\nPrevious plan: "
-            + json.dumps(data, ensure_ascii=False)[:1500]
+            + json.dumps(data, ensure_ascii=False)[:plan_chars]
             + "\nReturn a corrected plan as JSON only."
         )
 
-    def _format_layers(self, layers: List[LayerMeta]) -> str:
+    def _format_layers(self, layers: List[LayerMeta], diet: bool = False) -> str:
         lines = []
         for layer in layers:
             schema = self._catalog.get_schema(layer.id)
@@ -190,7 +212,7 @@ class PlanBuilder:
                     id=layer.id,
                     name=layer.name,
                     geom=schema.geometry_type,
-                    fields=self._format_fields(schema),
+                    fields=self._format_fields(schema, diet=diet),
                 )
             )
             if schema.parameters:
@@ -201,13 +223,23 @@ class PlanBuilder:
         return "\n".join(lines)
 
     @staticmethod
-    def _format_fields(schema: LayerSchema) -> str:
+    def _format_fields(schema: LayerSchema, diet: bool = False) -> str:
         if not schema.fields:
             return "(unknown)"
         parts = []
         for field in schema.fields:
-            text = field.name + " (" + field.type + ")"
+            text = (
+                field.name + ":" + field.type
+                if diet else field.name + " (" + field.type + ")"
+            )
             if field.samples:
-                text += " samples: " + json.dumps(field.samples[:5], ensure_ascii=False)
+                samples = field.samples[:2] if diet else field.samples[:5]
+                if diet:
+                    samples = [
+                        str(value)[:_DIET_MAX_SAMPLE_CHARS] for value in samples
+                    ]
+                    text += "=" + json.dumps(samples, ensure_ascii=False)
+                else:
+                    text += " samples: " + json.dumps(samples, ensure_ascii=False)
             parts.append(text)
         return "; ".join(parts)

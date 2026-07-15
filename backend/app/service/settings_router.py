@@ -44,6 +44,7 @@ def _to_response(
 ) -> SettingsResponse:
     return SettingsResponse(
         llm_model=settings.llm_model,
+        llm_diet_mode=settings.llm_diet_mode,
         llm_base_url=settings.llm_base_url,
         openai_api_key_set=bool(settings.openai_api_key),
         openai_api_key_hint=_mask_key(settings.openai_api_key),

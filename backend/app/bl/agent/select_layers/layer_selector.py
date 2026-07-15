@@ -7,7 +7,7 @@ the prompt). Output: the chosen LayerMeta objects, or a clarify question.
 
 import re
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 from app.bl.agent.select_layers.layer_selection import LayerSelection
 from app.bl.catalog.catalog_service import CatalogService
@@ -15,6 +15,9 @@ from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.llm_client import LLMClient
 
 _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "select_layers.md"
+_DIET_PROMPT_PATH = (
+    Path(__file__).parent.parent / "prompts" / "select_layers_diet.md"
+)
 
 # Clarify questions are ALWAYS Hebrew (product decision, see prompt).
 _FALLBACK_CLARIFY = "לא הצלחתי להתאים שכבת מידע לבקשה — אפשר לנסח מחדש?"
@@ -22,6 +25,9 @@ _FALLBACK_CLARIFY = "לא הצלחתי להתאים שכבת מידע לבקשה
 # Locked decision: provider/catalog text is untrusted input for prompts.
 _MAX_DESCRIPTION_CHARS = 200
 _MAX_NAME_CHARS = 80
+_DIET_MAX_DESCRIPTION_CHARS = 100
+_DIET_MAX_NAME_CHARS = 60
+_DIET_MAX_TAGS = 6
 
 
 def _sanitize(text: str, limit: int) -> str:
@@ -29,14 +35,23 @@ def _sanitize(text: str, limit: int) -> str:
 
 
 class LayerSelector:
-    def __init__(self, llm: LLMClient, catalog: CatalogService):
+    def __init__(
+        self, llm: LLMClient, catalog: CatalogService,
+        diet_mode: Callable[[], bool] = lambda: False,
+    ):
         self._llm = llm
         self._catalog = catalog
         self._template = _PROMPT_PATH.read_text(encoding="utf-8")
+        self._diet_template = _DIET_PROMPT_PATH.read_text(encoding="utf-8")
+        self._diet_mode = diet_mode
 
     def select(self, query: str) -> LayerSelection:
         layers = self._catalog.list_layers()
-        system = self._template.replace("{catalog}", self._format_catalog(layers))
+        diet = self._diet_mode()
+        template = self._diet_template if diet else self._template
+        system = template.replace(
+            "{catalog}", self._format_catalog(layers, diet=diet)
+        )
 
         data = self._llm.complete_json(system=system, user=query.strip())
         usage = data.get("_usage")
@@ -68,9 +83,19 @@ class LayerSelector:
         )
 
     @staticmethod
-    def _format_catalog(layers: List[LayerMeta]) -> str:
+    def _format_catalog(layers: List[LayerMeta], diet: bool = False) -> str:
         lines = []
         for layer in layers:
+            if diet:
+                lines.append("{id}|{name}|{tags}|{desc}".format(
+                    id=layer.id,
+                    name=_sanitize(layer.name, _DIET_MAX_NAME_CHARS),
+                    tags=",".join(layer.tags[:_DIET_MAX_TAGS]),
+                    desc=_sanitize(
+                        layer.description, _DIET_MAX_DESCRIPTION_CHARS
+                    ),
+                ))
+                continue
             lines.append(
                 "- id: {id} | name: {name} | tags: {tags} | description: {desc}".format(
                     id=layer.id,

@@ -75,6 +75,22 @@ def test_selector_prompt_requires_all_multi_reference_layers(catalog):
     assert "Never drop the second reference layer" in llm.last_system
 
 
+def test_diet_selector_keeps_contract_with_shorter_prompt(catalog):
+    response = {"layer_ids": ["schools"], "reasoning": "בתי ספר"}
+    full_llm = FakeLLM(response)
+    diet_llm = FakeLLM(response)
+
+    LayerSelector(full_llm, catalog).select("schools")
+    LayerSelector(
+        diet_llm, catalog, diet_mode=lambda: True
+    ).select("schools")
+
+    assert len(diet_llm.last_system) < len(full_llm.last_system) * 0.6
+    assert "schools|בתי ספר|" in diet_llm.last_system
+    assert '"layer_ids"' in diet_llm.last_system
+    assert "A near B and C" in diet_llm.last_system
+
+
 def test_extract_json_plain():
     assert extract_json('{"a": 1}') == {"a": 1}
 

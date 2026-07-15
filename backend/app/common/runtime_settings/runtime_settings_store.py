@@ -24,6 +24,7 @@ class RuntimeSettingsStore:
         self._path = Path(env.runtime_settings_file)
         self._settings = RuntimeSettings(
             llm_model=env.llm_model,
+            llm_diet_mode=env.llm_diet_mode,
             llm_base_url=env.llm_base_url,
             openai_api_key=env.openai_api_key,
             mqs_base_url=env.mqs_base_url,

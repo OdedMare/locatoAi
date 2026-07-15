@@ -36,6 +36,7 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 _MAX_JSON_ATTEMPTS = 2
 # Deterministic output — the agent emits structured JSON, not prose.
 _TEMPERATURE = 0
+_DIET_MAX_COMPLETION_TOKENS = 1200
 # The SDK requires a non-empty key; local servers/gateways ignore it.
 # "null" is the value spear_presenton uses against the same gateways.
 _LOCAL_SERVER_KEY_PLACEHOLDER = "null"
@@ -134,7 +135,15 @@ class OpenAIJsonClient:
         last_error = "unknown"
         total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         for _attempt in range(_MAX_JSON_ATTEMPTS):
-            content, usage = self._complete(client, settings.llm_model, messages)
+            content, usage = self._complete(
+                client,
+                settings.llm_model,
+                messages,
+                max_tokens=(
+                    _DIET_MAX_COMPLETION_TOKENS
+                    if settings.llm_diet_mode else None
+                ),
+            )
             for key in total_usage:
                 total_usage[key] += usage.get(key, 0)
             try:
@@ -201,7 +210,10 @@ class OpenAIJsonClient:
         return self._cached_client
 
     @staticmethod
-    def _complete(client: "OpenAI", model: str, messages: list):
+    def _complete(
+        client: "OpenAI", model: str, messages: list,
+        max_tokens=None,
+    ):
         # Degradation ladder for OpenAI-compatible servers:
         # 1. JSON mode → 2. plain → 3. plain with the system prompt merged
         # into the user turn (some Gemma deployments reject a system role).
@@ -210,6 +222,10 @@ class OpenAIJsonClient:
             {"messages": messages},
             {"messages": _merge_system_into_user(messages)},
         ]
+        if max_tokens is not None:
+            attempts = [
+                {**kwargs, "max_tokens": max_tokens} for kwargs in attempts
+            ]
         last_bad_request = None
         for kwargs in attempts:
             try:

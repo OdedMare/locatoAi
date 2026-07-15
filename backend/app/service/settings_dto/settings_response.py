@@ -7,6 +7,7 @@ from app.service.settings_dto.catalog_status import CatalogStatus
 
 class SettingsResponse(BaseModel):
     llm_model: str
+    llm_diet_mode: bool
     llm_base_url: Optional[str]
     openai_api_key_set: bool
     openai_api_key_hint: Optional[str]

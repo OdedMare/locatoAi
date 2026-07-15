@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     llm_model: str = "gemma4:31b-cloud"
     """The main model — Gemma 4 31B served through Ollama."""
 
+    llm_diet_mode: bool = True
+    """Use compact prompts, schema samples, and bounded completion output."""
+
     llm_base_url: Optional[str] = "http://localhost:11434/v1"
     """OpenAI-compatible endpoint. Default: local Ollama. From inside the
     backend container use http://pghost:11434/v1 (see runtime-settings)."""

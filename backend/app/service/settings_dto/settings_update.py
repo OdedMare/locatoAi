@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 class SettingsUpdate(BaseModel):
     llm_model: Optional[str] = None
+    llm_diet_mode: Optional[bool] = None
     llm_base_url: Optional[str] = None
     openai_api_key: Optional[str] = None  # empty/omitted = keep current
     mqs_base_url: Optional[str] = None

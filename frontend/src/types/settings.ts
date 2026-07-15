@@ -8,6 +8,7 @@ export interface CatalogStatus {
 
 export interface AppSettings {
   llm_model: string;
+  llm_diet_mode: boolean;
   llm_base_url: string | null;
   openai_api_key_set: boolean;
   /** Masked hint like "…abcd" — the real key is never sent back. */
@@ -32,6 +33,7 @@ export interface AppSettings {
 /** Partial update; empty/omitted api key keeps the existing one. */
 export interface SettingsUpdate {
   llm_model?: string;
+  llm_diet_mode?: boolean;
   llm_base_url?: string | null;
   openai_api_key?: string;
   mqs_base_url?: string | null;

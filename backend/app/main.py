@@ -77,8 +77,12 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     )
     executor = PlanExecutor(catalog, providers)
     llm = OpenAIJsonClient(settings_store)
-    layer_selector = LayerSelector(llm, catalog)
-    plan_builder = PlanBuilder(llm, catalog)
+
+    def diet_mode() -> bool:
+        return settings_store.get().llm_diet_mode
+
+    layer_selector = LayerSelector(llm, catalog, diet_mode=diet_mode)
+    plan_builder = PlanBuilder(llm, catalog, diet_mode=diet_mode)
     metadata_generator = LayerMetadataGenerator(llm, providers)
 
     app.state.settings_store = settings_store

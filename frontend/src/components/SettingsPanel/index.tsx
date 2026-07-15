@@ -24,6 +24,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState(""); // empty = keep existing
   const [model, setModel] = useState("");
+  const [dietMode, setDietMode] = useState(true);
   const [baseUrl, setBaseUrl] = useState("");
   const [mqsBaseUrl, setMqsBaseUrl] = useState("");
   const [mqsUserId, setMqsUserId] = useState("");
@@ -64,6 +65,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       .then((s) => {
         setSettings(s);
         setModel(s.llm_model ?? "");
+        setDietMode(s.llm_diet_mode);
         setBaseUrl(s.llm_base_url ?? "");
         setMqsBaseUrl(s.mqs_base_url ?? "");
         setMqsUserId(s.mqs_user_id ?? "");
@@ -91,6 +93,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     try {
       const saved = await updateSettings({
         llm_model: model,
+        llm_diet_mode: dietMode,
         llm_base_url: (baseUrl ?? "").trim() === "" ? null : (baseUrl ?? "").trim(),
         openai_api_key: apiKey, // backend ignores empty
         mqs_base_url: (mqsBaseUrl ?? "").trim() === "" ? null : (mqsBaseUrl ?? "").trim(),
@@ -188,6 +191,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
           />
+          <label className="field-label">
+            <input
+              type="checkbox"
+              checked={dietMode}
+              onChange={(e) => setDietMode(e.target.checked)}
+            />
+            מצב חסכוני בטוקנים
+            <span className="optional"> (prompts קצרים ו־output מוגבל)</span>
+          </label>
         </section>
 
         <section className="settings-section">
