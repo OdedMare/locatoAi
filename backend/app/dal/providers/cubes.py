@@ -128,6 +128,24 @@ def _location_key(body: dict) -> Optional[str]:
                 None)
 
 
+def _match_window_key(body: dict) -> Optional[str]:
+    """The body key (if any) carrying an absolute {From, To} match window —
+    the axis time-chunking splits when there's no geometry to chunk by."""
+    return next(
+        (key for key in body if _parameter_parts(key)[1] == "match"), None
+    )
+
+
+def _split_temporal_range(from_iso: str, to_iso: str) -> List[Tuple[str, str]]:
+    start = datetime.fromisoformat(from_iso.replace("Z", "+00:00"))
+    end = datetime.fromisoformat(to_iso.replace("Z", "+00:00"))
+    middle = start + (end - start) / 2
+    return [
+        (from_iso, _iso_milliseconds(middle)),
+        (_iso_milliseconds(middle), to_iso),
+    ]
+
+
 def _query_body(
     geometry: Optional[BaseGeometry], parameters: Optional[List[LayerParameter]] = None,
     now: Optional[datetime] = None, temporal_range=None, query_mode: str = "auto",
