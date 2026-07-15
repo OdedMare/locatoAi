@@ -25,7 +25,8 @@ QueryOrchestrator
   └─ 6. GeoPandas executor runs deterministic operations
         │
         ├─ PostgreSQL: catalog, runtime-selected table, feedback
-        ├─ MQS REST API: production GIS schemas and features
+        ├─ MQS REST API: cataloged GIS layers and entity properties
+        ├─ Cubes REST API: time-varying entity POINT locations
         └─ OpenAI-compatible API: Ollama/Gemma or another model server
   ▼
 GeoJSON FeatureCollection or integer count
@@ -46,7 +47,7 @@ locatoAi/
 │   │   ├── main.py                   # composition root and FastAPI app
 │   │   ├── service/                  # HTTP routers and DTO translation
 │   │   ├── bl/                       # business rules, agents, plans, executor
-│   │   ├── dal/                      # PostgreSQL, MQS, and LLM adapters
+│   │   ├── dal/                      # PostgreSQL, MQS, Cubes, and LLM adapters
 │   │   └── common/                   # settings, errors, CRS, logging
 │   ├── data/                         # local GeoJSON test fixtures
 │   ├── scripts/                      # evaluation and tag enrichment tools
@@ -165,6 +166,10 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. The live base URL comes from runtime settings. Paginated list entities are enriched through `Entities/{entity_id}`; each detail response's `property_list` becomes ordinary feature fields used for schema/value sampling, tags, attribute filters, results, and spatial-operation outputs. Boundary filters are pushed down when possible and rechecked locally.
 
+### Cubes
+
+Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter posts a one-hour lookback query to `/cube/v1/<dbname>`, sends the configured secret Authorization token, parses WKT `POINT (longitude latitude)`, preserves all JSON fields, declares `eventTime` as the temporal field, and sends the user boundary through `Location`. Deterministic operations still recheck spatial and temporal conditions locally.
+
 ### LLM provider
 
 The LLM client uses an OpenAI-compatible API. The default points to local Ollama and model `gemma4:31b-cloud`, but model, base URL, and optional key are runtime editable. The client progressively falls back from JSON response mode when a compatible server implements a smaller subset of the OpenAI API.
@@ -180,7 +185,7 @@ Backend configuration has two layers:
 1. Environment defaults loaded by Pydantic settings. Most use the `AILOCATOR_` prefix; `OPENAI_API_KEY` is accepted directly.
 2. UI overrides persisted to `backend/runtime-settings.json` (or `AILOCATOR_RUNTIME_SETTINGS_FILE`). Saved values win over environment defaults.
 
-Database, table, LLM, and MQS settings are read from the runtime store on every relevant call, so a saved change does not require a backend restart. API keys and database passwords are never returned to the browser; settings responses expose only presence flags and masked hints.
+Database, table, LLM, MQS, and Cubes settings are read from the runtime store on every relevant call, so a saved change does not require a backend restart. API keys, the Cubes token, and database passwords are never returned to the browser; settings responses expose only presence flags and masked hints.
 
 The frontend accepts:
 
@@ -250,7 +255,7 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 ## Extension map
 
 - Add a plan operation: define its Pydantic step, add semantic checks if needed, create a registered handler under `backend/app/bl/executor/ops/`, import it in the operations package, and mirror the type/description in the frontend trace.
-- Add a GIS provider: implement the small `Provider` protocol, register it in `main.py`, and write catalog rows using its provider name.
+- Add a GIS provider: implement the small `Provider` protocol, register it in `main.py`, and write catalog rows using its provider name. Current production registrations are `mqs` and `cubes`.
 - Add an API endpoint: add a router in `service/`, mount it in `main.py`, and mirror its DTO in `frontend/src/types` if the UI consumes it.
 - Add a frontend workflow: keep cross-workspace state in `AppShell`, HTTP details in `services/`, and contract types synchronized with backend DTOs.
 - Tune the agent: edit the prompt files and run the scored evaluation; keep validation and execution rules in code.
@@ -262,4 +267,4 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 - MQS uses fetch-all-then-filter-locally with a 50,000-feature safety cap.
 - Runtime settings persist to a local JSON file and are not multi-user settings.
 - There is no streaming progress channel; the UI shows a single loading phase.
-- The production provider registry currently registers MQS only. The ArcGIS adapter is a local test fixture.
+- The production provider registry registers MQS and Cubes. The ArcGIS adapter is a local test fixture.

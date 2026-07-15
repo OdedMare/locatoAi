@@ -23,6 +23,7 @@ from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.feedback_repository import PostgresFeedbackRepository
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
+from app.dal.providers.cubes import CubesProvider
 from app.dal.providers.mqs import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.service import (
@@ -63,6 +64,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     providers = InMemoryProviderRegistry()
     mqs_provider = MqsProvider(settings_store)
     providers.register("mqs", mqs_provider)
+    providers.register("cubes", CubesProvider(settings_store))
 
     catalog = CatalogService(
         repository, providers, schema_ttl_seconds=settings.schema_cache_ttl_seconds

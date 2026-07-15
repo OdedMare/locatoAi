@@ -50,6 +50,19 @@ def normalize_mqs_base_url(url: str) -> str:
     return cleaned
 
 
+def normalize_cubes_base_url(url: str) -> str:
+    cleaned = url.strip().rstrip("/")
+    suffix = "/cube/v1"
+    if cleaned.lower().endswith(suffix):
+        cleaned = cleaned[: -len(suffix)]
+    if not cleaned.lower().startswith(("http://", "https://")):
+        raise ValueError(
+            "cubes_base_url must start with http:// or https:// "
+            "(e.g. https://cubes.example/api)"
+        )
+    return cleaned.rstrip("/")
+
+
 def normalize_database_url(url: str) -> str:
     cleaned = _JDBC_PREFIX.sub("", url.strip())
     if not cleaned.lower().startswith(_PG_SCHEMES):
@@ -67,6 +80,8 @@ class RuntimeSettings:
     openai_api_key: str
     mqs_base_url: Optional[str]
     mqs_user_id: Optional[str]
+    cubes_base_url: Optional[str]
+    cubes_token: str
     database_url: str
     database_user: str
     database_password: str
@@ -103,6 +118,8 @@ class RuntimeSettingsStore:
             openai_api_key=env.openai_api_key,
             mqs_base_url=env.mqs_base_url,
             mqs_user_id=env.mqs_user_id,
+            cubes_base_url=env.cubes_base_url,
+            cubes_token=env.cubes_token,
             database_url=env.database_url,
             database_user=env.database_user,
             database_password=env.database_password,
@@ -130,7 +147,10 @@ class RuntimeSettingsStore:
         return self._settings
 
     # Fields where None/empty means "clear the value", not "keep current".
-    _NULLABLE = ("database_port", "llm_base_url", "mqs_base_url", "mqs_user_id")
+    _NULLABLE = (
+        "database_port", "llm_base_url", "mqs_base_url", "mqs_user_id",
+        "cubes_base_url",
+    )
 
     def _apply(self, patch: dict, strict: bool) -> None:
         known = {f.name for f in fields(RuntimeSettings)}
@@ -151,6 +171,8 @@ class RuntimeSettingsStore:
                     value = normalize_llm_base_url(value)
                 elif key == "mqs_base_url":
                     value = normalize_mqs_base_url(value)
+                elif key == "cubes_base_url":
+                    value = normalize_cubes_base_url(value)
             except ValueError:
                 if strict:
                     raise

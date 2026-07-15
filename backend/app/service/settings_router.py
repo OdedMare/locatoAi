@@ -24,6 +24,8 @@ class SettingsUpdate(BaseModel):
     openai_api_key: Optional[str] = None  # empty/omitted = keep current
     mqs_base_url: Optional[str] = None
     mqs_user_id: Optional[str] = None
+    cubes_base_url: Optional[str] = None
+    cubes_token: Optional[str] = None  # empty/omitted = keep current
     database_url: Optional[str] = None
     database_user: Optional[str] = None
     database_password: Optional[str] = None  # empty/omitted = keep current
@@ -47,6 +49,8 @@ class SettingsResponse(BaseModel):
     openai_api_key_hint: Optional[str]
     mqs_base_url: Optional[str]
     mqs_user_id: Optional[str]
+    cubes_base_url: Optional[str]
+    cubes_token_set: bool
     database_url: str
     database_user: str
     database_password_set: bool
@@ -86,6 +90,8 @@ def _to_response(
         openai_api_key_hint=_mask_key(settings.openai_api_key),
         mqs_base_url=settings.mqs_base_url,
         mqs_user_id=settings.mqs_user_id,
+        cubes_base_url=settings.cubes_base_url,
+        cubes_token_set=bool(settings.cubes_token),
         database_url=_mask_db_password(settings.database_url),
         database_user=settings.database_user,
         database_password_set=bool(settings.database_password),
@@ -112,6 +118,8 @@ def update_settings(body: SettingsUpdate, request: Request) -> SettingsResponse:
         patch.pop("openai_api_key")  # empty = keep existing key
     if patch.get("database_password") == "":
         patch.pop("database_password")  # empty = keep existing password
+    if patch.get("cubes_token") == "":
+        patch.pop("cubes_token")  # empty = keep existing token
     if not (patch.get("llm_model") or "").strip() and "llm_model" in patch:
         patch.pop("llm_model")  # a model is always required — keep existing
     try:

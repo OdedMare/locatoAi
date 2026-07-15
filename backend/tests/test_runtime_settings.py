@@ -132,6 +132,19 @@ def test_mqs_base_url_persists(tmp_path):
     assert reloaded.get().mqs_base_url == "https://mqs.example/api"
 
 
+def test_cubes_settings_normalize_persist_and_clear(tmp_path):
+    store = make_store(tmp_path)
+    store.update({
+        "cubes_base_url": "https://cubes.example/api/cube/v1/",
+        "cubes_token": "secret-jwt",
+    })
+    reloaded = make_store(tmp_path)
+    assert reloaded.get().cubes_base_url == "https://cubes.example/api"
+    assert reloaded.get().cubes_token == "secret-jwt"
+    reloaded.update({"cubes_base_url": None})
+    assert reloaded.get().cubes_base_url is None
+
+
 def test_bad_saved_database_url_skipped_on_startup(tmp_path):
     store = make_store(tmp_path)
     # simulate a bad value persisted by an older version

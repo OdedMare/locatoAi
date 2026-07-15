@@ -20,6 +20,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [baseUrl, setBaseUrl] = useState("");
   const [mqsBaseUrl, setMqsBaseUrl] = useState("");
   const [mqsUserId, setMqsUserId] = useState("");
+  const [cubesBaseUrl, setCubesBaseUrl] = useState("");
+  const [cubesToken, setCubesToken] = useState("");
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databaseUser, setDatabaseUser] = useState("");
   const [databasePassword, setDatabasePassword] = useState("");
@@ -60,6 +62,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setBaseUrl(s.llm_base_url ?? "");
         setMqsBaseUrl(s.mqs_base_url ?? "");
         setMqsUserId(s.mqs_user_id ?? "");
+        setCubesBaseUrl(s.cubes_base_url ?? "");
         setDatabaseUrl(s.database_url ?? "");
         setDatabaseUser(s.database_user ?? "");
         setDatabaseHost(s.database_host ?? "");
@@ -82,6 +85,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         openai_api_key: apiKey, // backend ignores empty
         mqs_base_url: (mqsBaseUrl ?? "").trim() === "" ? null : (mqsBaseUrl ?? "").trim(),
         mqs_user_id: (mqsUserId ?? "").trim() === "" ? null : (mqsUserId ?? "").trim(),
+        cubes_base_url: (cubesBaseUrl ?? "").trim() === "" ? null : (cubesBaseUrl ?? "").trim(),
+        cubes_token: cubesToken, // backend ignores empty
         database_url: databaseUrl,
         database_user: (databaseUser ?? "").trim(),
         database_password: databasePassword, // backend ignores empty
@@ -93,6 +98,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       });
       setSettings(saved);
       setApiKey("");
+      setCubesToken("");
       setDatabasePassword("");
       setMessage("נשמר ✓");
     } catch (err) {
@@ -169,6 +175,38 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
           />
+        </section>
+
+        <section className="settings-section">
+          <h3>שרת Cubes</h3>
+          <label className="field-label" htmlFor="set-cubes-url">
+            כתובת בסיס Cubes{" "}
+            <span className="optional">(ללא ‎/cube/v1; ריק = ספק לא פעיל)</span>
+          </label>
+          <input
+            id="set-cubes-url"
+            dir="ltr"
+            className="settings-input"
+            placeholder="https://cubes.example/api"
+            value={cubesBaseUrl}
+            onChange={(e) => setCubesBaseUrl(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-cubes-token">
+            Authorization token
+            {settings?.cubes_token_set && <span className="key-hint"> (נשמר)</span>}
+          </label>
+          <input
+            id="set-cubes-token"
+            dir="ltr"
+            type="password"
+            className="settings-input"
+            placeholder={settings?.cubes_token_set ? "השאירו ריק כדי לשמור" : "JWT token"}
+            value={cubesToken}
+            onChange={(e) => setCubesToken(e.target.value)}
+          />
+          <p className="models-status" dir="auto">
+            שכבת קטלוג: provider=cubes, source_url=cubes://db/&lt;dbname&gt;
+          </p>
         </section>
 
         <section className="settings-section">

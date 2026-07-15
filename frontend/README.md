@@ -16,7 +16,7 @@ The frontend:
 - Renders spatial results in a table and on an interactive map.
 - Renders scalar count results without expecting GeoJSON.
 - Provides searchable layer catalog and remote MQS browsing workflows.
-- Provides live-editable LLM, MQS, PostgreSQL, and table settings.
+- Provides live-editable LLM, MQS, Cubes, PostgreSQL, and table settings.
 - Persists light/dark theme preference in browser local storage.
 - Sends thumbs-up/down feedback to backend PostgreSQL persistence.
 
@@ -120,7 +120,7 @@ Loads and searches catalog metadata. It supports manual layer creation and brows
 
 ### `SettingsPanel`
 
-Loads runtime settings, populates editable LLM/MQS/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.
+Loads runtime settings, populates editable LLM/MQS/Cubes/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, Cubes token, and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.
 
 ### `RequestPreview`
 

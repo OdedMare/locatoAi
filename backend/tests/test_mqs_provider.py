@@ -52,9 +52,10 @@ def entity(
     date: str = "13/07/2026 08:30:00",
     area: float = 0.00000001,
     perimeter: float = 0.0005,
+    property_list=None,
 ) -> dict:
     """One entity per the real MoriaProject API doc's fixed shape."""
-    return {
+    result = {
         "exclusive_id": {
             "data_store_name": "MoriaProject", "layer_id": layer_id,
             "entity_id": entity_id, "history_id": 1,
@@ -67,6 +68,9 @@ def entity(
         "link": f"https://mqs.test/MoriaProject/{layer_id}/Entities/{entity_id}",
         "geo": {"wkt": wkt_value, "area": area, "perimeter": perimeter},
     }
+    if property_list is not None:
+        result["property_list"] = property_list
+    return result
 
 
 class RecordingHandler:
@@ -161,6 +165,56 @@ def test_fetch_features_extracts_fixed_fields(tmp_path):
     assert row.geometry.geom_type == "Polygon" or row.geometry.geom_type == "Point"
 
 
+def test_fetch_features_enriches_business_fields_from_entity_detail(tmp_path):
+    listed = entity("{G1}")
+    detailed = entity("{G1}", property_list={
+        "שם": "בית ספר אלונים",
+        "מהות": "חינוך",
+        "סוג": "יסודי",
+    })
+
+    def responses(request):
+        if request.url.path.endswith("/Entities/{G1}"):
+            return detailed
+        return {"next_page": None, "entities_list": [listed]}
+
+    provider, handler = make_provider(tmp_path, responses)
+    gdf = provider.fetch_features(mqs_layer())
+    assert gdf.iloc[0]["שם"] == "בית ספר אלונים"
+    assert gdf.iloc[0]["מהות"] == "חינוך"
+    assert gdf.iloc[0]["סוג"] == "יסודי"
+    assert any("/Entities/%7BG1%7D" in request.url.raw_path.decode()
+               for request in handler.requests)
+
+
+def test_fetch_features_accepts_property_list_name_value_array(tmp_path):
+    provider, _ = make_provider(tmp_path, lambda request: [entity(
+        "{G1}", property_list=[
+            {"property_name": "שם", "property_value": "כיכר המדינה"},
+            {"name": "סוג", "value": "כיכר"},
+        ],
+    )])
+    row = provider.fetch_features(mqs_layer()).iloc[0]
+    assert row["שם"] == "כיכר המדינה"
+    assert row["סוג"] == "כיכר"
+
+
+def test_describe_schema_and_sample_values_use_property_list(tmp_path):
+    detailed = entity("G1", property_list={"שם": "גן העיר", "סוג": "ציבורי"})
+
+    def responses(request):
+        if request.url.path.endswith("/Entities/G1"):
+            return detailed
+        return {"next_page": None, "entities_list": [entity("G1")]}
+
+    provider, _ = make_provider(tmp_path, responses)
+    schema = provider.describe_schema(mqs_layer())
+    fields = {field.name: field for field in schema.fields}
+    assert fields["שם"].samples == ["גן העיר"]
+    assert fields["סוג"].samples == ["ציבורי"]
+    assert provider.sample_field_values(mqs_layer(), "שם") == ["גן העיר"]
+
+
 def test_fetch_features_follows_next_page(tmp_path):
     page_1 = {
         "next_page": "https://mqs.test/MQS/MoriaProject/42/Entities?from=2&to=4",
@@ -182,8 +236,12 @@ def test_fetch_features_follows_next_page(tmp_path):
     provider, handler = make_provider(tmp_path, responses)
     gdf = provider.fetch_features(mqs_layer())
     assert len(gdf) == 3
-    assert len(handler.requests) == 2
-    assert dict(handler.requests[1].url.params) == {"from": "2", "to": "4"}
+    page_requests = [
+        request for request in handler.requests
+        if request.url.path.endswith("/Entities")
+    ]
+    assert len(page_requests) == 2
+    assert dict(page_requests[1].url.params) == {"from": "2", "to": "4"}
 
 
 def test_fetch_features_empty(tmp_path):
@@ -330,8 +388,12 @@ def test_fetch_features_with_geometry_follows_pagination(tmp_path):
     provider, handler = make_provider(tmp_path, responses)
     gdf = provider.fetch_features(mqs_layer(), geometry=box(34.0, 32.0, 35.0, 33.0))
     assert len(gdf) == 2
-    assert all(r.method == "POST" for r in handler.requests)
-    assert dict(handler.requests[1].url.params) == {"from": "1", "to": "2"}
+    page_requests = [
+        request for request in handler.requests
+        if request.url.path.endswith("/Entities")
+    ]
+    assert all(request.method == "POST" for request in page_requests)
+    assert dict(page_requests[1].url.params) == {"from": "1", "to": "2"}
 
 
 def test_fetch_features_with_limit_caps_page_size(tmp_path):
@@ -357,7 +419,11 @@ def test_fetch_features_with_limit_stops_without_following_next_page(tmp_path):
     provider, handler = make_provider(tmp_path, responses)
     gdf = provider.fetch_features(mqs_layer(), limit=2)
     assert len(gdf) == 2
-    assert len(handler.requests) == 1
+    page_requests = [
+        request for request in handler.requests
+        if request.url.path.endswith("/Entities")
+    ]
+    assert len(page_requests) == 1
 
 
 def test_user_id_header_sent_when_configured(tmp_path):
@@ -380,28 +446,32 @@ def test_user_id_header_omitted_when_unset(tmp_path):
 
 
 def test_describe_schema_returns_fixed_fields(tmp_path):
-    """No per-layer field-list endpoint exists in this API — every layer
-    reports the same fixed classification/date/geo fields, with no HTTP
-    request needed."""
-    provider, handler = make_provider(tmp_path, lambda request: {})
+    """Fixed transport fields remain present when a layer has no entities."""
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
     schema = provider.describe_schema(mqs_layer())
     assert schema.layer_id == "catalog-uuid"
     assert schema.geometry_type == "Polygon"
     names = {f.name for f in schema.fields}
     assert names == {"triangle", "clearence_level", "source_id", "date", "area", "perimeter"}
     assert schema.temporal_field == "date"
-    assert handler.requests == []  # no network call needed
+    assert len(handler.requests) == 1
 
 
 def test_describe_schema_temporal_field_tag_override(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {})
+    provider, _ = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
     layer = mqs_layer().model_copy(update={"tags": ["temporal_field:custom_date"]})
     schema = provider.describe_schema(layer)
     assert schema.temporal_field == "custom_date"
 
 
 def test_describe_schema_no_temporal_field_tag_opts_out(tmp_path):
-    provider, _ = make_provider(tmp_path, lambda request: {})
+    provider, _ = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": []}
+    )
     layer = mqs_layer().model_copy(update={"tags": ["no_temporal_field"]})
     schema = provider.describe_schema(layer)
     assert schema.temporal_field is None
@@ -434,7 +504,8 @@ def test_sample_field_values_unknown_field_returns_empty(tmp_path):
         "next_page": None, "entities_list": [entity("{G1}")],
     })
     assert provider.sample_field_values(mqs_layer(), "ROAD_NAME") == []
-    assert handler.requests == []  # no network call for an unknown field
+    # Dynamic property_list names are only known after reading entity details.
+    assert len(handler.requests) == 2
 
 
 def test_list_remote_layers(tmp_path):

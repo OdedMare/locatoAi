@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     official Entities doc's example value is "tt/T"). Deployment-specific;
     unset = header omitted."""
 
+    cubes_base_url: Optional[str] = None
+    """Base URL hosting /cube/v1/<dbname>."""
+
+    cubes_token: str = ""
+    """Authorization header value for the Cubes API. Never returned by the API."""
+
     runtime_settings_file: str = "runtime-settings.json"
     """UI-edited settings are persisted here, overriding the env defaults."""
 
