@@ -35,6 +35,7 @@ from app.service import (
     agent_router,
     catalog_router,
     feedback_router,
+    mqs_mirror_router,
     models_router,
     plan_router,
     query_router,
@@ -56,6 +57,7 @@ _ROUTERS = (
     settings_router,
     agent_router,
     feedback_router,
+    mqs_mirror_router,
     catalog_router,
     models_router,
 )
@@ -92,6 +94,8 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     app.state.feedback_repository = feedback_repository
     app.state.mqs_provider = mqs_provider  # catalog_router's sync endpoint
     app.state.mqs_mirror = mqs_mirror
+    app.state.mqs_mirror_max_staleness_seconds = (
+        settings.mqs_mirror_max_staleness_seconds)
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.llm_client = llm

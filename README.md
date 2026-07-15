@@ -175,6 +175,8 @@ permission to create and use these tables. Bootstrap still scans all list pages;
 bootstrap, only changed `history_id` values require detail requests. The mirror settings
 (`enabled`, interval, staleness, batch size, layer concurrency, and detail concurrency)
 are exposed through `AILOCATOR_MQS_*` environment variables in `backend/.env.example`.
+`GET /api/mqs-mirror/status` reports the entity count, active run, last error, lag and
+whether every mirrored layer currently meets the freshness target.
 
 ### Cubes
 

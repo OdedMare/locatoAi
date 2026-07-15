@@ -98,6 +98,7 @@ The service tier exposes these routes:
 | `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
 | `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
 | `POST /api/layers/sync-mqs` | Upsert remote MQS inventory into PostgreSQL. |
+| `GET /api/mqs-mirror/status` | Report per-layer mirror count, sync state, lag and freshness. |
 | `GET /api/settings` | Read masked runtime settings and live catalog status. |
 | `PUT /api/settings` | Validate and persist runtime setting overrides. |
 | `GET /api/models` | List models with saved LLM settings. |

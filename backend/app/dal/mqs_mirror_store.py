@@ -59,6 +59,9 @@ class PostgresMqsMirrorStore:
             with connect(self._store) as conn:
                 conn.execute(self._features_ddl())
                 conn.execute(self._state_ddl())
+                conn.execute(
+                    f"ALTER TABLE {_STATE_TABLE} ADD COLUMN IF NOT EXISTS "
+                    "entity_count bigint")
                 conn.execute(self._spatial_index_ddl())
             self._ready = True
 
@@ -95,6 +98,23 @@ class PostgresMqsMirrorStore:
         with connect(self._store) as conn:
             rows = conn.execute(query, params).fetchall()
         return [self._payload(row["payload"]) for row in rows]
+
+    def status(self, max_age_seconds: int) -> List[dict]:
+        self.ensure_schema()
+        with connect(self._store) as conn:
+            rows = conn.execute(
+                f"""SELECT layer_id, active_run, last_completed_at,
+                last_error, COALESCE(entity_count, 0) AS entity_count
+                FROM {_STATE_TABLE} ORDER BY layer_id""").fetchall()
+        return [self._status_row(row, max_age_seconds) for row in rows]
+
+    @staticmethod
+    def _status_row(row: dict, max_age_seconds: int) -> dict:
+        completed = row["last_completed_at"]
+        lag = ((datetime.now(timezone.utc) - completed).total_seconds()
+               if completed is not None else None)
+        return {**row, "lag_seconds": None if lag is None else round(lag, 3),
+                "fresh": lag is not None and lag <= max_age_seconds}
 
     def _is_fresh(self, layer_id: str, max_age_seconds: int) -> bool:
         threshold = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
@@ -222,9 +242,11 @@ class PostgresMqsMirrorStore:
                 )
                 conn.execute(
                     f"""UPDATE {_STATE_TABLE} SET active_run = NULL,
-                    last_completed_at = now(), last_error = NULL
+                    last_completed_at = now(), last_error = NULL,
+                    entity_count = (SELECT count(*) FROM {_FEATURES_TABLE}
+                        WHERE layer_id = %s)
                     WHERE layer_id = %s AND active_run = %s""",
-                    (layer_id, run_id),
+                    (layer_id, layer_id, run_id),
                 )
         finally:
             self._release_lock(run_id)
