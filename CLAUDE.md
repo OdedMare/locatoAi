@@ -26,7 +26,7 @@ queryable but set `LayerField.metadata_relevant=false`; metadata/tag generation 
 only real business fields and must fail when none are found. Never reintroduce generic
 polygon, triangle, clearance, area, perimeter, source-id, record-id, or timestamp tags.
 
-**Agent loop:** planning has up to three `sample_field` calls and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, `netId` identity, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool.
+**Agent loop:** planning has up to three `sample_field` calls and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, `netId` identity, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool. `llm_diet_mode` defaults on and dynamically selects compact select/build prompts, compact schemas/tool samples, and a 1,200-token completion cap; the full profile remains available in Settings. Keep both prompt profiles operation-complete and update them together when adding a plan operation.
 
 **Cubes catalog workflow:** the executor supports the legacy one-hour payload and exact
 `<field>.match`/`<field>.not` parameters declared by Cubes metadata. A temporal plan range

@@ -53,6 +53,33 @@ def test_valid_plan_first_attempt(catalog):
     assert "city_en" in llm.calls[0]["system"]
 
 
+def test_diet_plan_prompt_is_short_and_preserves_all_operations(catalog):
+    full_llm = SequenceLLM([VALID_PLAN])
+    diet_llm = SequenceLLM([VALID_PLAN])
+    args = (
+        "בתי ספר ליד כיכרות", [SCHOOLS, ROUNDABOUTS], False, NOW,
+    )
+
+    PlanBuilder(full_llm, catalog).build(*args)
+    result = PlanBuilder(
+        diet_llm, catalog, diet_mode=lambda: True
+    ).build(*args)
+
+    assert result.plan is not None
+    full_prompt = full_llm.calls[0]["system"]
+    diet_prompt = diet_llm.calls[0]["system"]
+    assert len(diet_prompt) < len(full_prompt) * 0.6
+    for operation in (
+        "load", "within_geometry", "attribute_filter", "near", "nearest_n",
+        "near_all", "cluster", "latest_per_entity", "movement_direction",
+        "directional", "between", "crosses", "touches", "contains",
+        "temporal_filter", "count",
+    ):
+        assert f'"op":"{operation}"' in diet_prompt
+    assert "city_en:string=" in diet_prompt
+    assert "sample_field" in diet_prompt
+
+
 def test_hebrew_multi_reference_query_builds_near_all(catalog):
     plan_response = {
         "explanation": "שני בתי ספר ליד כיכר ואירוע תאונה",

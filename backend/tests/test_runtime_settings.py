@@ -17,6 +17,7 @@ def make_store(tmp_path, **env_overrides) -> RuntimeSettingsStore:
 def test_env_defaults_apply(tmp_path):
     store = make_store(tmp_path, llm_model="gpt-x")
     assert store.get().llm_model == "gpt-x"
+    assert store.get().llm_diet_mode is True
     assert store.get().layers_table == "public.layers"
 
 
@@ -24,6 +25,7 @@ def test_update_persists_and_reloads(tmp_path):
     store = make_store(tmp_path)
     store.update({
         "llm_model": "gpt-4o-mini",
+        "llm_diet_mode": False,
         "layers_table": "gis.my_layers",
         "feedback_table": "gis.user_feedback",
         "database_user": "gis_user",
@@ -35,6 +37,7 @@ def test_update_persists_and_reloads(tmp_path):
 
     reloaded = make_store(tmp_path)  # same file, fresh store
     assert reloaded.get().llm_model == "gpt-4o-mini"
+    assert reloaded.get().llm_diet_mode is False
     assert reloaded.get().layers_table == "gis.my_layers"
     assert reloaded.get().feedback_table == "gis.user_feedback"
     assert reloaded.get().database_user == "gis_user"

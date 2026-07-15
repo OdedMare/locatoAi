@@ -7,12 +7,16 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 from app.dal.llm.openai_client import OpenAIJsonClient
 
 
-def make_store(tmp_path, llm_base_url="https://llm.test/v1", openai_api_key="key-a"):
+def make_store(
+    tmp_path, llm_base_url="https://llm.test/v1", openai_api_key="key-a",
+    **overrides,
+):
     env = Settings(
         _env_file=None,
         runtime_settings_file=str(tmp_path / "runtime-settings.json"),
         llm_base_url=llm_base_url,
         openai_api_key=openai_api_key,
+        **overrides,
     )
     return RuntimeSettingsStore(env)
 
@@ -116,7 +120,8 @@ def test_gives_up_after_max_transient_attempts(tmp_path, monkeypatch):
 def test_complete_json_reuses_client_across_calls(tmp_path, monkeypatch):
     """The two mandatory agent calls (select, build) plus any sample_field
     tool rounds must not each pay a fresh connection setup cost."""
-    client = OpenAIJsonClient(make_store(tmp_path))
+    store = make_store(tmp_path)
+    client = OpenAIJsonClient(store)
 
     class FakeUsage:
         prompt_tokens = 1
@@ -133,8 +138,11 @@ def test_complete_json_reuses_client_across_calls(tmp_path, monkeypatch):
         choices = [FakeChoice()]
         usage = FakeUsage()
 
+    calls = []
+
     class FakeCompletions:
         def create(self, **kwargs):
+            calls.append(kwargs)
             return FakeResponse()
 
     class FakeChat:
@@ -150,3 +158,8 @@ def test_complete_json_reuses_client_across_calls(tmp_path, monkeypatch):
     first_client = client._cached_client
     client.complete_json(system="s2", user="u2")
     assert client._cached_client is first_client
+    assert all(call["max_tokens"] == 1200 for call in calls)
+
+    store.update({"llm_diet_mode": False})
+    client.complete_json(system="full", user="u3")
+    assert "max_tokens" not in calls[-1]

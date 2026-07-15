@@ -247,6 +247,15 @@ per query, separate from the validation retry; rounds are reported as `tool_call
 the response and listed in the UI agent panel. Backed by `Provider.sample_field_values`
 (mock: distinct GeoJSON values; MQS: searchable `property_list` values from entity details).
 
+**Diet mode.** `llm_diet_mode` defaults to true and is live-editable through
+`GET/PUT /api/settings`. It switches both query-agent stages to compact prompt files,
+compacts catalog descriptions and schema samples, limits sampled tool values, and sends
+`max_tokens=1200` to the OpenAI-compatible completion endpoint. All plan operations,
+validation retries, sampling rounds, and zero-result replanning remain available. The
+fixed build prompt is 4,567 characters instead of 14,773; actual savings vary with the
+catalog and selected schemas. Set `AILOCATOR_LLM_DIET_MODE=false` or clear the UI toggle
+to run the full prompts for quality comparison.
+
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
 `base_url` is set, with a degradation ladder: JSON mode → plain → system-merged-into-user.

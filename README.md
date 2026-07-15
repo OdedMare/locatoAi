@@ -197,6 +197,14 @@ small entity sample. The executor supports both legacy relative-time and declare
 
 The LLM client uses an OpenAI-compatible API. The default points to local Ollama and model `gemma4:31b-cloud`, but model, base URL, and optional key are runtime editable. The client progressively falls back from JSON response mode when a compatible server implements a smaller subset of the OpenAI API.
 
+Token-efficient diet mode is enabled by default and can be toggled live in Settings.
+It selects compact layer-selection and plan-building prompts, sends at most two compact
+schema samples per field, bounds tool sample notes, and limits each completion to 1,200
+tokens. The compact build policy retains every registered operation and validation rule;
+the fixed prompt is about 69% smaller by characters. Disable diet mode when comparing
+model quality on unusually ambiguous requests. Responses continue to report actual
+prompt/completion token usage for measurement.
+
 ### Map tiles
 
 The UI offers Esri World Imagery and OpenStreetMap base layers. These browser-side tile requests are separate from the catalog/provider architecture used for query data.

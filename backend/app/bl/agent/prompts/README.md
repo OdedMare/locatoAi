@@ -2,6 +2,12 @@
 
 The prompt files are the model-facing policy layer for LocatoAI's query pipeline and catalog-metadata assistant. They are loaded by the business layer at runtime, populated with sanitized context, and sent through the OpenAI-compatible LLM port. Keeping prompts outside Python makes model tuning reviewable without mixing wording changes with orchestration code.
 
+`select_layers_diet.md` and `build_plan_diet.md` are the compact production profile.
+`llm_diet_mode` selects them at runtime without restarting the backend. Diet prompts must
+preserve the same output contracts, operation set, safety rules, sampling tool, and
+clarification behavior as their full counterparts. Update and test both profiles whenever
+an operation or invariant changes.
+
 ## Pipeline position
 
 ```text
