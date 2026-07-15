@@ -7,7 +7,11 @@ import {
   getLayers,
   getMqsLayers,
 } from "@/services/catalogService";
-import type { CatalogLayer, RemoteMqsLayer } from "@/types/catalog";
+import type {
+  CatalogLayer,
+  CubesQueryMode,
+  RemoteMqsLayer,
+} from "@/types/catalog";
 
 interface LayersPanelProps {
   onClose: () => void;
@@ -28,6 +32,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [tagDraft, setTagDraft] = useState("");
   const [provider, setProvider] = useState("mqs");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [saving, setSaving] = useState(false);
   const [generatingMetadata, setGeneratingMetadata] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -100,6 +105,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         tags,
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
+        cubes_query_mode: cubesQueryMode,
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -107,6 +113,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setTags([]);
       setTagDraft("");
       setSourceUrl("");
+      setCubesQueryMode("auto");
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
     } catch (err) {
       console.error("Layer creation failed", err);
@@ -136,6 +143,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       name: selected?.name ?? name,
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
+      cubes_query_mode: cubesQueryMode,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
@@ -163,6 +171,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setTagDraft("");
     setProvider(layer.provider);
     setSourceUrl(layer.source_url);
+    setCubesQueryMode("auto");
     setFormMessage(null);
     setShowAddForm(true);
     setShowMqsBrowser(false);
@@ -175,6 +184,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setName("");
     setDescription("");
     setTags([]);
+    setCubesQueryMode("auto");
     setFormMessage("הזינו שם שכבה ושם Cube, ואז הפעילו יצירת תיאור ותגיות.");
     setShowAddForm(true);
   };
@@ -294,6 +304,29 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
               {provider.trim().toLowerCase() === "cubes" ? "שם Cube / database" : "כתובת המקור"}
             </label>
             <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : "https://provider.example/layer"} dir="ltr" />
+            {provider.trim().toLowerCase() === "cubes" && (
+              <fieldset className="cubes-query-mode">
+                <legend>מבנה שאילתת זמן וגיאוגרפיה</legend>
+                <div className="cubes-query-mode-options">
+                  {([
+                    ["auto", "אוטומטי", "לפי ה-metadata של ה-Cube"],
+                    ["match_not", "match / not", "From/To, TimeBack ו-Location"],
+                    ["legacy", "Legacy", "מבנה השעה היחסית הקיים"],
+                  ] as const).map(([value, title, detail]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={cubesQueryMode === value ? "active" : ""}
+                      aria-pressed={cubesQueryMode === value}
+                      onClick={() => setCubesQueryMode(value)}
+                    >
+                      <strong dir={value === "auto" ? "rtl" : "ltr"}>{title}</strong>
+                      <small>{detail}</small>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             {formMessage && <p className="settings-message">{formMessage}</p>}
             <button
               type="button"

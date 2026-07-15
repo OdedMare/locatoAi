@@ -160,3 +160,9 @@ def test_browse_endpoint_unknown_provider_payload_is_502():
 def test_cubes_database_name_normalizes_to_catalog_source_url():
     assert _normalized_source("cubes", "transport") == "cubes://db/transport"
     assert _normalized_source("cubes", "cubes://db/transport") == "cubes://db/transport"
+    assert _normalized_source(
+        "cubes", "transport", "match_not"
+    ) == "cubes://db/transport?query_mode=match_not"
+    assert _normalized_source(
+        "mqs", "mqs://layer/42", "match_not"
+    ) == "mqs://layer/42"

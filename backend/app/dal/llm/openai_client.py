@@ -83,6 +83,8 @@ def _merge_system_into_user(messages: list) -> list:
 class OpenAIJsonClient:
     def __init__(self, settings_store: RuntimeSettingsStore):
         self._store = settings_store
+        self._cached_client = None
+        self._cached_key = None
 
     def complete_json(self, system: str, user: str) -> dict:
         settings = self._store.get()
@@ -91,10 +93,7 @@ class OpenAIJsonClient:
                 "No API key configured — open Settings and add an API key, "
                 "or set a base URL for a local server (e.g. Ollama)"
             )
-        client = OpenAI(
-            api_key=settings.openai_api_key or _LOCAL_SERVER_KEY_PLACEHOLDER,
-            base_url=settings.llm_base_url or None,
-        )
+        client = self._client_for(settings.openai_api_key, settings.llm_base_url)
 
         messages = [
             {"role": "system", "content": system},
@@ -152,6 +151,22 @@ class OpenAIJsonClient:
             return extract_model_ids(response.json())
         except Exception as exc:
             raise AgentError("Could not list LLM models: " + str(exc))
+
+    def _client_for(self, api_key: str, base_url: str) -> "OpenAI":
+        """Reuse one OpenAI client (and its underlying httpx connection
+        pool) across calls — a fresh client per call paid a TCP/TLS
+        handshake on every one of the pipeline's several LLM round-trips
+        (select, build, up to 3 sample_field tool rounds, zero-result
+        replan). Re-keyed automatically when settings change mid-session
+        (RuntimeSettingsStore is read per call, not cached)."""
+        cache_key = (api_key, base_url)
+        if self._cached_client is None or self._cached_key != cache_key:
+            self._cached_client = OpenAI(
+                api_key=api_key or _LOCAL_SERVER_KEY_PLACEHOLDER,
+                base_url=base_url or None,
+            )
+            self._cached_key = cache_key
+        return self._cached_client
 
     @staticmethod
     def _complete(client: "OpenAI", model: str, messages: list):

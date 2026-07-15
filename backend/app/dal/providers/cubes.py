@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 import geopandas as gpd
 import httpx
@@ -33,6 +33,7 @@ _PARAMETER_OPERATORS = ("match", "not")
 _DEFAULT_PARAMETER_KEYS = (
     "eventTime", "eventTime.not", "arriveTime", "arriveTime.not",
 )
+_QUERY_MODES = {"auto", "match_not", "legacy"}
 _DEFAULT_RESULTS_LIMIT = 10000
 _MAX_CHUNK_DEPTH = 5
 _MAX_FETCHED_ROWS = 100000
@@ -42,8 +43,9 @@ logger = logging.getLogger(__name__)
 def cubes_database_name(layer: LayerMeta) -> str:
     """Extract <dbname> from cubes://db/<dbname>, a bare name, or URL."""
     ignored = {"cube", "v1", "db"}
+    path = urlsplit(layer.source_url.strip()).path
     segments = [
-        part for part in layer.source_url.strip().split("/")
+        part for part in path.split("/")
         if part and part.lower() not in ignored
     ]
     if not segments:
@@ -52,6 +54,12 @@ def cubes_database_name(layer: LayerMeta) -> str:
             "expected cubes://db/<dbname>"
         )
     return segments[-1]
+
+
+def cubes_query_mode(layer: LayerMeta) -> str:
+    values = parse_qs(urlsplit(layer.source_url).query).get("query_mode", [])
+    value = values[0] if values else "auto"
+    return value if value in _QUERY_MODES else "auto"
 
 
 def _records(payload: object) -> List[dict]:
@@ -122,10 +130,15 @@ def _location_key(body: dict) -> Optional[str]:
 
 def _query_body(
     geometry: Optional[BaseGeometry], parameters: Optional[List[LayerParameter]] = None,
-    now: Optional[datetime] = None, temporal_range=None,
+    now: Optional[datetime] = None, temporal_range=None, query_mode: str = "auto",
 ) -> dict:
-    keys = (_declared_parameter_keys(parameters) if parameters
-            else list(_DEFAULT_PARAMETER_KEYS))
+    if query_mode == "match_not":
+        keys = ["eventTime.match", "eventTime.not"]
+    elif query_mode == "legacy":
+        keys = list(_DEFAULT_PARAMETER_KEYS)
+    else:
+        keys = (_declared_parameter_keys(parameters) if parameters
+                else list(_DEFAULT_PARAMETER_KEYS))
     body = {key: _parameter_value(key, now, temporal_range) for key in keys
             if _parameter_parts(key)[0] in _TIME_FIELD_NAMES}
     _validate_required_parameters(parameters or [], body)
@@ -333,10 +346,11 @@ class CubesProvider:
         path = f"/cube/v1/{database}"
         metadata = self._get_metadata(layer)
         parameters = _metadata_parameters(metadata)
+        query_mode = cubes_query_mode(layer)
         with self._client() as client:
             rows = self._fetch_rows(
                 client, path, parameters, geometry, _results_limit(metadata), limit,
-                now, temporal_range,
+                now, temporal_range, query_mode,
             )
         self._schema_cache[layer.id] = _infer_schema(layer.id, rows)
         features = _rows_to_gdf(rows)
@@ -354,9 +368,11 @@ class CubesProvider:
         requested_limit: Optional[int],
         now: Optional[datetime],
         temporal_range: Optional[Tuple[str, str]],
+        query_mode: str,
     ) -> List[dict]:
         rows = self._post_rows(
-            client, path, _query_body(geometry, parameters, now, temporal_range))
+            client, path, _query_body(
+                geometry, parameters, now, temporal_range, query_mode))
         if requested_limit is not None or len(rows) < results_limit:
             return rows
         if geometry is None:
@@ -366,7 +382,7 @@ class CubesProvider:
         logger.info("Cubes result cap reached; splitting boundary into chunks")
         return self._fetch_spatial_chunks(
             client, path, parameters, geometry, results_limit, now,
-            temporal_range, depth=0,
+            temporal_range, query_mode, depth=0,
         )
 
     def _fetch_spatial_chunks(
@@ -378,13 +394,14 @@ class CubesProvider:
         results_limit: int,
         now: Optional[datetime],
         temporal_range: Optional[Tuple[str, str]],
+        query_mode: str,
         depth: int,
     ) -> List[dict]:
         rows: List[dict] = []
         for chunk in _spatial_chunks(geometry):
             chunk_rows = self._fetch_chunk(
                 client, path, parameters, chunk, results_limit, now,
-                temporal_range, depth)
+                temporal_range, query_mode, depth)
             rows.extend(chunk_rows)
             self._validate_row_count(rows)
         return _deduplicate_rows(rows)
@@ -393,16 +410,18 @@ class CubesProvider:
                      parameters: List[LayerParameter], geometry: BaseGeometry,
                      results_limit: int, now: Optional[datetime],
                      temporal_range: Optional[Tuple[str, str]],
+                     query_mode: str,
                      depth: int) -> List[dict]:
         rows = self._post_rows(
-            client, path, _query_body(geometry, parameters, now, temporal_range))
+            client, path, _query_body(
+                geometry, parameters, now, temporal_range, query_mode))
         if len(rows) < results_limit:
             return rows
         if depth >= _MAX_CHUNK_DEPTH:
             raise ProviderError("Cubes result chunks remain capped; narrow the map boundary")
         return self._fetch_spatial_chunks(
             client, path, parameters, geometry, results_limit, now,
-            temporal_range, depth + 1)
+            temporal_range, query_mode, depth + 1)
 
     @staticmethod
     def _validate_row_count(rows: List[dict]) -> None:

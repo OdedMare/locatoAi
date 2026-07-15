@@ -10,7 +10,11 @@ from app.bl.ports.layer_meta import LayerMeta
 from app.common.config import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.cubes import CubesProvider, cubes_database_name
+from app.dal.providers.cubes import (
+    CubesProvider,
+    cubes_database_name,
+    cubes_query_mode,
+)
 
 
 class RecordingHandler:
@@ -77,6 +81,24 @@ def test_database_name_parsing():
     assert cubes_database_name(layer()) == "transport"
     assert cubes_database_name(layer("transport")) == "transport"
     assert cubes_database_name(layer("https://host/cube/v1/transport")) == "transport"
+    configured = layer("cubes://db/transport?query_mode=match_not")
+    assert cubes_database_name(configured) == "transport"
+    assert cubes_query_mode(configured) == "match_not"
+
+
+def test_explicit_match_not_mode_works_without_parameter_metadata(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+    boundary = box(34.7, 32.0, 34.9, 32.2)
+    time_range = ("2024-11-26T00:00:00.000Z", "2024-11-26T23:59:59.000Z")
+
+    provider.fetch_features(
+        layer("cubes://db/transport?query_mode=match_not"),
+        geometry=boundary, temporal_range=time_range,
+    )
+    body = json.loads(posted_request(handler).content)
+
+    assert body["eventTime.match"] == {"From": time_range[0], "To": time_range[1]}
+    assert body["eventTime.not"]["Location"] == boundary.wkt
 
 
 def test_posts_query_and_preserves_all_fields(tmp_path):

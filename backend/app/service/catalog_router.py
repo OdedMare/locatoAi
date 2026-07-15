@@ -5,6 +5,7 @@ they know what they can ask about. Metadata only — never features.
 """
 
 from uuid import uuid4
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -32,10 +33,24 @@ from app.service.catalog_dto.remote_mqs_layers_response import (
 router = APIRouter()
 
 
-def _normalized_source(provider: str, source_url: str) -> str:
+def _with_cubes_mode(source: str, mode: str) -> str:
+    parsed = urlsplit(source)
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    if mode == "auto":
+        query.pop("query_mode", None)
+    else:
+        query["query_mode"] = [mode]
+    return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
+
+
+def _normalized_source(
+    provider: str, source_url: str, cubes_query_mode: str = "auto",
+) -> str:
     source = source_url.strip()
-    if provider.strip().lower() == "cubes" and "://" not in source:
-        return f"cubes://db/{source.strip('/')}"
+    if provider.strip().lower() == "cubes":
+        if "://" not in source:
+            source = f"cubes://db/{source.strip('/')}"
+        return _with_cubes_mode(source, cubes_query_mode)
     return source
 
 
@@ -101,7 +116,8 @@ def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
         description=body.description.strip(),
         tags=tags,
         provider=body.provider.strip(),
-        source_url=_normalized_source(body.provider, body.source_url),
+        source_url=_normalized_source(
+            body.provider, body.source_url, body.cubes_query_mode),
     )
     try:
         created = request.app.state.catalog.add_layer(layer)
@@ -125,7 +141,8 @@ def generate_layer_metadata(
     generator: LayerMetadataGenerator = request.app.state.layer_metadata_generator
     result = generator.generate(
         name=body.name, provider_name=body.provider,
-        source_url=_normalized_source(body.provider, body.source_url),
+        source_url=_normalized_source(
+            body.provider, body.source_url, body.cubes_query_mode),
     )
     return GeneratedLayerMetadataResponse(
         description=result.description,

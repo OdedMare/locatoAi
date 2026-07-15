@@ -1,5 +1,7 @@
 /** Mirrors backend/app/service/catalog_router.py — keep in sync. */
 
+export type CubesQueryMode = "auto" | "match_not" | "legacy";
+
 export interface CatalogLayer {
   id: string;
   name: string;
@@ -18,12 +20,14 @@ export interface CreateLayerRequest {
   tags: string[];
   provider: string;
   source_url: string;
+  cubes_query_mode?: CubesQueryMode;
 }
 
 export interface GenerateLayerMetadataRequest {
   name: string;
   provider: string;
   source_url: string;
+  cubes_query_mode?: CubesQueryMode;
 }
 
 export interface GeneratedLayerMetadataResponse {
