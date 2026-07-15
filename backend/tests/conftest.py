@@ -7,7 +7,7 @@ import pytest
 
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
-from app.bl.ports import LayerMeta
+from app.bl.ports.layer_meta import LayerMeta
 from tests.mock_gis_provider import MockGisProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 

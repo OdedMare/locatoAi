@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.ports import LayerMeta, LLMClient
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.llm_client import LLMClient
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "select_layers.md"
 

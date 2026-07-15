@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
-from app.bl.ports import LayerMeta
+from app.bl.ports.layer_meta import LayerMeta
 
 router = APIRouter()
 

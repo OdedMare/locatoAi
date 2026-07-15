@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 
 from psycopg.errors import UniqueViolation
 
-from app.bl.ports import LayerMeta
+from app.bl.ports.layer_meta import LayerMeta
 from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.postgres import connect
 

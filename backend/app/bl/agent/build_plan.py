@@ -20,7 +20,9 @@ from pydantic import ValidationError
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.plan.models import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
-from app.bl.ports import LayerMeta, LayerSchema, LLMClient
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.layer_schema import LayerSchema
+from app.bl.ports.llm_client import LLMClient
 from app.common.errors import PlanValidationError
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "build_plan.md"

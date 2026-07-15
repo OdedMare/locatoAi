@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
-from app.bl.ports import LayerMeta, LLMClient, ProviderRegistry
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.llm_client import LLMClient
+from app.bl.ports.provider_registry import ProviderRegistry
 from app.common.errors import AgentError, ProviderError
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_layer_metadata.md"

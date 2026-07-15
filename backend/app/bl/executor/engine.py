@@ -18,7 +18,7 @@ import app.bl.executor.ops  # noqa: F401
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.ops.base import ExecutionContext, get_op_handler
 from app.bl.plan.models import CountStep, GeoQueryPlan
-from app.bl.ports import ProviderRegistry
+from app.bl.ports.provider_registry import ProviderRegistry
 
 
 @dataclass

@@ -5,7 +5,7 @@ import httpx
 import pytest
 from shapely.geometry import Polygon, box
 
-from app.bl.ports import LayerMeta
+from app.bl.ports.layer_meta import LayerMeta
 from app.bl.catalog.mqs_sync import browse_mqs_layers
 from app.common.config import Settings
 from app.common.errors import ProviderError

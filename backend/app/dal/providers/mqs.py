@@ -66,7 +66,9 @@ from shapely import wkt
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
-from app.bl.ports import LayerField, LayerMeta, LayerSchema
+from app.bl.ports.layer_field import LayerField
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings import RuntimeSettingsStore
@@ -355,7 +357,117 @@ class MqsProvider:
         self._store = settings_store
         self._transport = transport  # tests inject httpx.MockTransport
 
-    # -- HTTP plumbing -----------------------------------------------------
+    # -- Provider protocol ---------------------------------------------------
+
+    def describe_schema(self, layer: LayerMeta) -> LayerSchema:
+        # There is no layer field-list endpoint. Infer business fields and
+        # bounded samples from entity details, then append them to fixed fields.
+        has_override, temporal_field = _temporal_field_override(layer)
+        if not has_override:
+            temporal_field = _TEMPORAL_FIELD
+        dynamic: Dict[str, LayerField] = {}
+        layer_id = mqs_layer_id(layer)
+        with self._client() as client:
+            for entity in self._iter_all_entities(client, layer_id, limit=20):
+                detail = self._entity_detail(client, layer_id, entity)
+                for name, value in _property_attributes(detail).items():
+                    sample = str(value)[:_MAX_SAMPLE_CHARS]
+                    existing = dynamic.get(name)
+                    if existing is None:
+                        field_type = (
+                            "number" if isinstance(value, (int, float))
+                            and not isinstance(value, bool) else "string"
+                        )
+                        dynamic[name] = LayerField(
+                            name=name, type=field_type, samples=[sample]
+                        )
+                    elif sample not in existing.samples and len(existing.samples) < 5:
+                        existing.samples.append(sample)
+        return LayerSchema(
+            layer_id=layer.id,
+            geometry_type="Polygon",
+            fields=list(_FIXED_FIELDS) + list(dynamic.values()),
+            temporal_field=temporal_field,
+        )
+
+    def fetch_features(
+        self,
+        layer: LayerMeta,
+        now: Optional[datetime] = None,
+        geometry: Optional[BaseGeometry] = None,
+        limit: Optional[int] = None,
+    ) -> gpd.GeoDataFrame:
+        # `now` is part of the Provider protocol (mock temporal synthesis);
+        # MQS serves real data, so it is ignored. `geometry`, when given,
+        # is pushed down as a POST filter (see module docstring) — an
+        # optimization only; nothing downstream depends on MQS honoring it.
+        # `limit` caps pagination to a small first page (e.g. metadata
+        # sampling) instead of fetching the whole layer.
+        layer_id = mqs_layer_id(layer)
+        geometries: List[BaseGeometry] = []
+        attribute_rows: List[dict] = []
+        skipped = 0
+        with self._client() as client:
+            for entity in self._iter_all_entities(client, layer_id, geometry, limit):
+                detail = self._entity_detail(client, layer_id, entity)
+                record = _entity_to_record(detail)
+                if record is None:
+                    skipped += 1
+                    continue
+                geometries.append(record[0])
+                attribute_rows.append(record[1])
+        if skipped:
+            logger.warning(
+                "MQS layer %s: skipped %d entities without parseable "
+                "geometry", layer_id, skipped,
+            )
+        if not geometries:
+            return empty_features_gdf()
+        gdf = gpd.GeoDataFrame(attribute_rows, geometry=geometries, crs=WGS84)
+        return _ensure_wgs84(gdf)
+
+    def sample_field_values(
+        self, layer: LayerMeta, field: str, limit: int = 20
+    ) -> List[str]:
+        """Distinct fixed or property_list values sampled from entity details.
+        Values are untrusted text — truncated."""
+        layer_id = mqs_layer_id(layer)
+        values: List[str] = []
+        sample_size = min(_PAGE_SIZE, max(limit * 5, 20))
+        with self._client() as client:
+            entities, _ = self._entities_page(
+                client, layer_id, {"from": 0, "to": sample_size}
+            )
+            for entity in entities:
+                detail = self._entity_detail(client, layer_id, entity)
+                record = _entity_to_record(detail)
+                if record is None:
+                    continue
+                value = record[1].get(field)
+                if value is None:
+                    continue
+                text = str(value)[:_MAX_SAMPLE_CHARS]
+                if text not in values:
+                    values.append(text)
+                if len(values) >= limit:
+                    break
+        return values[:limit]
+
+    # -- Sync support (beyond the Provider protocol) -------------------------
+
+    def list_remote_layers(self) -> List[dict]:
+        """Raw layer dicts from GET /MoriaProject/Layers, for catalog sync."""
+        with self._client() as client:
+            payload = self._get_json(client, "/MoriaProject/Layers")
+        layers = _find_list(payload, _LAYER_LIST_KEYS)
+        if layers is None:
+            raise ProviderError(
+                "MQS returned an unrecognized layer-list response from "
+                "/MoriaProject/Layers"
+            )
+        return layers
+
+    # -- HTTP plumbing (private) ---------------------------------------------
 
     def _base_url(self) -> str:
         base_url = self._store.get().mqs_base_url
@@ -515,113 +627,3 @@ class MqsProvider:
         merged = dict(entity)
         merged.update(detail)
         return merged
-
-    # -- Provider protocol ---------------------------------------------------
-
-    def describe_schema(self, layer: LayerMeta) -> LayerSchema:
-        # There is no layer field-list endpoint. Infer business fields and
-        # bounded samples from entity details, then append them to fixed fields.
-        has_override, temporal_field = _temporal_field_override(layer)
-        if not has_override:
-            temporal_field = _TEMPORAL_FIELD
-        dynamic: Dict[str, LayerField] = {}
-        layer_id = mqs_layer_id(layer)
-        with self._client() as client:
-            for entity in self._iter_all_entities(client, layer_id, limit=20):
-                detail = self._entity_detail(client, layer_id, entity)
-                for name, value in _property_attributes(detail).items():
-                    sample = str(value)[:_MAX_SAMPLE_CHARS]
-                    existing = dynamic.get(name)
-                    if existing is None:
-                        field_type = (
-                            "number" if isinstance(value, (int, float))
-                            and not isinstance(value, bool) else "string"
-                        )
-                        dynamic[name] = LayerField(
-                            name=name, type=field_type, samples=[sample]
-                        )
-                    elif sample not in existing.samples and len(existing.samples) < 5:
-                        existing.samples.append(sample)
-        return LayerSchema(
-            layer_id=layer.id,
-            geometry_type="Polygon",
-            fields=list(_FIXED_FIELDS) + list(dynamic.values()),
-            temporal_field=temporal_field,
-        )
-
-    def fetch_features(
-        self,
-        layer: LayerMeta,
-        now: Optional[datetime] = None,
-        geometry: Optional[BaseGeometry] = None,
-        limit: Optional[int] = None,
-    ) -> gpd.GeoDataFrame:
-        # `now` is part of the Provider protocol (mock temporal synthesis);
-        # MQS serves real data, so it is ignored. `geometry`, when given,
-        # is pushed down as a POST filter (see module docstring) — an
-        # optimization only; nothing downstream depends on MQS honoring it.
-        # `limit` caps pagination to a small first page (e.g. metadata
-        # sampling) instead of fetching the whole layer.
-        layer_id = mqs_layer_id(layer)
-        geometries: List[BaseGeometry] = []
-        attribute_rows: List[dict] = []
-        skipped = 0
-        with self._client() as client:
-            for entity in self._iter_all_entities(client, layer_id, geometry, limit):
-                detail = self._entity_detail(client, layer_id, entity)
-                record = _entity_to_record(detail)
-                if record is None:
-                    skipped += 1
-                    continue
-                geometries.append(record[0])
-                attribute_rows.append(record[1])
-        if skipped:
-            logger.warning(
-                "MQS layer %s: skipped %d entities without parseable "
-                "geometry", layer_id, skipped,
-            )
-        if not geometries:
-            return empty_features_gdf()
-        gdf = gpd.GeoDataFrame(attribute_rows, geometry=geometries, crs=WGS84)
-        return _ensure_wgs84(gdf)
-
-    def sample_field_values(
-        self, layer: LayerMeta, field: str, limit: int = 20
-    ) -> List[str]:
-        """Distinct fixed or property_list values sampled from entity details.
-        Values are untrusted text — truncated."""
-        layer_id = mqs_layer_id(layer)
-        values: List[str] = []
-        sample_size = min(_PAGE_SIZE, max(limit * 5, 20))
-        with self._client() as client:
-            entities, _ = self._entities_page(
-                client, layer_id, {"from": 0, "to": sample_size}
-            )
-            for entity in entities:
-                detail = self._entity_detail(client, layer_id, entity)
-                record = _entity_to_record(detail)
-                if record is None:
-                    continue
-                value = record[1].get(field)
-                if value is None:
-                    continue
-                text = str(value)[:_MAX_SAMPLE_CHARS]
-                if text not in values:
-                    values.append(text)
-                if len(values) >= limit:
-                    break
-        return values[:limit]
-
-    # -- Sync support (beyond the Provider protocol) -------------------------
-
-    def list_remote_layers(self) -> List[dict]:
-        """Raw layer dicts from GET /MoriaProject/Layers, for catalog sync."""
-        with self._client() as client:
-            payload = self._get_json(client, "/MoriaProject/Layers")
-        layers = _find_list(payload, _LAYER_LIST_KEYS)
-        if layers is None:
-            raise ProviderError(
-                "MQS returned an unrecognized layer-list response from "
-                "/MoriaProject/Layers"
-            )
-        return layers

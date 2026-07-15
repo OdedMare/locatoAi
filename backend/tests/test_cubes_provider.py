@@ -5,7 +5,7 @@ import httpx
 import pytest
 from shapely.geometry import box
 
-from app.bl.ports import LayerMeta
+from app.bl.ports.layer_meta import LayerMeta
 from app.common.config import Settings
 from app.common.errors import ProviderError
 from app.common.runtime_settings import RuntimeSettingsStore

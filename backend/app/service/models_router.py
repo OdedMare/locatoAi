@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from app.bl.ports import LLMClient
+from app.bl.ports.llm_client import LLMClient
 
 router = APIRouter()
 

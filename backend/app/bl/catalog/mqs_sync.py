@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import uuid4
 
-from app.bl.ports import LayerMeta, LayersRepository
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.layers_repository import LayersRepository
 
 _ID_KEYS = ("id", "layerId", "layer_id", "Id")
 _NAME_KEYS = ("display_name", "name", "title", "alias", "Name")

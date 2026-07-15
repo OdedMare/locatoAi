@@ -5,7 +5,7 @@ OCP: registering a new provider is one `register` call in main.py.
 
 from typing import Dict
 
-from app.bl.ports import Provider
+from app.bl.ports.provider import Provider
 from app.common.errors import ProviderError
 
 

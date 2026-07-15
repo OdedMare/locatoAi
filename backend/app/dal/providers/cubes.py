@@ -1,7 +1,7 @@
 """Cubes provider for metadata and time-varying entity locations."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
 
 import geopandas as gpd
@@ -9,7 +9,10 @@ import httpx
 from shapely import wkt
 from shapely.geometry.base import BaseGeometry
 
-from app.bl.ports import LayerField, LayerMeta, LayerParameter, LayerSchema
+from app.bl.ports.layer_field import LayerField
+from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.layer_parameter import LayerParameter
+from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings import RuntimeSettingsStore
@@ -54,7 +57,7 @@ def _records(payload: object) -> List[dict]:
     raise ProviderError("Cubes returned an unrecognized response shape")
 
 
-def _parameter_parts(name: str) -> tuple[str, Optional[str]]:
+def _parameter_parts(name: str) -> Tuple[str, Optional[str]]:
     base, separator, operator = name.rpartition(".")
     if separator and operator.lower() in _PARAMETER_OPERATORS:
         return base, operator.lower()
@@ -65,7 +68,7 @@ def _parameter_key(base: str, operator: str) -> str:
     return base if operator == "match" else f"{base}.not"
 
 
-def _declared_parameter_keys(parameters: List[LayerParameter]) -> set[str]:
+def _declared_parameter_keys(parameters: List[LayerParameter]) -> Set[str]:
     keys = set()
     for parameter in parameters or []:
         base, operator = _parameter_parts(parameter.name)
@@ -222,26 +225,6 @@ class CubesProvider:
         self._schema_cache: Dict[str, LayerSchema] = {}
         self._metadata_cache: Dict[str, dict] = {}
 
-    def _base_url(self) -> str:
-        value = self._store.get().cubes_base_url
-        if not value:
-            raise ProviderError(
-                "Cubes base URL is not configured — set cubes_base_url"
-            )
-        return value
-
-    def _headers(self) -> Dict[str, str]:
-        token = self._store.get().cubes_token
-        if not token:
-            raise ProviderError(
-                "Cubes authorization token is not configured — set cubes_token"
-            )
-        return {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": token,
-        }
-
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
         metadata = self._get_metadata(layer)
         sampled = self._schema_cache.get(layer.id)
@@ -249,47 +232,6 @@ class CubesProvider:
             self.fetch_features(layer, limit=_SCHEMA_SAMPLE_LIMIT)
             sampled = self._schema_cache.get(layer.id)
         return _merge_schema(layer.id, metadata, sampled)
-
-    def _get_metadata(self, layer: LayerMeta) -> dict:
-        cached = self._metadata_cache.get(layer.id)
-        if cached is not None:
-            return cached
-        database = quote(cubes_database_name(layer), safe="")
-        path = f"/cube/v1/{database}"
-        try:
-            with self._client() as client:
-                response = client.get(path)
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"Cubes metadata request failed ({path}): {exc}")
-        if not isinstance(payload, dict):
-            raise ProviderError("Cubes metadata response must be a JSON object")
-        if "Parameters" not in payload:
-            payload["Parameters"] = self._get_parameters(database)
-        self._metadata_cache[layer.id] = payload
-        return payload
-
-    def _get_parameters(self, database: str) -> List[dict]:
-        path = f"/cube/v1/{database}/parameters"
-        try:
-            with self._client() as client:
-                response = client.get(path)
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"Cubes parameters request failed ({path}): {exc}")
-        if isinstance(payload, dict):
-            payload = payload.get("Parameters") or payload.get("parameters")
-        if not isinstance(payload, list):
-            raise ProviderError("Cubes parameters response must be a JSON array")
-        return [item for item in payload if isinstance(item, dict)]
-
-    def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self._base_url(), headers=self._headers(),
-                            timeout=_TIMEOUT_SECONDS,
-                            verify=self._store.get().cubes_verify_tls,
-                            transport=self._transport)
 
     def fetch_features(
         self,
@@ -351,3 +293,64 @@ class CubesProvider:
             if len(values) >= limit:
                 break
         return values
+
+    def _base_url(self) -> str:
+        value = self._store.get().cubes_base_url
+        if not value:
+            raise ProviderError(
+                "Cubes base URL is not configured — set cubes_base_url"
+            )
+        return value
+
+    def _headers(self) -> Dict[str, str]:
+        token = self._store.get().cubes_token
+        if not token:
+            raise ProviderError(
+                "Cubes authorization token is not configured — set cubes_token"
+            )
+        return {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": token,
+        }
+
+    def _client(self) -> httpx.Client:
+        return httpx.Client(base_url=self._base_url(), headers=self._headers(),
+                            timeout=_TIMEOUT_SECONDS,
+                            verify=self._store.get().cubes_verify_tls,
+                            transport=self._transport)
+
+    def _get_metadata(self, layer: LayerMeta) -> dict:
+        cached = self._metadata_cache.get(layer.id)
+        if cached is not None:
+            return cached
+        database = quote(cubes_database_name(layer), safe="")
+        path = f"/cube/v1/{database}"
+        try:
+            with self._client() as client:
+                response = client.get(path)
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"Cubes metadata request failed ({path}): {exc}")
+        if not isinstance(payload, dict):
+            raise ProviderError("Cubes metadata response must be a JSON object")
+        if "Parameters" not in payload:
+            payload["Parameters"] = self._get_parameters(database)
+        self._metadata_cache[layer.id] = payload
+        return payload
+
+    def _get_parameters(self, database: str) -> List[dict]:
+        path = f"/cube/v1/{database}/parameters"
+        try:
+            with self._client() as client:
+                response = client.get(path)
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"Cubes parameters request failed ({path}): {exc}")
+        if isinstance(payload, dict):
+            payload = payload.get("Parameters") or payload.get("parameters")
+        if not isinstance(payload, list):
+            raise ProviderError("Cubes parameters response must be a JSON array")
+        return [item for item in payload if isinstance(item, dict)]
