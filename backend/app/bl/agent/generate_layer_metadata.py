@@ -70,11 +70,15 @@ class LayerMetadataGenerator:
         user = json.dumps(
             {
                 "layer_name": layer.name,
+                "source_name": schema.source_name,
+                "source_description": schema.source_description,
                 "geometry_type": schema.geometry_type,
                 "fields": [
-                    {"name": item.name, "type": item.type}
+                    {"name": item.name, "type": item.type,
+                     "description": item.description}
                     for item in schema.fields[:_MAX_FIELDS]
                 ],
+                "parameters": [item.model_dump() for item in schema.parameters[:_MAX_FIELDS]],
                 "random_entity_sample": records,
             },
             ensure_ascii=False,

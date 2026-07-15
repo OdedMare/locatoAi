@@ -19,6 +19,18 @@ class RecordingHandler:
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
+        if request.method == "GET":
+            rows = self.payload if isinstance(self.payload, list) else self.payload.get("data", [])
+            first = rows[0] if rows and isinstance(rows[0], dict) else {}
+            fields = [{"Name": name, "DisplayName": name,
+                       "Type": "Boolean" if isinstance(value, bool) else
+                               "Number" if isinstance(value, (int, float)) else "String",
+                       "Attributes": {"ShowOnGrid": True, "OntologyType": "TEXT"}}
+                      for name, value in first.items() if name != "geometry"]
+            return httpx.Response(200, json={
+                "UniqueName": "transport", "Name": "Transport",
+                "Description": "Moving entities", "Parameters": [], "Fields": fields,
+            })
         return httpx.Response(200, json=self.payload)
 
 
@@ -56,6 +68,10 @@ def record(identifier="bus-1", geometry="POINT (34.78 32.08)"):
     }
 
 
+def posted_request(handler):
+    return next(request for request in handler.requests if request.method == "POST")
+
+
 def test_database_name_parsing():
     assert cubes_database_name(layer()) == "transport"
     assert cubes_database_name(layer("transport")) == "transport"
@@ -70,7 +86,7 @@ def test_posts_query_and_preserves_all_fields(tmp_path):
     assert features.iloc[0]["id"] == "bus-1"
     assert features.iloc[0]["callSign"] == "5"
     assert features.iloc[0].geometry.x == 34.78
-    request = handler.requests[0]
+    request = posted_request(handler)
     assert request.method == "POST"
     assert request.url.path == "/cube/v1/transport"
     assert request.headers["Authorization"] == "jwt"
@@ -83,7 +99,7 @@ def test_pushes_boundary_as_wkt_location(tmp_path):
     provider, handler = make_provider(tmp_path, {"data": [record()]})
     boundary = box(34.7, 32.0, 34.9, 32.2)
     provider.fetch_features(layer(), geometry=boundary)
-    body = json.loads(handler.requests[0].content)
+    body = json.loads(posted_request(handler).content)
     assert body["arriveTime.not"]["Location"] == boundary.wkt
 
 
@@ -93,7 +109,7 @@ def test_schema_declares_event_time_and_point_geometry(tmp_path):
     assert schema.geometry_type == "Point"
     assert schema.temporal_field == "eventTime"
     assert {field.name for field in schema.fields} >= {"id", "callSign", "eventTime"}
-    assert len(handler.requests) == 1
+    assert [request.method for request in handler.requests] == ["GET", "POST"]
 
 
 def test_schema_is_inferred_generically_and_cached_after_fetch(tmp_path):
@@ -110,7 +126,62 @@ def test_schema_is_inferred_generically_and_cached_after_fetch(tmp_path):
     assert fields["newBooleanField"].type == "boolean"
     assert fields["futureSchemaField"].samples == ["works-without-code-change"]
     assert "geometry" not in fields
-    assert len(handler.requests) == 1  # describe_schema reused the fetch cache
+    assert [request.method for request in handler.requests] == ["GET", "POST"]
+
+
+def test_metadata_fields_and_parameters_are_authoritative(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+    original = handler.__call__
+
+    def metadata_handler(request):
+        if request.method == "GET":
+            handler.requests.append(request)
+            return httpx.Response(200, json={
+                "Name": "Vehicle positions",
+                "Description": "Last known positions",
+                "Parameters": [{
+                    "Name": "eventTime", "DisplayName": "Event time",
+                    "Description": "Time window", "IsRequired": True,
+                    "IsSingleValue": True, "Type": "DateTime", "Options": [],
+                }],
+                "Fields": [{
+                    "Name": "netId", "DisplayName": "Network identity",
+                    "Type": "String", "Attributes": {"ShowOnGrid": True},
+                }],
+            })
+        return original(request)
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    schema = provider.describe_schema(layer())
+    fields = {field.name: field for field in schema.fields}
+    assert fields["netId"].description == "Network identity"
+    assert schema.parameters[0].name == "eventTime"
+    assert schema.parameters[0].required is True
+    assert schema.source_name == "Vehicle positions"
+    assert schema.source_description == "Last known positions"
+
+
+def test_discovers_parameters_from_dedicated_endpoint(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.url.path.endswith("/parameters"):
+            return httpx.Response(200, json=[{
+                "Name": "eventTime", "DisplayName": "Event time",
+                "IsRequired": True, "IsSingleValue": True,
+                "OntologyType": "TIME", "Type": "DateTime", "Options": [],
+            }])
+        if request.method == "GET":
+            return httpx.Response(200, json={"Name": "Transport", "Fields": []})
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    schema = provider.describe_schema(layer())
+    assert [parameter.name for parameter in schema.parameters] == ["eventTime"]
+    assert [request.url.path for request in handler.requests[:2]] == [
+        "/cube/v1/transport", "/cube/v1/transport/parameters",
+    ]
 
 
 def test_sample_field_values(tmp_path):

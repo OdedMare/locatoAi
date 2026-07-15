@@ -220,6 +220,11 @@ class PlanBuilder:
                     fields=self._format_fields(schema),
                 )
             )
+            if schema.parameters:
+                lines.append("  provider parameters: " + "; ".join(
+                    parameter.name + (" required" if parameter.required else " optional")
+                    for parameter in schema.parameters
+                ))
         return "\n".join(lines)
 
     @staticmethod

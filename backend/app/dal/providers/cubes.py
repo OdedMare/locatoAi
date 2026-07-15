@@ -15,7 +15,7 @@ import httpx
 from shapely import wkt
 from shapely.geometry.base import BaseGeometry
 
-from app.bl.ports import LayerField, LayerMeta, LayerSchema
+from app.bl.ports import LayerField, LayerMeta, LayerParameter, LayerSchema
 from app.common.errors import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings import RuntimeSettingsStore
@@ -59,14 +59,26 @@ def _records(payload: object) -> List[dict]:
     raise ProviderError("Cubes returned an unrecognized response shape")
 
 
-def _query_body(geometry: Optional[BaseGeometry]) -> dict:
-    body = {
+def _query_body(geometry: Optional[BaseGeometry],
+                parameters: Optional[List[LayerParameter]] = None) -> dict:
+    known = {
         "eventTime": {"TimeBackUnit": "hour", "TimeBackValue": 1},
         "eventTime.not": {"TimeBackUnit": "hour", "TimeBackValue": 1},
         "arriveTime": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
         "arriveTime.not": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
     }
-    if geometry is not None:
+    body = dict(known) if not parameters else {
+        parameter.name: known[parameter.name]
+        for parameter in parameters if parameter.name in known
+    }
+    for parameter in parameters or []:
+        if parameter.required and parameter.name not in body:
+            if not parameter.options:
+                raise ProviderError(
+                    f"Cubes parameter '{parameter.name}' is required and has no configured value"
+                )
+            body[parameter.name] = parameter.options[0]
+    if geometry is not None and "arriveTime.not" in body:
         body["arriveTime.not"]["Location"] = geometry.wkt
     return body
 
@@ -134,6 +146,57 @@ def _infer_schema(layer_id: str, rows: List[dict]) -> LayerSchema:
     )
 
 
+def _metadata_fields(payload: dict) -> List[LayerField]:
+    fields = []
+    for item in payload.get("Fields") or []:
+        if not isinstance(item, dict) or not item.get("Name"):
+            continue
+        description = str(item.get("DisplayName") or "")
+        details = str(item.get("Description") or "")
+        fields.append(LayerField(
+            name=str(item["Name"]), type=str(item.get("Type") or "string").lower(),
+            description=" — ".join(value for value in (description, details) if value),
+        ))
+    return fields
+
+
+def _metadata_parameters(payload: dict) -> List[LayerParameter]:
+    parameters = []
+    for item in payload.get("Parameters") or []:
+        if not isinstance(item, dict) or not item.get("Name"):
+            continue
+        options = [str(option.get("Value")) for option in item.get("Options") or []
+                   if isinstance(option, dict) and option.get("Value") is not None]
+        parameters.append(LayerParameter(
+            name=str(item["Name"]), type=str(item.get("Type") or "string").lower(),
+            display_name=str(item.get("DisplayName") or ""),
+            description=str(item.get("Description") or ""),
+            required=bool(item.get("IsRequired")),
+            single_value=bool(item.get("IsSingleValue", True)), options=options,
+        ))
+    return parameters
+
+
+def _merge_schema(layer_id: str, metadata: dict,
+                  sampled: Optional[LayerSchema]) -> LayerSchema:
+    declared = _metadata_fields(metadata)
+    samples = {field.name: field for field in (sampled.fields if sampled else [])}
+    merged = []
+    for field in declared:
+        sample = samples.pop(field.name, None)
+        if sample is not None:
+            field.samples = sample.samples
+        merged.append(field)
+    merged.extend(samples.values())
+    names = {field.name for field in merged}
+    temporal = next((name for name in _TIME_FIELD_NAMES if name in names), None)
+    return LayerSchema(layer_id=layer_id, geometry_type="Point", fields=merged,
+                       parameters=_metadata_parameters(metadata),
+                       source_name=str(metadata.get("Name") or ""),
+                       source_description=str(metadata.get("Description") or ""),
+                       temporal_field=temporal or (sampled.temporal_field if sampled else None))
+
+
 class CubesProvider:
     def __init__(
         self,
@@ -143,6 +206,7 @@ class CubesProvider:
         self._store = settings_store
         self._transport = transport
         self._schema_cache: Dict[str, LayerSchema] = {}
+        self._metadata_cache: Dict[str, dict] = {}
 
     def _base_url(self) -> str:
         value = self._store.get().cubes_base_url
@@ -165,13 +229,53 @@ class CubesProvider:
         }
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
-        cached = self._schema_cache.get(layer.id)
+        metadata = self._get_metadata(layer)
+        sampled = self._schema_cache.get(layer.id)
+        if sampled is None:
+            self.fetch_features(layer, limit=_SCHEMA_SAMPLE_LIMIT)
+            sampled = self._schema_cache.get(layer.id)
+        return _merge_schema(layer.id, metadata, sampled)
+
+    def _get_metadata(self, layer: LayerMeta) -> dict:
+        cached = self._metadata_cache.get(layer.id)
         if cached is not None:
             return cached
-        self.fetch_features(layer, limit=_SCHEMA_SAMPLE_LIMIT)
-        return self._schema_cache.get(
-            layer.id, _infer_schema(layer.id, [])
-        )
+        database = quote(cubes_database_name(layer), safe="")
+        path = f"/cube/v1/{database}"
+        try:
+            with self._client() as client:
+                response = client.get(path)
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"Cubes metadata request failed ({path}): {exc}")
+        if not isinstance(payload, dict):
+            raise ProviderError("Cubes metadata response must be a JSON object")
+        if "Parameters" not in payload:
+            payload["Parameters"] = self._get_parameters(database)
+        self._metadata_cache[layer.id] = payload
+        return payload
+
+    def _get_parameters(self, database: str) -> List[dict]:
+        path = f"/cube/v1/{database}/parameters"
+        try:
+            with self._client() as client:
+                response = client.get(path)
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"Cubes parameters request failed ({path}): {exc}")
+        if isinstance(payload, dict):
+            payload = payload.get("Parameters") or payload.get("parameters")
+        if not isinstance(payload, list):
+            raise ProviderError("Cubes parameters response must be a JSON array")
+        return [item for item in payload if isinstance(item, dict)]
+
+    def _client(self) -> httpx.Client:
+        return httpx.Client(base_url=self._base_url(), headers=self._headers(),
+                            timeout=_TIMEOUT_SECONDS,
+                            verify=self._store.get().cubes_verify_tls,
+                            transport=self._transport)
 
     def fetch_features(
         self,
@@ -184,15 +288,11 @@ class CubesProvider:
         # relative one-hour window server-side, so no client timestamp is sent.
         database = quote(cubes_database_name(layer), safe="")
         path = f"/cube/v1/{database}"
+        metadata = self._get_metadata(layer)
+        parameters = _metadata_parameters(metadata)
         try:
-            with httpx.Client(
-                base_url=self._base_url(),
-                headers=self._headers(),
-                timeout=_TIMEOUT_SECONDS,
-                verify=self._store.get().cubes_verify_tls,
-                transport=self._transport,
-            ) as client:
-                response = client.post(path, json=_query_body(geometry))
+            with self._client() as client:
+                response = client.post(path, json=_query_body(geometry, parameters))
                 response.raise_for_status()
                 payload = response.json()
         except httpx.HTTPError as exc:

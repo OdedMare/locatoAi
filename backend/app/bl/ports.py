@@ -33,12 +33,25 @@ class LayerField(BaseModel):
     attribute filters that match the data's language/format."""
 
 
+class LayerParameter(BaseModel):
+    name: str
+    type: str
+    display_name: str = ""
+    description: str = ""
+    required: bool = False
+    single_value: bool = True
+    options: List[str] = []
+
+
 class LayerSchema(BaseModel):
     """Schema of a layer as reported by its provider (fetched on demand)."""
 
     layer_id: str
     geometry_type: str
     fields: List[LayerField]
+    parameters: List[LayerParameter] = []
+    source_name: str = ""
+    source_description: str = ""
     temporal_field: Optional[str] = None
     """Name of the field holding this layer's event time, if any — set by
     the provider (v0.2: this used to be a hardcoded 'timestamp' column
