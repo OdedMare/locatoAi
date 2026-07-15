@@ -98,7 +98,6 @@ The service tier exposes these routes:
 | `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
 | `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
 | `POST /api/layers/sync-mqs` | Upsert remote MQS inventory into PostgreSQL. |
-| `GET /api/mqs-mirror/status` | Report per-layer mirror count, sync state, lag and freshness. |
 | `GET /api/settings` | Read masked runtime settings and live catalog status. |
 | `PUT /api/settings` | Validate and persist runtime setting overrides. |
 | `GET /api/models` | List models with saved LLM settings. |
@@ -272,18 +271,9 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
-  unset means the provider errors with a clear message → HTTP 502). A background
-  `MqsMirrorWorker` scans full-data pages in chunks and keeps current entities in compressed
-  process memory with an immutable Shapely STRtree per completed layer snapshot. Refresh
-  prefers `POST /Data/MoriaProject/{id}/Entities` with `result_type=data`, `geo_type=wkt`,
-  and `IS_DELETED=false`; 404/405 falls back to the legacy list endpoint.
-  Full-data rows that include `property_list` require no detail request. On legacy fallback,
-  `history_id` equality avoids unchanged details and changed details use a bounded pool.
-  Atomic per-layer snapshots isolate concurrent activity. Runtime reads always use the
-  latest completed snapshot while the next one is built. Snapshot age is still measured
-  against the configured 30-second target, but stale data never triggers a heavy live-MQS
-  fallback; a layer without its first snapshot fails fast. When the mirror is disabled,
-  live fetching pages through `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k)
+  unset means the provider errors with a clear message → HTTP 502). MQS layers are not
+  mirrored into process memory. Query-time loading pushes the request boundary to
+  `POST /MoriaProject/{id}/Entities`, follows only the bounded result pages,
   and follows `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
   `property_list` into normal feature columns. Those columns drive schema discovery,
   value sampling, metadata/tag generation, attribute filters, displayed results, and
@@ -295,21 +285,16 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   polygon/clearance tags. Schema and planner logs expose discovered field names and
   bounded sample counts for diagnosis. Viewport/polygon filters are pushed down with
   POST for every query layer and are always rechecked locally before GeoDataFrame
-  construction, even if MQS ignores the filter. Bounded
+  construction, even if MQS ignores the filter. A response whose `total_entities`
+  exceeds one 10,000-row page is partitioned recursively into geographic quadrants,
+  including when the original polygon is physically small but dense. Results are
+  deduplicated by `entity_id`; partitioning stops if child regions do not reduce the
+  reported load, recursion is bounded, and one query may return at most 50,000 distinct
+  features.
   `near`/`near_all` target loads use the request geometry expanded in a local metric CRS,
-  avoiding a complete target-layer load without excluding any possible match.
-  The STRtree returns exact polygon candidates, geometry is parsed once per stored entity,
-  and the WKT copy is removed from the compressed payload. Mirror status also reports the
-  latest candidate/result counts and per-layer query count.
-
-  The entity mirror performs no SQL or filesystem writes and creates no tables. It is
-  rebuilt after each backend restart. Layer synchronization defaults to sequential
-  operation to avoid loading two large changed batches simultaneously; completed layers
-  remain concurrently queryable.
-  The `AILOCATOR_MQS_MIRROR_*` and `AILOCATOR_MQS_DETAIL_CONCURRENCY` settings are listed
-  in `.env.example`. Replication diff can remove the remaining full page scan once its exact
-  cursor/header contract is available; the current full-data endpoint already removes the
-  normal per-entity detail fan-out.
+  avoiding a complete target-layer load without excluding any possible match. The
+  `AILOCATOR_MQS_DETAIL_CONCURRENCY` setting bounds detail fan-out and is listed in
+  `.env.example`.
 
 - **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider

@@ -9,22 +9,16 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus a ⚙ settings panel (LLM key/model, PG connection, layers table).
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS entities are continuously mirrored inside the backend process in compressed, chunked snapshots. Mirror refresh prefers `POST /Data/MoriaProject/{layer}/Entities?result_type=data&geo_type=wkt`, so complete list rows skip detail calls; a 404/405 falls back to the legacy list/detail API. Unchanged `history_id` values still skip repeated work, changed legacy details use bounded concurrency, and query reads use the latest completed snapshot while refresh happens in the background. Snapshot age is reported against the 30-second freshness target but never triggers a heavy live-MQS query fallback; before the first snapshot is ready, queries fail fast. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS replication diff and batch IDs for legacy deployments, persistent server-side conversation context, client timezone, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, client timezone, and SSE streaming.
 
-**MQS mirror:** `MqsMirrorWorker` refreshes MQS catalog layers outside request threads.
-`InMemoryMqsMirrorStore` keeps atomic snapshots isolated by layer, compresses entity JSON,
-and builds an immutable Shapely STRtree so spatial reads do not scan or expand complete
-layers into GeoDataFrames. Layer refresh concurrency defaults to one to avoid bootstrap
-memory/network spikes, while queries can read any number of completed layers. The cache
-is rebuilt after a backend restart and performs no SQL or filesystem writes.
-Refresh requests ask the Data endpoint for `result_type=data`, `geo_type=wkt`, and
-`IS_DELETED=false`; embedded business properties bypass per-entity detail requests.
-`near`/`near_all` target fetches use the user boundary expanded by the requested distance.
-Always serve the latest completed snapshot even when it misses the freshness target; do
-not add a live-MQS fallback to a request when the mirror is enabled.
-Every query-layer load defaults to the request polygon; non-proximity reference layers use
-the exact polygon, and bounded proximity uses only its metric expansion. MQS responses are
-locally intersected with that geometry even if the remote service ignores the POST filter.
+**MQS bounded loading:** Every query-layer load defaults to the request polygon;
+non-proximity reference layers use the exact polygon, and bounded proximity uses only its
+metric expansion. MQS responses are locally intersected with that geometry even if the
+remote service ignores the POST filter. When `total_entities` exceeds the 10,000-row page,
+the provider recursively splits the region into quadrants—even for a physically small but
+dense polygon. Splitting stops when a child does not reduce load, recursion is bounded,
+cross-tile results are deduplicated, and the final interactive data result is capped at
+50,000 distinct entities.
 
 **MQS business metadata:** `property_list` accepts object, name/value-array,
 camel/Pascal-case, nested-wrapper, and JSON-string variants. Fixed transport fields stay

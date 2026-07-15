@@ -399,6 +399,60 @@ def test_fetch_features_with_polygon_geometry_posts_geo_polygon(tmp_path):
     assert geo_polygon["values"] == [triangle.wkt]
 
 
+def test_dense_small_geometry_is_split_and_cross_tile_entities_are_deduplicated(
+    tmp_path,
+):
+    """Density, not physical size, triggers adaptive geographic chunks."""
+    boundary = box(34.78, 32.08, 34.80, 32.10)
+
+    def responses(request):
+        body = json.loads(request.content)
+        value = body["filter"]["complex_operators"]["geo_bounding_box"]["geo"]
+        locations = value["values"][0]
+        top_left = locations["location_top_left"]
+        bottom_right = locations["location_bottom_right"]
+        is_root = (
+            top_left == {"lat": 32.1, "lon": 34.78}
+            and bottom_right == {"lat": 32.08, "lon": 34.8}
+        )
+        return {
+            "next_page": None,
+            "total_entities": 40000 if is_root else 5000,
+            # A polygon crossing tile boundaries may be returned by several
+            # chunks. One stable entity id must still produce one result.
+            "entities_list": [entity(
+                "same", wkt_value="POINT (34.79 32.09)", property_list={}
+            )],
+        }
+
+    provider, handler = make_provider(tmp_path, responses)
+
+    result = provider.fetch_features(mqs_layer(), geometry=boundary)
+
+    assert list(result["id"]) == ["same"]
+    requests = [request for request in handler.requests
+                if request.url.path.endswith("/Entities")]
+    assert len(requests) == 5  # one density probe + four quadrants
+
+
+def test_geo_chunking_stops_when_mqs_does_not_narrow_tiles(tmp_path):
+    """An ignored geo filter must not create an exponential request storm."""
+    provider, handler = make_provider(tmp_path, lambda request: {
+        "next_page": None,
+        "total_entities": 40000,
+        "entities_list": [entity(
+            "same", wkt_value="POINT (34.79 32.09)", property_list={}
+        )],
+    })
+
+    result = provider.fetch_features(
+        mqs_layer(), geometry=box(34.78, 32.08, 34.80, 32.10)
+    )
+
+    assert list(result["id"]) == ["same"]
+    assert len(handler.requests) == 5
+
+
 def test_geometry_filter_is_rechecked_when_mqs_ignores_it(tmp_path):
     """Only polygon matches may enter GeoPandas, even if MQS returns extras."""
     provider, _ = make_provider(tmp_path, lambda request: {

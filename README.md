@@ -167,15 +167,14 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer inside the backend process in chunked snapshots. Refresh prefers the full-data `/Data/MoriaProject/<id>/Entities` endpoint with WKT output and excludes deleted rows. Complete rows avoid per-entity detail calls; unsupported servers fall back to the legacy list/detail flow with `history_id` change checks. Entity JSON is compressed and each completed snapshot has an immutable Shapely STRtree, preventing full layers from being scanned or expanded into GeoDataFrames. Queries always read the latest completed snapshot while refresh continues in the background; the 30-second value is a monitored freshness target, not a trigger for live fallback. Spatial boundaries are indexed and rechecked locally, and bounded `near` targets use the request boundary expanded by the requested distance.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. Entity layers are not mirrored into backend memory. Every query sends its request boundary to MQS using the documented `geo_bounding_box` or `geo_polygon` body, follows only that bounded result's pages, and rechecks exact intersection locally.
 
-The entity mirror makes no SQL connection and creates no additional tables. It is rebuilt
-after a backend restart. Bootstrap still scans full-data pages, but normally needs no
-detail fan-out; legacy fallback fetches details only for changed `history_id` values. The mirror settings
-(`enabled`, interval, staleness, batch size, layer concurrency, and detail concurrency)
-are exposed through `AILOCATOR_MQS_*` environment variables in `backend/.env.example`.
-`GET /api/mqs-mirror/status` reports the entity count, active run, last error, lag,
-freshness, and the last query's spatial candidate/result counts.
+Dense boundaries are split adaptively into geographic quadrants when `total_entities`
+exceeds one page. Small polygons are split too when their result is dense; sparse large
+polygons remain one request. Cross-tile entities are deduplicated by `entity_id`, splitting
+stops when MQS does not narrow child tiles, and a 50,000-result safety limit prevents one
+interactive data query from exhausting server memory. Bounded proximity operations use
+the request boundary expanded by their requested distance.
 
 ### Cubes
 

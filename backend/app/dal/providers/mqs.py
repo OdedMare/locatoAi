@@ -71,7 +71,6 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
-from app.bl.ports.mqs_mirror import MirroredMqsEntity, MqsMirror
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -81,7 +80,9 @@ logger = logging.getLogger(__name__)
 _TIMEOUT_SECONDS = 30
 _MAX_FEATURES = 50000
 _PAGE_SIZE = 10000  # matches the doc's default `to` value
-_DATA_STORE_NAME = "MoriaProject"
+_GEO_CHUNK_TARGET = _PAGE_SIZE
+_GEO_MAX_SPLIT_DEPTH = 4
+_GEO_PROBE_PAGES = 2
 
 # Same truncation policy as the mock provider: sample values are untrusted
 # text that ends up in LLM prompts.
@@ -91,11 +92,14 @@ _ENTITY_LIST_KEYS = (
     "entities_list", "EntitiesList", "features", "Features", "entities",
     "Entities", "data", "Data", "results", "Results", "items", "Items",
 )
+_TOTAL_ENTITY_KEYS = (
+    "total_entities", "TotalEntities", "total", "Total", "count", "Count",
+)
 _LAYER_LIST_KEYS = ("layers_list", "LayersList", "layers", "Layers")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
 _PROPERTY_LIST_KEYS = (
     "property_list", "PropertiesList", "PropertyList", "Property_List",
-    "properties_list", "PropertiesList",
+    "properties_list", "Properties", "properties",
 )
 _PROPERTY_NAME_KEYS = (
     "name", "Name", "key", "Key", "field", "fieldName", "FieldName",
@@ -198,12 +202,6 @@ def _entity_id(entity: dict) -> Optional[str]:
         else _first_key(entity, _ENTITY_ID_KEYS)
     )
     return str(value) if value is not None else None
-
-
-def _history_id(entity: dict) -> str:
-    exclusive_id = entity.get("exclusive_id")
-    value = exclusive_id.get("history_id") if isinstance(exclusive_id, dict) else None
-    return "" if value is None else str(value)
 
 
 def _property_value(value: object) -> object:
@@ -343,16 +341,36 @@ def _geometry_filter_body(geometry: BaseGeometry) -> dict:
     }
 
 
-def _replication_filter_body() -> dict:
-    return {
-        "filter": {
-            "simple_operators": {
-                "match": {
-                    "IS_DELETED": {"type": "IN", "values": [False]}
-                }
-            }
-        }
-    }
+def _split_geometry(geometry: BaseGeometry) -> List[BaseGeometry]:
+    """Split a polygonal request region into non-empty quadrants."""
+    minx, miny, maxx, maxy = geometry.bounds
+    if minx == maxx or miny == maxy:
+        return [geometry]
+    midx = (minx + maxx) / 2
+    midy = (miny + maxy) / 2
+    cells = (
+        box(minx, miny, midx, midy),
+        box(midx, miny, maxx, midy),
+        box(minx, midy, midx, maxy),
+        box(midx, midy, maxx, maxy),
+    )
+    chunks = []
+    for cell in cells:
+        chunk = geometry.intersection(cell)
+        if not chunk.is_empty and chunk.area > 0:
+            chunks.append(chunk)
+    return chunks or [geometry]
+
+
+def _response_total(payload: object) -> Optional[int]:
+    if not isinstance(payload, dict):
+        return None
+    value = _first_key(payload, _TOTAL_ENTITY_KEYS)
+    try:
+        total = int(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0, total)
 
 
 def _ensure_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -380,12 +398,10 @@ class MqsProvider:
         self,
         settings_store: RuntimeSettingsStore,
         transport: Optional[httpx.BaseTransport] = None,
-        mirror: Optional[MqsMirror] = None,
         detail_concurrency: int = 16,
     ):
         self._store = settings_store
         self._transport = transport  # tests inject httpx.MockTransport
-        self._mirror = mirror
         self._detail_concurrency = max(1, detail_concurrency)
 
     # -- Provider protocol ---------------------------------------------------
@@ -439,35 +455,10 @@ class MqsProvider:
         # `limit` caps pagination to a small first page (e.g. metadata
         # sampling) instead of fetching the whole layer.
         layer_id = mqs_layer_id(layer)
-        if self._mirror is not None:
-            return self._mirrored_features(layer_id, geometry, limit)
         with self._client() as client:
             entities = self._iter_enriched_entities(
                 client, layer_id, geometry=geometry, limit=limit)
             return self._entities_to_gdf(layer_id, entities, geometry)
-
-    def _mirrored_features(self, layer_id, geometry, limit):
-        try:
-            entities = self._mirror.fetch_latest(layer_id, geometry, limit)
-        except Exception as exc:
-            logger.exception("MQS mirror read failed layer=%s", layer_id)
-            raise ProviderError(
-                f"MQS mirror read failed for layer {layer_id}: {exc}") from exc
-        if entities is None:
-            raise ProviderError(
-                f"MQS mirror for layer {layer_id} is still building its first snapshot"
-            )
-        return self._mirrored_entities_to_gdf(entities, geometry)
-
-    @staticmethod
-    def _mirrored_entities_to_gdf(
-        entities: Iterable[MirroredMqsEntity], geometry=None,
-    ):
-        records = (
-            (item.geometry, _entity_attributes(item.entity)) for item in entities
-            if geometry is None or item.geometry.intersects(geometry)
-        )
-        return MqsProvider._records_to_gdf(records)
 
     @staticmethod
     def _entities_to_gdf(layer_id: str, entities: Iterable[dict], geometry=None):
@@ -494,7 +485,7 @@ class MqsProvider:
 
     def _iter_enriched_entities(self, client, layer_id, geometry=None, limit=None):
         pending: List[dict] = []
-        entities = self._iter_all_entities(client, layer_id, geometry, limit)
+        entities = self._iter_query_entities(client, layer_id, geometry, limit)
         for entity in entities:
             pending.append(entity)
             if len(pending) >= self._detail_concurrency:
@@ -502,6 +493,109 @@ class MqsProvider:
                 pending = []
         if pending:
             yield from self._enrich_batch(client, layer_id, pending)
+
+    def _iter_query_entities(self, client, layer_id, geometry=None, limit=None):
+        """Fetch only the request region and deduplicate cross-tile entities.
+
+        A bounded query is split recursively whenever MQS reports more than
+        one page of matches. This also handles a small but dense polygon;
+        physical size alone never decides whether chunking is necessary.
+        """
+        if geometry is None or limit is not None:
+            yield from self._iter_all_entities(
+                client, layer_id, geometry=geometry, limit=limit)
+            return
+
+        seen_ids = set()
+        fetched = 0
+        for entity in self._iter_geometry_region(
+            client, layer_id, geometry, depth=0,
+            parent_total=None, parent_observed=None,
+        ):
+            entity_id = _entity_id(entity)
+            if entity_id is not None:
+                if entity_id in seen_ids:
+                    continue
+                seen_ids.add(entity_id)
+            fetched += 1
+            if fetched > _MAX_FEATURES:
+                raise ProviderError(
+                    f"MQS layer {layer_id} returned more than the "
+                    f"{_MAX_FEATURES} feature limit inside the requested "
+                    "geometry — narrow the boundary or use an aggregation"
+                )
+            yield entity
+
+    def _iter_geometry_region(
+        self, client, layer_id, geometry, depth,
+        parent_total, parent_observed,
+    ):
+        params = {"from": 0, "to": _PAGE_SIZE}
+        buffered: List[dict] = []
+        total = None
+        next_page = None
+        visited_pages = set()
+
+        for probe_index in range(_GEO_PROBE_PAGES):
+            entities, next_page, page_total = self._entities_page_with_meta(
+                client, layer_id, params, geometry
+            )
+            buffered.extend(entities)
+            if total is None:
+                total = page_total
+            if next_page is None or total is not None:
+                break
+            if probe_index + 1 < _GEO_PROBE_PAGES:
+                if next_page in visited_pages:
+                    raise ProviderError(
+                        f"MQS layer {layer_id} returned a repeated next_page"
+                    )
+                visited_pages.add(next_page)
+                params = self._next_page_params(next_page)
+
+        total_shrank = (
+            total is not None
+            and parent_total is not None
+            and total < parent_total
+        )
+        observed_shrank = (
+            parent_observed is not None and len(buffered) < parent_observed
+        )
+        region_shrank = depth == 0 or total_shrank or observed_shrank
+        overloaded = (
+            (total is not None and total > _GEO_CHUNK_TARGET)
+            or (total is None and next_page is not None)
+        )
+        should_split = (
+            depth < _GEO_MAX_SPLIT_DEPTH
+            and overloaded
+            and region_shrank
+        )
+        chunks = _split_geometry(geometry) if should_split else [geometry]
+        if should_split and len(chunks) > 1:
+            logger.info(
+                "MQS geo split layer=%s depth=%d total=%s buffered=%d",
+                layer_id, depth, total, len(buffered),
+            )
+            for chunk in chunks:
+                yield from self._iter_geometry_region(
+                    client, layer_id, chunk, depth + 1,
+                    parent_total=total, parent_observed=len(buffered),
+                )
+            return
+
+        yield from buffered
+        while next_page is not None:
+            if next_page in visited_pages:
+                raise ProviderError(
+                    f"MQS layer {layer_id} returned a repeated next_page"
+                )
+            visited_pages.add(next_page)
+            params = self._next_page_params(next_page)
+            entities, next_page, _ = self._entities_page_with_meta(
+                client, layer_id, params, geometry
+            )
+            yield from entities
 
     def _enrich_batch(
         self, client: httpx.Client, layer_id: str, entities: Sequence[dict]
@@ -511,66 +605,6 @@ class MqsProvider:
         with ThreadPoolExecutor(max_workers=self._detail_concurrency) as executor:
             return list(executor.map(
                 lambda item: self._entity_detail(client, layer_id, item), entities))
-
-    def sync_layer_to_mirror(
-        self, layer: LayerMeta, mirror: MqsMirror, batch_size: int
-    ) -> int:
-        layer_id = mqs_layer_id(layer)
-        run_id = mirror.begin_snapshot(layer_id)
-        if run_id is None:
-            return 0
-        try:
-            count = self._sync_snapshot(layer_id, run_id, mirror, batch_size)
-            mirror.complete_snapshot(layer_id, run_id)
-            return count
-        except Exception as exc:
-            mirror.abort_snapshot(layer_id, run_id, str(exc))
-            raise
-
-    def _sync_snapshot(self, layer_id, run_id, mirror, batch_size):
-        count = 0
-        with self._client() as client:
-            entities = self._iter_snapshot_entities(client, layer_id)
-            for batch in self._batched(entities, batch_size):
-                self._sync_batch(client, layer_id, run_id, mirror, batch)
-                count += len(batch)
-        return count
-
-    def _iter_snapshot_entities(self, client, layer_id):
-        params = self._data_page_params()
-        fetched = False
-        while True:
-            page = self._data_entities_page(client, layer_id, params)
-            if page is None and not fetched:
-                yield from self._iter_all_entities(
-                    client, layer_id, max_features=None)
-                return
-            if page is None:
-                raise ProviderError("MQS Data endpoint disappeared during pagination")
-            entities, next_page = page
-            fetched = True
-            yield from entities
-            if next_page is None:
-                return
-            params = self._data_page_params(self._next_page_params(next_page))
-
-    @staticmethod
-    def _data_page_params(values: Optional[dict] = None) -> dict:
-        params = {"from": 0, "to": _PAGE_SIZE}
-        params.update(values or {})
-        params["geo_type"] = "wkt"
-        params["result_type"] = "data"
-        return params
-
-    def _sync_batch(self, client, layer_id, run_id, mirror, batch):
-        versions = [(_entity_id(item), _history_id(item)) for item in batch]
-        versions = [(entity_id, version) for entity_id, version in versions
-                    if entity_id is not None and version]
-        unchanged = mirror.unchanged_ids(layer_id, versions)
-        mirror.mark_seen(layer_id, run_id, unchanged)
-        changed = [item for item in batch if _entity_id(item) not in unchanged]
-        mirror.upsert_entities(
-            layer_id, run_id, self._enrich_batch(client, layer_id, changed))
 
     @staticmethod
     def _batched(entities: Iterable[dict], batch_size: int):
@@ -698,6 +732,18 @@ class MqsProvider:
         optimization only, see module docstring); pagination params are
         still applied the same way on both paths.
         """
+        entities, next_page, _ = self._entities_page_with_meta(
+            client, layer_id, params, geometry
+        )
+        return entities, next_page
+
+    def _entities_page_with_meta(
+        self,
+        client: httpx.Client,
+        layer_id: str,
+        params: Optional[dict],
+        geometry: Optional[BaseGeometry] = None,
+    ) -> Tuple[List[dict], Optional[str], Optional[int]]:
         path = f"/MoriaProject/{layer_id}/Entities"
         if geometry is not None:
             payload = self._post_json(
@@ -712,27 +758,11 @@ class MqsProvider:
                 "response shape"
             )
         next_page = payload.get("next_page") if isinstance(payload, dict) else None
-        return entities, (next_page if isinstance(next_page, str) and next_page else None)
-
-    def _data_entities_page(self, client, layer_id, params):
-        path = f"/Data/{_DATA_STORE_NAME}/{layer_id}/Entities"
-        try:
-            response = client.post(path, json=_replication_filter_body(), params=params)
-            logger.info("MQS POST %s -> %s", response.request.url,
-                        response.status_code)
-            if response.status_code in (404, 405):
-                return None
-            response.raise_for_status()
-            payload = response.json()
-        except httpx.HTTPError as exc:
-            raise ProviderError(f"MQS request failed ({path}): {exc}")
-        except ValueError as exc:
-            raise ProviderError(f"MQS returned invalid JSON ({path}): {exc}")
-        entities = _find_list(payload, _ENTITY_LIST_KEYS)
-        if entities is None:
-            raise ProviderError(f"MQS layer {layer_id} returned invalid Data response")
-        next_page = payload.get("next_page") if isinstance(payload, dict) else None
-        return entities, next_page if isinstance(next_page, str) and next_page else None
+        return (
+            entities,
+            next_page if isinstance(next_page, str) and next_page else None,
+            _response_total(payload),
+        )
 
     @staticmethod
     def _next_page_params(next_page_url: str) -> dict:
