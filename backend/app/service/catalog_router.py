@@ -8,7 +8,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
+from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
+    LayerMetadataGenerator,
+)
 from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
 from app.bl.ports.layer_meta import LayerMeta
 from app.service.catalog_dto.catalog_layer import CatalogLayer

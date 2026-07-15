@@ -4,7 +4,9 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Point
 
-from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
+from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
+    LayerMetadataGenerator,
+)
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_schema import LayerSchema
 from app.dal.providers.registry import InMemoryProviderRegistry

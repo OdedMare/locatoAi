@@ -1,11 +1,5 @@
 "use client";
 
-const EXAMPLES = [
-  "מצא בתי ספר ליד תחנות רכבת בתל אביב",
-  "הצג תאונות מאתמול בכביש 6",
-  "מצא את בית הספר הצפוני ביותר בתל אביב",
-];
-
 interface GeoQueryInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -36,18 +30,6 @@ export default function GeoQueryInput({
           }
         }}
       />
-      <div className="query-examples">
-        {EXAMPLES.map((example) => (
-          <button
-            key={example}
-            type="button"
-            className="example-chip"
-            onClick={() => onChange(example)}
-          >
-            {example}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

@@ -6,8 +6,8 @@ import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
 import {
-  Activity, Ambulance, Bus, Clock3, Layers, MapPin, MessageSquarePlus,
-  Moon, Navigation, PanelLeft, Radar, Settings, Sparkles, Sun,
+  Activity, Clock3, Layers, MessageSquarePlus, Moon, PanelLeft, Radar,
+  Settings, Sparkles, Sun,
 } from "lucide-react";
 import type {
   GeographyMode,
@@ -37,29 +37,6 @@ interface QueryPanelProps {
   isDarkMode: boolean;
   onToggleTheme: () => void;
 }
-
-const STARTER_QUERIES = [
-  {
-    icon: Ambulance,
-    label: "כוחות קרובים",
-    text: "מצא לי את שני האמבולנסים הקרובים ביותר באזור",
-  },
-  {
-    icon: Bus,
-    label: "ניתוח תנועה",
-    text: "מצא אוטובוסים שנסעו מצפון לדרום בשעה האחרונה",
-  },
-  {
-    icon: MapPin,
-    label: "חיפוש מקום",
-    text: "מצא בתי כנסת לפי שם וסוג באזור המפה",
-  },
-  {
-    icon: Navigation,
-    label: "קרבה מרחבית",
-    text: "מצא כלי רכב שהיו ליד בית כנסת בשעה האחרונה",
-  },
-];
 
 /** Left-hand panel: query input, geography controls, run button, debug + results. */
 export default function QueryPanel({
@@ -164,15 +141,6 @@ export default function QueryPanel({
               <span className="welcome-eyebrow"><Sparkles size={12} /> GEO AGENT ONLINE</span>
               <h2>מה תרצו לגלות על המרחב?</h2>
               <p>חברו בין מיקומים, זמן ותנועה. הסוכן יבחר שכבות, יבנה תוכנית ויציג את התוצאה על המפה.</p>
-              <div className="starter-grid">
-                {STARTER_QUERIES.map(({ icon: Icon, label, text }) => (
-                  <button key={label} type="button" onClick={() => onQueryTextChange(text)}>
-                    <span className="starter-icon"><Icon size={16} /></span>
-                    <span><strong>{label}</strong><small>{text}</small></span>
-                    <span className="starter-arrow">←</span>
-                  </button>
-                ))}
-              </div>
               <div className="capability-strip">
                 <span><Radar size={12} /> ניתוח מרחבי</span>
                 <span><Clock3 size={12} /> נתוני זמן אמת</span>

@@ -1,17 +1,19 @@
 """Generate editable catalog metadata from a small random entity sample."""
 
 import json
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
+from app.bl.agent.generate_layer_metadata.generated_layer_metadata import (
+    GeneratedLayerMetadata,
+)
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.llm_client import LLMClient
 from app.bl.ports.provider_registry import ProviderRegistry
 from app.common.errors.agent_error import AgentError
 from app.common.errors.provider_error import ProviderError
 
-_PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_layer_metadata.md"
+_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "generate_layer_metadata.md"
 _FETCH_LIMIT = 100
 """Cap on how many entities are fetched from the provider to classify a
 layer — tagging needs a representative sample, not the whole layer
@@ -23,13 +25,6 @@ _MAX_VALUE_CHARS = 200
 _MAX_TAGS = 20
 _MAX_TAG_CHARS = 60
 _MAX_DESCRIPTION_CHARS = 2000
-
-
-@dataclass
-class GeneratedLayerMetadata:
-    description: str
-    tags: List[str] = field(default_factory=list)
-    sample_count: int = 0
 
 
 class LayerMetadataGenerator:
