@@ -1,5 +1,5 @@
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import CountStep
+from app.bl.plan.models.count_step import CountStep
 
 
 @register_op("count")

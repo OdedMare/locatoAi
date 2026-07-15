@@ -8,7 +8,7 @@ from app.bl.executor.ops.near import (
     enrich_proximity_results,
     filter_reference_entities,
 )
-from app.bl.plan.models import NearestNStep
+from app.bl.plan.models.nearest_n_step import NearestNStep
 from app.common.geo import metric_crs_for, to_metric
 
 

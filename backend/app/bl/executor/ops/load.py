@@ -1,7 +1,7 @@
 import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import LoadStep
+from app.bl.plan.models.load_step import LoadStep
 
 
 @register_op("load")

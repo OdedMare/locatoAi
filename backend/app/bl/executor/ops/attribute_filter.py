@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import AttributeFilterStep
+from app.bl.plan.models.attribute_filter_step import AttributeFilterStep
 from app.common.errors import ExecutionError
 
 

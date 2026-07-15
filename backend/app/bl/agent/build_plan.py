@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Set
 from pydantic import ValidationError
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.plan.models import GeoQueryPlan
+from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema

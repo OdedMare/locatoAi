@@ -2,7 +2,7 @@ import geopandas as gpd
 from shapely.geometry import mapping
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import NearStep
+from app.bl.plan.models.near_step import NearStep
 from app.common.errors import ExecutionError
 from app.common.geo import metric_crs_for, to_metric
 

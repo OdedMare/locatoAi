@@ -1,7 +1,7 @@
 import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import ClusterStep
+from app.bl.plan.models.cluster_step import ClusterStep
 from app.common.geo import metric_crs_for, to_metric
 
 CLUSTER_ID_COLUMN = "cluster_id"

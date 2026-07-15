@@ -7,19 +7,17 @@ the prompt, then a clarify fallback.
 
 from typing import Set
 
-from app.bl.plan.models import (
-    BetweenStep,
-    ContainsStep,
-    CountStep,
-    GeoQueryPlan,
-    LoadStep,
-    NearestNStep,
-    NearStep,
-    NearAllStep,
-    CrossesStep,
-    TouchesStep,
-    WithinGeometryStep,
-)
+from app.bl.plan.models.between_step import BetweenStep
+from app.bl.plan.models.contains_step import ContainsStep
+from app.bl.plan.models.count_step import CountStep
+from app.bl.plan.models.crosses_step import CrossesStep
+from app.bl.plan.models.geo_query_plan import GeoQueryPlan
+from app.bl.plan.models.load_step import LoadStep
+from app.bl.plan.models.near_all_step import NearAllStep
+from app.bl.plan.models.near_step import NearStep
+from app.bl.plan.models.nearest_n_step import NearestNStep
+from app.bl.plan.models.touches_step import TouchesStep
+from app.bl.plan.models.within_geometry_step import WithinGeometryStep
 from app.common.errors import PlanValidationError
 
 

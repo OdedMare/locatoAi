@@ -1,7 +1,7 @@
 import geopandas as gpd
 
 from app.bl.executor.ops.base import ExecutionContext, OpHandler, register_op
-from app.bl.plan.models import DirectionalStep
+from app.bl.plan.models.directional_step import DirectionalStep
 from app.common.geo import WGS84, require_crs
 
 

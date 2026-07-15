@@ -11,7 +11,7 @@ from app.bl.executor.ops.near import (
     _feature_from_row,
     filter_reference_entities,
 )
-from app.bl.plan.models import NearAllStep
+from app.bl.plan.models.near_all_step import NearAllStep
 from app.common.geo import metric_crs_for, to_metric
 
 MATCHED_TARGETS_COLUMN = "matched_reference_features"
