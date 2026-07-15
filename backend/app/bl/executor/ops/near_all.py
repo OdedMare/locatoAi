@@ -47,7 +47,10 @@ class NearAllOp(OpHandler):
         targets = []
         for spec in step.targets:
             target = filter_reference_entities(
-                ctx.load_layer_features(spec.layer),
+                ctx.load_layer_features(
+                    spec.layer,
+                    geometry_hint=ctx.proximity_geometry(step.distance_m),
+                ),
                 spec.field,
                 spec.operator,
                 spec.value,

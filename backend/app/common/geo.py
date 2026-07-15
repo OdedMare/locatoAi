@@ -4,6 +4,7 @@ import geopandas as gpd
 from typing import Optional
 from pyproj import CRS
 from shapely.geometry import Point
+from shapely.geometry.base import BaseGeometry
 
 WGS84 = "EPSG:4326"
 ISRAEL_TM = "EPSG:2039"  # Israeli Transverse Mercator — meters
@@ -50,6 +51,16 @@ def to_metric(
 
 def to_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gdf.to_crs(WGS84)
+
+
+def buffer_wgs84_geometry(
+    geometry: BaseGeometry, distance_m: float
+) -> BaseGeometry:
+    """Expand a WGS84 request geometry by meters in a suitable local CRS."""
+    frame = gpd.GeoDataFrame({"geometry": [geometry]}, geometry="geometry", crs=WGS84)
+    metric_crs = metric_crs_for(frame)
+    buffered = frame.to_crs(metric_crs).geometry.buffer(distance_m)
+    return gpd.GeoSeries(buffered, crs=metric_crs).to_crs(WGS84).iloc[0]
 
 
 def empty_features_gdf() -> gpd.GeoDataFrame:

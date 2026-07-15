@@ -135,9 +135,8 @@ def test_load_without_request_geometry_does_not_push_down(executor, providers):
     assert calls == [None]
 
 
-def test_near_target_layer_is_not_geometry_scoped(executor, providers):
-    """near's target layer must stay unscoped: a target outside the
-    viewport can still be the nearest one to an in-viewport feature."""
+def test_near_target_layer_uses_distance_expanded_geometry(executor, providers):
+    """near needs only targets inside the request boundary plus distance."""
     from tests.mock_gis_provider import MockGisProvider
 
     real_provider: MockGisProvider = providers.get("arcgis")
@@ -159,7 +158,8 @@ def test_near_target_layer_is_not_geometry_scoped(executor, providers):
         del real_provider.fetch_features
 
     assert calls["schools"] == CENTRAL_TLV
-    assert calls["roundabouts"] is None
+    assert calls["roundabouts"].covers(CENTRAL_TLV)
+    assert calls["roundabouts"] != CENTRAL_TLV
 
 
 def test_cluster_finds_group_of_close_features(executor):

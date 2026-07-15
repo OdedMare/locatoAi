@@ -2,7 +2,7 @@
 
 import logging
 from threading import Event, Thread
-from typing import List
+from typing import Callable, List
 
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.ports.layer_meta import LayerMeta
@@ -14,12 +14,14 @@ logger = logging.getLogger(__name__)
 
 class MqsMirrorWorker:
     def __init__(self, catalog: CatalogService, source: MqsSnapshotSource,
-                 mirror: MqsMirror, interval_seconds: int, batch_size: int):
+                 mirror: MqsMirror, interval_seconds: int, batch_size: int,
+                 is_configured: Callable[[], bool] = lambda: True):
         self._catalog = catalog
         self._source = source
         self._mirror = mirror
         self._interval = max(1, interval_seconds)
         self._batch_size = max(1, batch_size)
+        self._is_configured = is_configured
         self._stop = Event()
         self._thread = Thread(target=self._run, name="mqs-mirror", daemon=True)
 
@@ -34,7 +36,8 @@ class MqsMirrorWorker:
 
     def _run(self) -> None:
         while not self._stop.is_set():
-            self._sync_layers(self._mqs_layers())
+            if self._is_configured():
+                self._sync_layers(self._mqs_layers())
             self._stop.wait(self._interval)
 
     def _mqs_layers(self) -> List[LayerMeta]:

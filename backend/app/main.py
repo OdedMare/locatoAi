@@ -2,6 +2,7 @@
 the service routers. The only module that knows every tier."""
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -12,6 +13,7 @@ from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
 )
 from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
+from app.bl.catalog.mqs_sync.mqs_mirror_worker import MqsMirrorWorker
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.common.config import Settings, get_settings
@@ -25,6 +27,7 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 from app.dal.feedback_repository import PostgresFeedbackRepository
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
+from app.dal.mqs_mirror_store import PostgresMqsMirrorStore
 from app.dal.providers.cubes import CubesProvider
 from app.dal.providers.mqs import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
@@ -65,7 +68,13 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     repository = PostgresLayersRepository(settings_store)
     feedback_repository = PostgresFeedbackRepository(settings_store)
     providers = InMemoryProviderRegistry()
-    mqs_provider = MqsProvider(settings_store)
+    mqs_mirror = PostgresMqsMirrorStore(settings_store)
+    mqs_provider = MqsProvider(
+        settings_store,
+        mirror=mqs_mirror if settings.mqs_mirror_enabled else None,
+        mirror_max_staleness_seconds=settings.mqs_mirror_max_staleness_seconds,
+        detail_concurrency=settings.mqs_detail_concurrency,
+    )
     providers.register("mqs", mqs_provider)
     providers.register("cubes", CubesProvider(settings_store))
 
@@ -82,12 +91,21 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     app.state.repository = repository
     app.state.feedback_repository = feedback_repository
     app.state.mqs_provider = mqs_provider  # catalog_router's sync endpoint
+    app.state.mqs_mirror = mqs_mirror
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.llm_client = llm
     app.state.layer_metadata_generator = metadata_generator
     app.state.orchestrator = QueryOrchestrator(
         catalog, executor, layer_selector=layer_selector, plan_builder=plan_builder
+    )
+    app.state.mqs_mirror_worker = (
+        MqsMirrorWorker(
+            catalog, mqs_provider, mqs_mirror,
+            settings.mqs_mirror_sync_interval_seconds,
+            settings.mqs_mirror_batch_size,
+            is_configured=lambda: bool(settings_store.get().mqs_base_url),
+        ) if settings.mqs_mirror_enabled else None
     )
     app.state.request_log = configure_logging(settings.request_log_path)
 
@@ -124,8 +142,20 @@ def _register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, make_handler(500))
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    worker = getattr(app.state, "mqs_mirror_worker", None)
+    if worker is not None:
+        worker.start()
+    try:
+        yield
+    finally:
+        if worker is not None:
+            worker.stop()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="AiLocator", version="0.1.0")
+    app = FastAPI(title="AiLocator", version="0.1.0", lifespan=_lifespan)
 
     _wire_state(app, get_settings())
     _register_error_handlers(app)

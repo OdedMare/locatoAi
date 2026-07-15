@@ -29,7 +29,8 @@ def test_near_all_requires_every_reference_ranks_and_limits():
     }
     ctx = SimpleNamespace(
         results={"input": subjects},
-        load_layer_features=lambda layer_id: targets[layer_id],
+        load_layer_features=lambda layer_id, geometry_hint=None: targets[layer_id],
+        proximity_geometry=lambda distance_m: None,
     )
     step = NearAllStep.model_validate({
         "id": "s2",
@@ -57,7 +58,8 @@ def test_near_all_empty_when_one_required_reference_has_no_match():
     }
     ctx = SimpleNamespace(
         results={"input": subjects},
-        load_layer_features=lambda layer_id: targets[layer_id],
+        load_layer_features=lambda layer_id, geometry_hint=None: targets[layer_id],
+        proximity_geometry=lambda distance_m: None,
     )
     step = NearAllStep.model_validate({
         "id": "s2", "op": "near_all", "input": "input",

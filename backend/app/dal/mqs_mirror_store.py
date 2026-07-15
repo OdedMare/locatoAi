@@ -44,7 +44,6 @@ class PostgresMqsMirrorStore:
         if self._ready:
             return
         with connect(self._store) as conn:
-            conn.execute("CREATE EXTENSION IF NOT EXISTS postgis")
             conn.execute(self._features_ddl())
             conn.execute(self._state_ddl())
             conn.execute(self._spatial_index_ddl())

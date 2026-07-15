@@ -395,9 +395,9 @@ class MqsProvider:
         dynamic: Dict[str, LayerField] = {}
         layer_id = mqs_layer_id(layer)
         with self._client() as client:
-            for entity in self._iter_all_entities(client, layer_id, limit=20):
-                detail = self._entity_detail(client, layer_id, entity)
-                for name, value in _property_attributes(detail).items():
+            entities = self._iter_enriched_entities(client, layer_id, limit=20)
+            for entity in entities:
+                for name, value in _property_attributes(entity).items():
                     sample = str(value)[:_MAX_SAMPLE_CHARS]
                     existing = dynamic.get(name)
                     if existing is None:
@@ -542,19 +542,16 @@ class MqsProvider:
             entities, _ = self._entities_page(
                 client, layer_id, {"from": 0, "to": sample_size}
             )
-            for entity in entities:
-                detail = self._entity_detail(client, layer_id, entity)
-                record = _entity_to_record(detail)
-                if record is None:
-                    continue
-                value = record[1].get(field)
-                if value is None:
-                    continue
-                text = str(value)[:_MAX_SAMPLE_CHARS]
-                if text not in values:
-                    values.append(text)
-                if len(values) >= limit:
-                    break
+            for batch in self._batched(entities, self._detail_concurrency):
+                for entity in self._enrich_batch(client, layer_id, batch):
+                    record = _entity_to_record(entity)
+                    value = record[1].get(field) if record is not None else None
+                    if value is not None:
+                        text = str(value)[:_MAX_SAMPLE_CHARS]
+                        if text not in values:
+                            values.append(text)
+                    if len(values) >= limit:
+                        return values[:limit]
         return values[:limit]
 
     # -- Sync support (beyond the Provider protocol) -------------------------

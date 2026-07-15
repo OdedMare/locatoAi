@@ -86,7 +86,8 @@ class NearOp(OpHandler):
 
     def run(self, step: NearStep, ctx: ExecutionContext) -> gpd.GeoDataFrame:
         gdf = ctx.results[step.input]
-        target = ctx.load_layer_features(step.target_layer)
+        target = ctx.load_layer_features(
+            step.target_layer, geometry_hint=ctx.proximity_geometry(step.distance_m))
         target = filter_reference_entities(
             target, step.target_field, step.target_operator, step.target_value
         )
