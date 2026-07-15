@@ -1,5 +1,23 @@
 import type { GeoQueryRequest, GeoQueryResponse } from "@/types/geo-query";
 
+function errorDetail(body: unknown): string {
+  if (!body || typeof body !== "object" || !("detail" in body)) return "";
+
+  const detail = (body as { detail: unknown }).detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (item && typeof item === "object" && "msg" in item) {
+          return String((item as { msg: unknown }).msg);
+        }
+        return String(item);
+      })
+      .join("; ");
+  }
+  return detail == null ? "" : String(detail);
+}
+
 /**
  * Real backend call. `/api/*` is proxied to the FastAPI backend by the
  * rewrite in next.config.ts, so the backend must be running:
@@ -20,7 +38,7 @@ export async function submitQuery(
       body: JSON.stringify(request),
     });
   } catch (error) {
-    console.error("Query request could not reach the backend", error);
+    console.warn("Query request could not reach the backend", error);
     return {
       status: "error",
       clarify: "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.",
@@ -38,17 +56,16 @@ export async function submitQuery(
 
   if (!res.ok) {
     const raw = await res.text().catch(() => "");
-    let detail = raw;
+    let detail = "";
     try {
-      const parsed = JSON.parse(raw) as { detail?: string };
-      detail = parsed.detail ?? raw;
+      detail = errorDetail(JSON.parse(raw));
     } catch {
       detail = raw;
     }
-    console.error("Query backend error", { status: res.status, detail });
+    const message = detail || `השרת החזיר שגיאה ${res.status}`;
     return {
       status: "error",
-      clarify: detail || `השרת החזיר שגיאה ${res.status}`,
+      clarify: message,
       plan: null,
       features: null,
       scalar_result: null,
