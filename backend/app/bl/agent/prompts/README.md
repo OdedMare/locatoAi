@@ -10,7 +10,7 @@ user query
        ├─ known layer IDs + Hebrew reasoning
        └─ or short Hebrew clarification
             └─ build_plan.md + selected provider schemas + current time
-                 ├─ optional sample_field request (maximum two rounds)
+                 ├─ optional sample_field request (maximum three rounds)
                  ├─ typed GeoQueryPlan
                  └─ or short Hebrew clarification
 ```
@@ -37,7 +37,7 @@ Used by `PlanBuilder` for model call two. Runtime substitutions are:
 - `{has_boundaries}`: whether `within_geometry` is legal for this request.
 - `{layers}`: selected layer metadata and provider-reported schemas, including safe sample values.
 
-The model may return a `sample_field` tool request to inspect additional distinct values for a selected layer field. The builder allows at most two tool rounds. Tool rounds do not consume the separate validation-retry budget.
+The model may return a `sample_field` tool request to inspect additional distinct values for a selected layer field. The builder allows at most three tool rounds. Tool rounds do not consume the separate validation-retry budget.
 
 The final response must be either a plan matching `GeoQueryPlan` or a short Hebrew clarification. Invalid plans receive one correction attempt containing a bounded validation error and the rejected JSON.
 
@@ -55,7 +55,7 @@ catalog row is written until the user explicitly submits it.
 Prompts express model behavior, examples, and response format. Code remains authoritative for security and correctness:
 
 - Pydantic owns the allowed operation shapes and numeric bounds.
-- Semantic validators own catalog IDs, earlier-step references, boundary requirements, and terminal-count rules.
+- Semantic validators own catalog IDs, complete target-filter triples, earlier-step references, the required boundary operation, final-output ordering, and terminal-count rules.
 - The executor owns spatial semantics and CRS conversions.
 - Catalog/provider text and samples are sanitized and truncated before prompt insertion.
 - Hallucinated layer IDs are removed in code.

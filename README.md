@@ -1,6 +1,6 @@
 # LocatoAI
 
-LocatoAI is a Hebrew-first geographic assistant. A user asks a geographic question in natural language, optionally limits it to the visible map or a drawn polygon, and receives mapped GIS features or a scalar count. The system uses an LLM only to select known data layers and build a constrained query plan; deterministic Python code validates and executes that plan.
+LocatoAI is a Hebrew-first geographic assistant. A user asks a geographic question in natural language, scopes it to the visible map or a drawn polygon/rectangle, and receives mapped GIS features or a scalar count. The system uses an LLM only to select known data layers and build a constrained query plan; deterministic Python code validates and executes that plan.
 
 This README explains the whole system. More detailed guides live in [backend/README.md](backend/README.md), [frontend/README.md](frontend/README.md), and [backend/app/bl/agent/prompts/README.md](backend/app/bl/agent/prompts/README.md).
 
@@ -9,7 +9,7 @@ This README explains the whole system. More detailed guides live in [backend/REA
 ```text
 Browser
   │
-  │ Hebrew/English query + optional GeoJSON MultiPolygon
+  │ Hebrew/English query + required GeoJSON MultiPolygon
   ▼
 Next.js 16 / React 18 frontend
   │  /api/* rewrite (same-origin browser requests)
@@ -66,16 +66,16 @@ locatoAi/
 ## End-to-end query stages
 
 1. The user enters a question in `GeoQueryInput`.
-2. `AppShell` combines the text with one of four geography modes: no boundary, current viewport, polygon, or rectangle.
+2. `AppShell` combines the text with one of three geography modes: current viewport, polygon, or rectangle.
 3. Polygon and viewport shapes are normalized to GeoJSON `MultiPolygon`, producing exactly `{query, boundaries}`.
 4. `geoQueryService` posts the request to `/api/query`. Next.js rewrites it to the FastAPI backend configured by `BACKEND_URL`.
 5. FastAPI validates the transport DTO and converts a boundary to a Shapely geometry.
 6. `LayerSelector` reads layer metadata from the PostgreSQL catalog, sanitizes it, and asks the configured model to return known layer IDs or a short Hebrew clarification.
-7. `PlanBuilder` obtains provider schemas and sample values for the selected layers. The model may request up to two additional `sample_field` rounds.
+7. `PlanBuilder` obtains provider schemas and sample values for the selected layers. The model may request up to three additional `sample_field` rounds.
 8. The model returns a `GeoQueryPlan`. Pydantic validates its shape; semantic validation checks references, catalog IDs, boundary use, and terminal count rules. An invalid model response gets one correction attempt.
 9. `PlanExecutor` runs the steps in order. It resolves features through a provider registry and dispatches each operation through an operation registry.
-10. The backend returns GeoJSON features or `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, and tool calls.
-11. The frontend shows the agent trace and results. GeoJSON is drawn with Leaflet and the map fits the result bounds.
+10. The backend returns GeoJSON features and an optional `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans keep the geometries that were counted.
+11. The frontend shows the pipeline timeline, agent trace, and results. GeoJSON is drawn with Leaflet and the map fits the result bounds.
 12. A thumbs-up/down vote posts the selection context to the configurable PostgreSQL feedback table.
 
 Clarification is a successful product outcome, not an exception. Either agent stage can return `status: "clarify"` when the request is ambiguous or unsupported. Infrastructure and domain failures use typed errors mapped to HTTP status codes.
@@ -104,11 +104,14 @@ The frontend follows one-way state flow:
 ```json
 {
   "query": "מצא את שלושת בתי הספר הקרובים ביותר לכיכר",
-  "boundaries": null
+  "boundaries": {
+    "type": "MultiPolygon",
+    "coordinates": [[[[34.72, 32.03], [34.85, 32.03], [34.85, 32.14], [34.72, 32.14], [34.72, 32.03]]]]
+  }
 }
 ```
 
-`boundaries` is either `null` or a GeoJSON `MultiPolygon` in longitude/latitude order.
+`boundaries` is a required GeoJSON `MultiPolygon` in longitude/latitude order. The viewport is the default scope; polygon and rectangle modes require a completed drawing.
 
 ### Query response
 
@@ -116,12 +119,13 @@ The common response includes:
 
 - `status`: `ok`, `clarify`, or `error`.
 - `features`: GeoJSON `FeatureCollection` for spatial results.
-- `scalar_result`: integer for a terminal `count` plan.
+- `scalar_result`: integer for a terminal `count` plan; `features` still contains the counted entities.
 - `plan`: the validated plan that was executed.
 - `selected_layers` and `reasoning`: inspectable layer-selection trace.
 - `tool_calls`: any schema value sampling requested by the model.
 - `timing_ms`: select, plan, and execute stage timings.
 - `token_usage`: summed usage from model calls when the provider reports it.
+- `pipeline_trace`: safe operational events for layer selection, planning, every executor step, and response assembly (not private chain-of-thought).
 
 ### GeoQueryPlan
 
@@ -134,6 +138,12 @@ A plan is an ordered DAG. Each step has a unique ID, and any `input` must refer 
 | `attribute_filter` | Applies `eq`, `neq`, `gt`, `lt`, or `contains`. |
 | `near` | Keeps features within a maximum metric distance of a target layer. |
 | `nearest_n` | Returns the globally nearest N input features to a target layer. |
+| `near_all` | Requires proximity to every one of 2–5 target references and can rank/limit matches. |
+| `cluster` | Finds same-layer groups whose members are mutually close. |
+| `between` | Keeps features inside a metric corridor between two references. |
+| `crosses` | Keeps input geometries crossing a target geometry. |
+| `touches` | Keeps input geometries touching a target boundary without interior overlap. |
+| `contains` | Keeps input geometries that contain a target geometry. |
 | `directional` | Returns northernmost, southernmost, easternmost, or westernmost features. |
 | `temporal_filter` | Filters using the provider-declared temporal field. |
 | `count` | Returns a terminal integer count. |
@@ -247,6 +257,7 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 
 ## Current limitations
 
+- Every query is geographically scoped; unbounded/global queries are not exposed by the current UI/API contract.
 - Clarification is single-turn; the next message does not yet carry conversation history.
 - MQS uses fetch-all-then-filter-locally with a 50,000-feature safety cap.
 - Runtime settings persist to a local JSON file and are not multi-user settings.

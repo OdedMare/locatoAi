@@ -9,7 +9,7 @@ See the [root README](../README.md) for the whole system and [backend README](..
 The frontend:
 
 - Collects a Hebrew or English natural-language query.
-- Lets the user scope it globally, to the current viewport, or to a drawn polygon/rectangle.
+- Lets the user scope it to the current viewport or to a drawn polygon/rectangle.
 - Normalizes UI geometry into the backend's GeoJSON `MultiPolygon` contract.
 - Calls the backend through same-origin `/api/*` routes.
 - Presents selected layers, model reasoning, tool calls, plans, timing, and token use.
@@ -55,7 +55,7 @@ src/app/layout.tsx
 | State | Purpose |
 |---|---|
 | `queryText` | Current composer text. |
-| `geographyMode` | `none`, `viewport`, `polygon`, or `rectangle`. |
+| `geographyMode` | `viewport`, `polygon`, or `rectangle`. |
 | `drawnGeometry` | Last drawn GeoJSON Polygon. Cleared when mode changes. |
 | `mapView` | Live map center, zoom, and bounding box. |
 | `lastRequest` | Exact query DTO sent to the backend and shown in debug UI. |
@@ -70,14 +70,13 @@ Component-local state is used for modal forms, catalog searches, feedback voting
 
 1. `GeoQueryInput` edits `queryText`; Cmd/Ctrl+Enter or the send button triggers submission.
 2. `GeographyControls` chooses scope:
-   - `none`: sends `boundaries: null`.
-   - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon.
+   - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon (the default).
    - `polygon` or `rectangle`: Leaflet Draw produces a Polygon, then `polygonToMultiPolygon` wraps it for the API.
 3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`.
 4. `geoQueryService.submitQuery()` posts JSON to `/api/query`.
 5. While waiting, `AgentTrace` shows the selection loading state.
 6. When the response arrives:
-   - `AgentTrace` resolves plan layer IDs to selected layer names and displays selection reasoning, sampled fields, the plan, timing, and token use.
+   - `AgentTrace` resolves plan layer IDs to selected layer names and displays the structured pipeline timeline, selection reasoning, sampled fields, the plan, timing, and token use.
    - `ResultsPanel` shows a clarification, error, scalar count, or feature-property table.
    - `MapResults` renders feature geometry and fits the map to its bounds.
    - `RequestPreview` displays the exact request and response metadata.
@@ -109,11 +108,11 @@ The chat-style left workspace. It composes navigation, welcome/conversation stat
 
 ### `AgentTrace`
 
-The explainability surface. It displays selected catalog layers and tags, layer-selection reasoning, plan steps translated into Hebrew, `sample_field` calls, selection timing, aggregate token usage, and feedback controls.
+The explainability surface. It displays a safe operational timeline (selection, planning, each execution step, and response), selected catalog layers and tags, layer-selection reasoning, plan steps translated into Hebrew, `sample_field` calls, timings, aggregate token usage, and feedback controls. The timeline is execution metadata, not private model chain-of-thought.
 
 ### `ResultsPanel`
 
-Handles every response state. Feature results become a dynamic property table capped at 20 visible rows. When `distance_to_target_m` exists, rows are sorted nearest-first and distance is formatted in meters. A terminal count uses `scalar_result` instead.
+Handles every response state. Feature results become a dynamic property table capped at 20 visible rows. When `distance_to_target_m` exists, rows are sorted nearest-first and distance is formatted in meters. A terminal count uses `scalar_result`; its matching features remain available to the map and response.
 
 ### `LayersPanel`
 

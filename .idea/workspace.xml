@@ -4,7 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="97cf71f2-a071-4ef9-bd37-67c59df4c0a2" name="Changes" comment="" />
+    <list default="true" id="97cf71f2-a071-4ef9-bd37-67c59df4c0a2" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/agent/generate_layer_metadata.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/agent/generate_layer_metadata.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/agent/prompts/build_plan.md" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/agent/prompts/build_plan.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/bl/ports.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/bl/ports.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/dal/providers/arcgis_mock.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/dal/providers/arcgis_mock.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/dal/providers/mqs.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/dal/providers/mqs.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/test_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_executor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/test_generate_layer_metadata.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_generate_layer_metadata.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/test_mqs_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_mqs_provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/test_plan_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_plan_model.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

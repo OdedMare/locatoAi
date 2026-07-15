@@ -7,7 +7,7 @@ validated **Geo Query Plans** executed against GIS data with GeoPandas.
 "תמצא את בית הקולנוע הכי צפוני"
         │
         ▼
-POST /api/query {query, boundaries: MultiPolygon|null}
+POST /api/query {query, boundaries: MultiPolygon}
         │
         ▼
 ┌─ QueryOrchestrator ────────────────────────────────────────────┐
@@ -18,12 +18,12 @@ POST /api/query {query, boundaries: MultiPolygon|null}
 └────────────────────────────────────────────────────────────────┘
         │
         ▼
-{status, features: GeoJSON, plan, selected_layers, reasoning, timing_ms}
+{status, features, scalar_result, plan, selected_layers, pipeline_trace, timing_ms}
 ```
 
 The model never writes SQL and never invents data sources: it chooses from a
 **Postgres layer catalog** and emits a **plan** — a small, validated JSON program
-over eight spatial, filtering, and aggregation operations.
+over 14 spatial, filtering, and aggregation operations.
 
 ---
 
@@ -56,7 +56,7 @@ app/
 │   │   ├── build_plan.py    # call 2: query+schemas → plan (+ sample_field tool rounds)
 │   │   └── prompts/         # prompts are FILES; tuning ≠ code change
 │   ├── plan/
-│   │   ├── models.py        # GeoQueryPlan: discriminated union of 8 step types
+│   │   ├── models.py        # GeoQueryPlan: discriminated union of 14 step types
 │   │   └── validators.py    # semantic checks with agent-readable error messages
 │   ├── executor/
 │   │   ├── engine.py        # runs steps in order, dispatches via the op registry
@@ -141,10 +141,16 @@ Plans are DAGs of steps chained by `id`/`input`. Validators guarantee every
 | Op | What it does | Notes |
 |---|---|---|
 | `load` | fetch a catalog layer's features | provider behind the port |
-| `within_geometry` | keep features intersecting the request boundaries | rejected if request has no boundaries |
+| `within_geometry` | keep features intersecting the request boundaries | required by the current request contract |
 | `attribute_filter` | `eq/neq/gt/lt/contains` on a property | field must exist |
 | `near` | keep features ≤ `distance_m` from any target-layer feature | reprojects to EPSG:2039 first |
 | `nearest_n` | globally nearest N features to a target layer | adds `distance_to_target_m` |
+| `near_all` | require proximity to every one of 2–5 targets | AND semantics; optional ranking limit |
+| `cluster` | find mutually close groups within the input layer | adds `cluster_id` |
+| `between` | keep features in a corridor between two references | metric corridor width |
+| `crosses` | input crosses target | topological relation |
+| `touches` | input touches target without interior overlap | topological relation |
+| `contains` | input contains target | relation direction matters |
 | `directional` | N most northern/southern/eastern/western | projected centroids |
 | `temporal_filter` | ISO `from`/`to` on the provider-declared time field | field is not hardcoded |
 | `count` | return the upstream row count as an integer | terminal output only |
@@ -159,7 +165,7 @@ prompt input (sanitized + truncated) · clarify is a first-class response, alway
 
 ### Stage 0: transport and boundary conversion
 
-`service/dto.py` accepts a non-empty query and optional GeoJSON
+`service/dto.py` accepts a non-empty query and a required GeoJSON
 `MultiPolygon`. The router converts the boundary to Shapely and passes domain
 values into `QueryOrchestrator`. DTOs contain translation, not planning rules.
 
@@ -178,7 +184,7 @@ the catalog service for schemas. Schemas are cached by layer ID with a TTL; when
 a refresh fails, a stale cached schema is preferred. The plan prompt receives
 current UTC time, boundary availability, fields, types, and bounded samples.
 
-The model can request `sample_field` up to twice before producing a plan. This is
+The model can request `sample_field` up to three times before producing a plan. This is
 a JSON protocol implemented by the builder, keeping compatibility with smaller
 OpenAI-style servers. Tool rounds do not consume the validation-retry budget.
 
@@ -186,7 +192,7 @@ OpenAI-style servers. Tool rounds do not consume the validation-retry budget.
 
 Pydantic parses the discriminated step union and enforces literal operations and
 numeric limits. `validate_plan` checks unique IDs, earlier inputs, known layers,
-boundary requirements, output existence, and terminal-count rules. A failure is
+complete target-filter triples, boundary use, final-output ordering, and terminal-count rules. A failure is
 fed into one correction attempt; a second failure becomes a Hebrew clarification.
 
 ### Stage 4: deterministic execution
@@ -194,14 +200,16 @@ fed into one correction attempt; a second failure becomes a Hebrew clarification
 The executor creates one `ExecutionContext`, walks steps in list order, and
 dispatches registered handlers. Load and relationship operations obtain features
 through the provider registry. Intermediate GeoDataFrames are stored by step ID.
-`count` returns an integer; all feature outputs remain WGS84 GeoDataFrames.
+`count` returns an integer while `execute_detailed` also retains the upstream
+WGS84 GeoDataFrame so the HTTP response can show and map what was counted.
 
 ### Stage 5: response, observability, and feedback
 
 `QueryResponse.from_outcome` is the domain-to-HTTP translation. It serializes
 GeoDataFrames through `__geo_interface__`, preserving computed fields such as
 `distance_to_target_m`. Responses carry the agent trace, stage timings, token
-usage, and tool calls. Routers write structured request events, while user votes
+usage, tool calls, and `pipeline_trace`: safe stage/step metadata with durations,
+counts, parameters, and statuses (not private model chain-of-thought). Routers write structured request events, while user votes
 go to the configured PostgreSQL feedback table.
 
 ## The agent
@@ -219,7 +227,7 @@ returns per-stage timings (`select`/`plan`/`execute`) and summed token usage.
 
 **sample_field tool.** Before committing to a plan, the model may answer
 `{"tool": "sample_field", "layer_id": ..., "field": ...}` to receive up to 20 distinct
-values of that field (JSON-protocol tool — the client is JSON-mode-only). Max 2 rounds
+values of that field (JSON-protocol tool — the client is JSON-mode-only). Max 3 rounds
 per query, separate from the validation retry; rounds are reported as `tool_calls` in
 the response and listed in the UI agent panel. Backed by `Provider.sample_field_values`
 (mock: distinct GeoJSON values; MQS: `ValueList`, falling back to an entities page).
