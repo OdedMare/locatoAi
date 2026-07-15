@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 import geopandas as gpd
@@ -58,9 +58,7 @@ class MockGisProvider:
 
     def fetch_features(self, layer: LayerMeta, now: Optional[datetime] = None,
                        geometry: Optional[BaseGeometry] = None,
-                       limit: Optional[int] = None,
-                       temporal_range: Optional[Tuple[str, str]] = None,
-                       ) -> gpd.GeoDataFrame:
+                       limit: Optional[int] = None) -> gpd.GeoDataFrame:
         path = self._path(layer)
         if not path.exists():
             return empty_features_gdf()

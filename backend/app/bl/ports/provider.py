@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Protocol, Tuple
+from typing import List, Optional, Protocol
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -22,7 +22,6 @@ class Provider(Protocol):
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
-        temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
         """geometry, when given, is a WGS84 hint the provider MAY push down
         as a server-side spatial filter (e.g. MQS geo_polygon/

@@ -92,7 +92,7 @@ def test_posts_query_and_preserves_all_fields(tmp_path):
     assert request.url.path == "/cube/v1/transport"
     assert request.headers["Authorization"] == "jwt"
     body = json.loads(request.content)
-    assert body["eventTime"] == {"TimeBackUnit": "hour", "TimeBackValue": 1}
+    assert body["eventTime"] == {"TimeBackUnit": "hour", "TimeBackValue": "1"}
     assert "Location" not in body["arriveTime.not"]
 
 
@@ -102,6 +102,18 @@ def test_pushes_boundary_as_wkt_location(tmp_path):
     provider.fetch_features(layer(), geometry=boundary)
     body = json.loads(posted_request(handler).content)
     assert body["arriveTime.not"]["Location"] == boundary.wkt
+
+
+def test_rechecks_boundary_when_cube_ignores_location(tmp_path):
+    provider, _ = make_provider(tmp_path, [
+        record("inside", "POINT (34.78 32.08)"),
+        record("outside", "POINT (35.5 33.0)"),
+    ])
+
+    features = provider.fetch_features(
+        layer(), geometry=box(34.7, 32.0, 34.9, 32.2))
+
+    assert list(features["id"]) == ["inside"]
 
 
 def test_schema_declares_event_time_and_point_geometry(tmp_path):
@@ -216,7 +228,7 @@ def test_match_and_not_parameter_names_map_to_request_operators(tmp_path):
                 "Parameters": [
                     {"Name": "eventTime.match", "IsRequired": True,
                      "IsSingleValue": True, "Type": "DateTime"},
-                    {"Name": "arriveTime.not", "IsRequired": True,
+                    {"Name": "eventTime.not", "IsRequired": True,
                      "IsSingleValue": True, "Type": "DateTime"},
                 ],
                 "Fields": [],
@@ -225,10 +237,21 @@ def test_match_and_not_parameter_names_map_to_request_operators(tmp_path):
 
     provider._transport = httpx.MockTransport(metadata_handler)
     boundary = box(34.7, 32.0, 34.9, 32.2)
-    provider.fetch_features(layer(), geometry=boundary)
+    temporal_range = (
+        "2024-11-26T00:00:00.000Z", "2024-11-26T23:59:59.000Z",
+    )
+    provider.fetch_features(
+        layer(), geometry=boundary, temporal_range=temporal_range)
     body = json.loads(posted_request(handler).content)
-    assert set(body) == {"eventTime", "arriveTime.not"}
-    assert body["arriveTime.not"]["Location"] == boundary.wkt
+    assert body == {
+        "eventTime.match": {
+            "From": temporal_range[0], "To": temporal_range[1],
+        },
+        "eventTime.not": {
+            "TimeBackValue": "1", "TimeBackUnit": "hour",
+            "Location": boundary.wkt,
+        },
+    }
 
 
 def test_result_limit_adaptively_chunks_boundary_and_deduplicates(tmp_path):

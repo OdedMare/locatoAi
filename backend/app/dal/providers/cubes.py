@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 import geopandas as gpd
@@ -327,8 +327,8 @@ class CubesProvider:
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
-        # `now` belongs to the shared Provider protocol. Cubes evaluates the
-        # relative one-hour window server-side, so no client timestamp is sent.
+        # `now` anchors a default absolute match window when the cube declares
+        # one; an explicit downstream temporal_filter takes precedence.
         database = quote(cubes_database_name(layer), safe="")
         path = f"/cube/v1/{database}"
         metadata = self._get_metadata(layer)
@@ -339,7 +339,10 @@ class CubesProvider:
                 now, temporal_range,
             )
         self._schema_cache[layer.id] = _infer_schema(layer.id, rows)
-        return _rows_to_gdf(rows[:limit] if limit is not None else rows)
+        features = _rows_to_gdf(rows)
+        if geometry is not None:
+            features = features[features.geometry.intersects(geometry)]
+        return features.iloc[:limit] if limit is not None else features
 
     def _fetch_rows(
         self,
