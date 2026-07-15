@@ -23,7 +23,10 @@ def execute_plan(
     boundaries = body.boundaries.to_shapely()
     outcome = orchestrator.execute_plan(body.plan, boundaries)
 
-    result_count = len(outcome.features) if outcome.features is not None else 0
+    result_count = (
+        len(outcome.features) if outcome.features is not None
+        else outcome.scalar_result or 0
+    )
     request.app.state.request_log.info(
         "execute_plan",
         plan_output=body.plan.output,

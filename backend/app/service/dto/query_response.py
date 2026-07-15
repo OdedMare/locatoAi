@@ -14,7 +14,7 @@ class QueryResponse(BaseModel):
     plan: Optional[GeoQueryPlan] = None
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection
     scalar_result: Optional[int] = None
-    """For count plans, set alongside the geometries that were counted."""
+    """For count plans, set while features is null."""
     timing_ms: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
     selected_layers: List[SelectedLayerDto] = []

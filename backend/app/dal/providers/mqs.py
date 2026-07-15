@@ -71,7 +71,7 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
-from app.bl.ports.mqs_mirror import MqsMirror
+from app.bl.ports.mqs_mirror import MirroredMqsEntity, MqsMirror
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -255,43 +255,39 @@ def _property_attributes(entity: dict) -> Dict[str, object]:
     return attributes
 
 
-def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
-    """One MQS entity → (geometry, attributes), or None if no usable
-    geometry. Fixed transport fields and dynamic property_list fields are
-    flattened into the same attribute row."""
-    geometry = _parse_geometry(entity.get("geo"))
-    if geometry is None:
-        return None
-
+def _fixed_attributes(entity: dict) -> dict:
     attributes: dict = {}
     entity_id = _entity_id(entity)
     if entity_id is not None:
         attributes["id"] = entity_id
-
     classification = entity.get("classification")
     if isinstance(classification, dict):
         for key in ("triangle", "clearence_level", "source_id"):
             if key in classification:
                 attributes[key] = classification[key]
-
-    if "date" in entity:
-        attributes["date"] = entity["date"]
-    if "link" in entity:
-        attributes["link"] = entity["link"]
-
+    for key in ("date", "link"):
+        if key in entity:
+            attributes[key] = entity[key]
     geo = entity.get("geo")
     if isinstance(geo, dict):
         for key in ("area", "perimeter"):
             if key in geo:
                 attributes[key] = geo[key]
+    return attributes
 
-    # Business properties deliberately remain top-level, under the original
-    # MQS names, so the planner can emit filters such as field="שם".
+
+def _entity_attributes(entity: dict) -> dict:
+    attributes = _fixed_attributes(entity)
     for key, value in _property_attributes(entity).items():
-        if key not in attributes:  # preserve stable transport identifiers
+        if key not in attributes:
             attributes[key] = value
+    return attributes
 
-    return geometry, attributes
+
+def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
+    """One MQS entity to its parsed geometry and flattened attributes."""
+    geometry = _parse_geometry(entity.get("geo"))
+    return None if geometry is None else (geometry, _entity_attributes(entity))
 
 
 # A loose WGS84 lon/lat sanity envelope (world bounds, not just Israel —
@@ -375,13 +371,11 @@ class MqsProvider:
         settings_store: RuntimeSettingsStore,
         transport: Optional[httpx.BaseTransport] = None,
         mirror: Optional[MqsMirror] = None,
-        mirror_max_staleness_seconds: int = 30,
         detail_concurrency: int = 16,
     ):
         self._store = settings_store
         self._transport = transport  # tests inject httpx.MockTransport
         self._mirror = mirror
-        self._mirror_max_age = max(1, mirror_max_staleness_seconds)
         self._detail_concurrency = max(1, detail_concurrency)
 
     # -- Provider protocol ---------------------------------------------------
@@ -435,25 +429,35 @@ class MqsProvider:
         # `limit` caps pagination to a small first page (e.g. metadata
         # sampling) instead of fetching the whole layer.
         layer_id = mqs_layer_id(layer)
-        mirrored = self._mirrored_features(layer_id, geometry, limit)
-        if mirrored is not None:
-            return mirrored
+        if self._mirror is not None:
+            return self._mirrored_features(layer_id, geometry, limit)
         with self._client() as client:
             entities = self._iter_enriched_entities(
                 client, layer_id, geometry=geometry, limit=limit)
             return self._entities_to_gdf(layer_id, entities, geometry)
 
     def _mirrored_features(self, layer_id, geometry, limit):
-        if self._mirror is None:
-            return None
         try:
-            entities = self._mirror.fetch_fresh(
-                layer_id, geometry, self._mirror_max_age, limit)
-            return (None if entities is None
-                    else self._entities_to_gdf(layer_id, entities, geometry))
-        except Exception:
-            logger.exception("MQS mirror read failed layer=%s; using live MQS", layer_id)
-            return None
+            entities = self._mirror.fetch_latest(layer_id, geometry, limit)
+        except Exception as exc:
+            logger.exception("MQS mirror read failed layer=%s", layer_id)
+            raise ProviderError(
+                f"MQS mirror read failed for layer {layer_id}: {exc}") from exc
+        if entities is None:
+            raise ProviderError(
+                f"MQS mirror for layer {layer_id} is still building its first snapshot"
+            )
+        return self._mirrored_entities_to_gdf(entities, geometry)
+
+    @staticmethod
+    def _mirrored_entities_to_gdf(
+        entities: Iterable[MirroredMqsEntity], geometry=None,
+    ):
+        records = (
+            (item.geometry, _entity_attributes(item.entity)) for item in entities
+            if geometry is None or item.geometry.intersects(geometry)
+        )
+        return MqsProvider._records_to_gdf(records)
 
     @staticmethod
     def _entities_to_gdf(layer_id: str, entities: Iterable[dict], geometry=None):
@@ -467,6 +471,11 @@ class MqsProvider:
                 valid.append(record)
         if skipped:
             logger.warning("MQS layer %s skipped %d invalid geometries", layer_id, skipped)
+        return MqsProvider._records_to_gdf(valid)
+
+    @staticmethod
+    def _records_to_gdf(records: Iterable[Tuple[BaseGeometry, dict]]):
+        valid = list(records)
         if not valid:
             return empty_features_gdf()
         geometries, attributes = zip(*valid)

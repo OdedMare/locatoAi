@@ -9,16 +9,17 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus a ⚙ settings panel (LLM key/model, PG connection, layers table).
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS entities are continuously mirrored inside the backend process in compressed, chunked snapshots; unchanged `history_id` values skip repeated detail requests, changed details use bounded concurrency, and reads use the mirror only while its completed snapshot is at most 30 seconds old. Stale/unavailable mirrors fall back to live spatially-filtered MQS. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS delta/change feed and batch-detail endpoints, persistent server-side conversation context, client timezone, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS entities are continuously mirrored inside the backend process in compressed, chunked snapshots; unchanged `history_id` values skip repeated detail requests, changed details use bounded concurrency, and query reads use the latest completed snapshot while refresh happens in the background. Snapshot age is reported against the 30-second freshness target but never triggers a heavy live-MQS query fallback; before the first snapshot is ready, queries fail fast. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS delta/change feed and batch-detail endpoints, persistent server-side conversation context, client timezone, and SSE streaming.
 
 **MQS mirror:** `MqsMirrorWorker` refreshes MQS catalog layers outside request threads.
 `InMemoryMqsMirrorStore` keeps atomic snapshots isolated by layer, compresses entity JSON,
-and stores bounding boxes in compact NumPy arrays so spatial reads do not expand complete
+and builds an immutable Shapely STRtree so spatial reads do not scan or expand complete
 layers into GeoDataFrames. Layer refresh concurrency defaults to one to avoid bootstrap
 memory/network spikes, while queries can read any number of completed layers. The cache
 is rebuilt after a backend restart and performs no SQL or filesystem writes.
 `near`/`near_all` target fetches use the user boundary expanded by the requested distance.
-Never serve a mirror beyond the configured staleness limit or remove the live-MQS fallback.
+Always serve the latest completed snapshot even when it misses the freshness target; do
+not add a live-MQS fallback to a request when the mirror is enabled.
 Every query-layer load defaults to the request polygon; non-proximity reference layers use
 the exact polygon, and bounded proximity uses only its metric expansion. MQS responses are
 locally intersected with that geometry even if the remote service ignores the POST filter.

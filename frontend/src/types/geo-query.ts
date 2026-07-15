@@ -110,7 +110,7 @@ export interface GeoQueryResponse {
   plan: GeoQueryPlanDto | null;
   /** GeoJSON FeatureCollection of results. */
   features: GeoJSON.FeatureCollection | null;
-  /** Set alongside `features` when the plan ends in a `count` step. */
+  /** Set when the plan ends in a `count` step; `features` is then null. */
   scalar_result: number | null;
   timing_ms: Record<string, number> | null;
   token_usage: {

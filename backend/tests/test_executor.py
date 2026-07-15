@@ -405,7 +405,7 @@ def test_count_after_near_chain(executor):
     assert result == 4
 
 
-def test_detailed_count_keeps_the_counted_geometries(executor):
+def test_detailed_count_releases_the_counted_geometries(executor):
     plan = GeoQueryPlan(explanation="t", steps=[
         {"id": "s1", "op": "load", "layer": "schools"},
         {"id": "s2", "op": "attribute_filter", "input": "s1",
@@ -416,8 +416,7 @@ def test_detailed_count_keeps_the_counted_geometries(executor):
     result = executor.execute_detailed(plan)
 
     assert result.scalar_result == 8
-    assert len(result.features) == result.scalar_result
-    assert result.features.geometry.notna().all()
+    assert result.features is None
     assert [trace["operation"] for trace in result.step_traces] == [
         "load", "attribute_filter", "count"
     ]

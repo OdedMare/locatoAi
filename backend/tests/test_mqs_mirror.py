@@ -1,8 +1,13 @@
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import httpx
+import pytest
+from shapely import wkt
 from shapely.geometry import box
 
+from app.bl.ports.mqs_mirror import MirroredMqsEntity
+from app.common.errors.provider_error import ProviderError
 from app.dal.mqs_mirror_store import InMemoryMqsMirrorStore
 from app.dal.providers.mqs import MqsProvider
 from tests.test_mqs_provider import (
@@ -14,16 +19,20 @@ from tests.test_mqs_provider import (
 
 
 class FakeMirror:
-    def __init__(self, fresh: Optional[List[dict]] = None):
-        self.fresh = fresh
+    def __init__(self, latest: Optional[List[dict]] = None):
+        self.latest = None if latest is None else [
+            MirroredMqsEntity(
+                geometry=wkt.loads(item["geo"]["wkt"]), entity=item)
+            for item in latest
+        ]
         self.versions: Dict[str, str] = {}
         self.seen: List[str] = []
         self.upserted: List[dict] = []
         self.completed = False
         self.aborted = False
 
-    def fetch_fresh(self, layer_id, geometry, max_age_seconds, limit):
-        return self.fresh
+    def fetch_latest(self, layer_id, geometry, limit):
+        return self.latest
 
     def begin_snapshot(self, layer_id: str) -> str:
         return "run-1"
@@ -58,11 +67,11 @@ def _provider(tmp_path, responses, mirror):
     return provider, handler
 
 
-def test_fresh_mirror_avoids_live_mqs(tmp_path):
+def test_latest_mirror_avoids_live_mqs(tmp_path):
     mirrored = entity("G1", property_list={"name": "cached"})
     provider, handler = _provider(
         tmp_path, lambda request: (_ for _ in ()).throw(AssertionError()),
-        FakeMirror(fresh=[mirrored]),
+        FakeMirror(latest=[mirrored]),
     )
 
     result = provider.fetch_features(mqs_layer())
@@ -71,18 +80,17 @@ def test_fresh_mirror_avoids_live_mqs(tmp_path):
     assert handler.requests == []
 
 
-def test_stale_mirror_falls_back_to_live_mqs(tmp_path):
+def test_missing_snapshot_does_not_trigger_live_mqs(tmp_path):
     provider, handler = _provider(
         tmp_path,
-        lambda request: {"next_page": None, "entities_list": [
-            entity("G1", property_list={"name": "live"})]},
-        FakeMirror(fresh=None),
+        lambda request: (_ for _ in ()).throw(AssertionError()),
+        FakeMirror(latest=None),
     )
 
-    result = provider.fetch_features(mqs_layer())
+    with pytest.raises(ProviderError, match="first snapshot"):
+        provider.fetch_features(mqs_layer())
 
-    assert result.iloc[0]["name"] == "live"
-    assert len(handler.requests) == 1
+    assert handler.requests == []
 
 
 def test_snapshot_skips_detail_for_unchanged_history(tmp_path):
@@ -122,23 +130,48 @@ def test_memory_mirror_keeps_multiple_layers_isolated():
     _complete_snapshot(store, "42", [entity("A", layer_id="42")])
     _complete_snapshot(store, "43", [entity("B", layer_id="43")])
 
-    first = store.fetch_fresh("42", None, 30, None)
-    second = store.fetch_fresh("43", None, 30, None)
+    first = store.fetch_latest("42", None, None)
+    second = store.fetch_latest("43", None, None)
 
-    assert [item["exclusive_id"]["entity_id"] for item in first] == ["A"]
-    assert [item["exclusive_id"]["entity_id"] for item in second] == ["B"]
+    assert [item.entity["exclusive_id"]["entity_id"] for item in first] == ["A"]
+    assert [item.entity["exclusive_id"]["entity_id"] for item in second] == ["B"]
 
 
 def test_memory_mirror_uses_compact_spatial_filter():
     store = InMemoryMqsMirrorStore()
     inside = entity("inside", wkt_value="POINT (34.78 32.08)")
     outside = entity("outside", wkt_value="POINT (35.5 33.0)")
-    _complete_snapshot(store, "42", [inside, outside])
+    bbox_only = entity(
+        "bbox-only",
+        wkt_value=(
+            "POLYGON ((34.7 32.0, 34.9 32.0, 34.9 32.2, 34.7 32.2, "
+            "34.7 32.0), (34.75 32.05, 34.75 32.195, 34.895 32.195, "
+            "34.895 32.05, 34.75 32.05))"
+        ),
+    )
+    _complete_snapshot(store, "42", [inside, outside, bbox_only])
 
-    results = store.fetch_fresh(
-        "42", box(34.7, 32.0, 34.9, 32.2), 30, None)
+    results = store.fetch_latest(
+        "42", box(34.76, 32.06, 34.89, 32.19), None)
+    status = store.status(30)[0]
 
-    assert [item["exclusive_id"]["entity_id"] for item in results] == ["inside"]
+    assert [item.entity["exclusive_id"]["entity_id"] for item in results] == ["inside"]
+    assert status["query_count"] == 1
+    assert status["last_candidate_count"] == 1
+    assert status["last_result_count"] == 1
+
+
+def test_memory_mirror_serves_latest_snapshot_when_stale():
+    store = InMemoryMqsMirrorStore()
+    _complete_snapshot(store, "42", [entity("A")])
+    store._layers["42"]["completed_at"] = (
+        datetime.now(timezone.utc) - timedelta(minutes=5))
+
+    results = store.fetch_latest("42", None, None)
+    status = store.status(max_age_seconds=30)[0]
+
+    assert [item.entity["exclusive_id"]["entity_id"] for item in results] == ["A"]
+    assert status["fresh"] is False
 
 
 def test_memory_mirror_snapshot_lock_is_per_layer():

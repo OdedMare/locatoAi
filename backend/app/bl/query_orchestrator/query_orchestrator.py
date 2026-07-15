@@ -89,7 +89,7 @@ class QueryOrchestrator:
         result = self._executor.execute_detailed(build.plan, boundaries, now)
         timer.mark("execute")
         trace.extend(result.step_traces)
-        if len(result.features):
+        if self._has_results(result):
             return self._success(selection, build, build.plan, result,
                                  trace, timer, usage)
         return self._handle_empty(query, boundaries, now, selection, build,
@@ -113,6 +113,12 @@ class QueryOrchestrator:
         trace.extend(result.step_traces)
         return self._success(selection, build, revised.plan, result,
                              trace, timer, usage)
+
+    @staticmethod
+    def _has_results(result: ExecutionOutput) -> bool:
+        if result.scalar_result is not None:
+            return result.scalar_result > 0
+        return result.features is not None and len(result.features) > 0
 
     @staticmethod
     def _revision_trace(revised: PlanBuildResult) -> dict:
@@ -181,8 +187,9 @@ class QueryOrchestrator:
     def _response_trace(result: ExecutionOutput) -> dict:
         return {
             "stage": "response", "status": "completed",
-            "feature_count": len(result.features),
-            "scalar_result": result.scalar_result, "geometry_returned": True,
+            "feature_count": len(result.features) if result.features is not None else 0,
+            "scalar_result": result.scalar_result,
+            "geometry_returned": result.features is not None,
         }
 
     def execute_plan(

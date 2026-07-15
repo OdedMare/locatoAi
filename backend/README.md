@@ -274,13 +274,14 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   independent; the live base URL is the `mqs_base_url` setting, read per call —
   unset means the provider errors with a clear message → HTTP 502). A background
   `MqsMirrorWorker` scans list pages in chunks and keeps current entities in compressed
-  process memory with compact NumPy bounding-box indexes.
+  process memory with an immutable Shapely STRtree per completed layer snapshot.
   `history_id` equality lets subsequent scans mark unchanged rows without repeating
   their detail request; changed details are fetched concurrently with a bounded pool.
-  Atomic per-layer snapshots isolate concurrent activity. Runtime
-  reads use the mirror only while its last completed snapshot meets the configured
-  30-second freshness ceiling, with automatic fallback to live MQS otherwise. Live
-  fetching pages through `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k)
+  Atomic per-layer snapshots isolate concurrent activity. Runtime reads always use the
+  latest completed snapshot while the next one is built. Snapshot age is still measured
+  against the configured 30-second target, but stale data never triggers a heavy live-MQS
+  fallback; a layer without its first snapshot fails fast. When the mirror is disabled,
+  live fetching pages through `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k)
   and follows `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
   `property_list` into normal feature columns. Those columns drive schema discovery,
   value sampling, metadata/tag generation, attribute filters, displayed results, and
@@ -295,6 +296,9 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   construction, even if MQS ignores the filter. Bounded
   `near`/`near_all` target loads use the request geometry expanded in a local metric CRS,
   avoiding a complete target-layer load without excluding any possible match.
+  The STRtree returns exact polygon candidates, geometry is parsed once per stored entity,
+  and the WKT copy is removed from the compressed payload. Mirror status also reports the
+  latest candidate/result counts and per-layer query count.
 
   The entity mirror performs no SQL or filesystem writes and creates no tables. It is
   rebuilt after each backend restart. Layer synchronization defaults to sequential

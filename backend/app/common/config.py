@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     """Pause between completed MQS mirror scans."""
 
     mqs_mirror_max_staleness_seconds: int = 30
-    """Use mirrored rows only while their layer snapshot is this fresh."""
+    """Operational freshness target reported by mirror status."""
 
     mqs_mirror_batch_size: int = 10000
     """Number of MQS list entities processed per mirror batch."""

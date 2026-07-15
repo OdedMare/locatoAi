@@ -53,11 +53,11 @@ class PlanExecutor:
         user_geometry: Optional[BaseGeometry] = None,
         now: Optional[datetime] = None,
     ) -> ExecutionOutput:
-        """Return matching geometries as well as an optional scalar count.
+        """Return matching geometries or a scalar count.
 
         The legacy ``execute`` method remains backward-compatible for internal
-        callers. HTTP orchestration uses this method so count queries do not
-        throw away the entities that were counted.
+        callers. Terminal count queries release their feature rows before HTTP
+        serialization, avoiding a large and redundant GeoJSON response.
         """
         ctx = ExecutionContext(
             catalog=self._catalog,
@@ -92,7 +92,7 @@ class PlanExecutor:
             })
             if isinstance(step, CountStep):
                 return ExecutionOutput(
-                    features=ctx.results[step.input], scalar_result=result,
+                    features=None, scalar_result=result,
                     step_traces=step_traces,
                 )
             ctx.results[step.id] = result

@@ -75,7 +75,7 @@ locatoAi/
 7. `PlanBuilder` obtains provider schemas and sample values for the selected layers. The model may request up to three additional `sample_field` rounds.
 8. The model returns a `GeoQueryPlan`. Shape and semantic errors are fed back for one bounded correction.
 9. The executor records per-step counts. Zero rows permit one tool-assisted diagnosis and replan; code rejects any revision that removes or widens an original user constraint before re-execution.
-10. The backend returns GeoJSON features and an optional `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans keep the geometries that were counted.
+10. The backend returns GeoJSON features or a `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans return only the scalar and omit redundant geometry.
 11. The frontend shows the pipeline timeline, agent trace, results, bounded conversation history, and copyable debug data. GeoJSON is drawn with Leaflet and the map fits the result bounds.
 12. A thumbs-up/down vote posts the selection context to the configurable PostgreSQL feedback table.
 
@@ -120,7 +120,7 @@ The common response includes:
 
 - `status`: `ok`, `clarify`, or `error`.
 - `features`: GeoJSON `FeatureCollection` for spatial results.
-- `scalar_result`: integer for a terminal `count` plan; `features` still contains the counted entities.
+- `scalar_result`: integer for a terminal `count` plan; `features` is null for that response.
 - `plan`: the validated plan that was executed.
 - `selected_layers` and `reasoning`: inspectable layer-selection trace.
 - `tool_calls`: any schema value sampling requested by the model.
@@ -167,15 +167,15 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer inside the backend process in chunked snapshots. It compares the list response's `history_id` with the stored version, so unchanged entities avoid another detail request; changed details are fetched with bounded concurrency. Entity JSON is compressed and spatial bounds live in compact NumPy arrays, preventing full layers from becoming expanded GeoDataFrames. Query reads use the mirror only when its completed snapshot is no older than 30 seconds, otherwise they fall back to live MQS. Spatial boundaries are pushed down, and bounded `near` targets use the request boundary expanded by the requested distance. Provider filters are still rechecked locally.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer inside the backend process in chunked snapshots. It compares the list response's `history_id` with the stored version, so unchanged entities avoid another detail request; changed details are fetched with bounded concurrency. Entity JSON is compressed and each completed snapshot has an immutable Shapely STRtree, preventing full layers from being scanned or expanded into GeoDataFrames. Queries always read the latest completed snapshot while refresh continues in the background; the 30-second value is a monitored freshness target, not a trigger for live fallback. Spatial boundaries are indexed and rechecked locally, and bounded `near` targets use the request boundary expanded by the requested distance.
 
 The entity mirror makes no SQL connection and creates no additional tables. It is rebuilt
 after a backend restart. Bootstrap still scans all list pages; after bootstrap, only
 changed `history_id` values require detail requests. The mirror settings
 (`enabled`, interval, staleness, batch size, layer concurrency, and detail concurrency)
 are exposed through `AILOCATOR_MQS_*` environment variables in `backend/.env.example`.
-`GET /api/mqs-mirror/status` reports the entity count, active run, last error, lag and
-whether every mirrored layer currently meets the freshness target.
+`GET /api/mqs-mirror/status` reports the entity count, active run, last error, lag,
+freshness, and the last query's spatial candidate/result counts.
 
 ### Cubes
 

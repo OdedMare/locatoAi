@@ -2,14 +2,16 @@
 
 import json
 import zlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from threading import RLock
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from uuid import uuid4
 
-import numpy as np
-from shapely import wkb, wkt
+from shapely import wkt
 from shapely.geometry.base import BaseGeometry
+from shapely.strtree import STRtree
+
+from app.bl.ports.mqs_mirror import MirroredMqsEntity
 
 
 def _exclusive_id(entity: dict) -> dict:
@@ -39,7 +41,14 @@ def _geometry(entity: dict) -> Optional[BaseGeometry]:
 
 
 def _compressed_payload(entity: dict) -> bytes:
-    raw = json.dumps(entity, ensure_ascii=False, default=str).encode("utf-8")
+    compact = dict(entity)
+    geo = compact.get("geo")
+    if isinstance(geo, dict):
+        compact["geo"] = {
+            key: value for key, value in geo.items()
+            if key.lower() != "wkt"
+        }
+    raw = json.dumps(compact, ensure_ascii=False, default=str).encode("utf-8")
     return zlib.compress(raw, level=3)
 
 
@@ -48,7 +57,7 @@ def _payload(value: bytes) -> dict:
 
 
 class InMemoryMqsMirrorStore:
-    """Atomic per-layer snapshots with compact spatial candidate arrays."""
+    """Atomic compressed snapshots with an immutable per-layer STRtree."""
 
     def __init__(self):
         self._guard = RLock()
@@ -56,43 +65,47 @@ class InMemoryMqsMirrorStore:
         self._runs = {}
         self._active_runs = {}
         self._last_errors = {}
+        self._read_stats = {}
 
-    def fetch_fresh(
+    def fetch_latest(
         self, layer_id: str, geometry: Optional[BaseGeometry],
-        max_age_seconds: int, limit: Optional[int],
-    ) -> Optional[List[dict]]:
+        limit: Optional[int],
+    ) -> Optional[List[MirroredMqsEntity]]:
         with self._guard:
             snapshot = self._layers.get(layer_id)
-        if not self._is_fresh(snapshot, max_age_seconds):
+        if snapshot is None:
             return None
         indexes = self._candidate_indexes(snapshot, geometry)
-        return self._matching_payloads(snapshot, indexes, geometry, limit)
+        results = self._matching_payloads(snapshot, indexes, limit)
+        self._record_read(layer_id, len(indexes), len(results))
+        return results
 
-    @staticmethod
-    def _is_fresh(snapshot, max_age_seconds: int) -> bool:
-        if snapshot is None:
-            return False
-        age = datetime.now(timezone.utc) - snapshot["completed_at"]
-        return age <= timedelta(seconds=max_age_seconds)
+    def _record_read(self, layer_id: str, candidates: int, results: int) -> None:
+        with self._guard:
+            previous = self._read_stats.get(layer_id, {})
+            self._read_stats[layer_id] = {
+                "query_count": previous.get("query_count", 0) + 1,
+                "last_candidate_count": candidates,
+                "last_result_count": results,
+            }
 
     @staticmethod
     def _candidate_indexes(snapshot, geometry):
         if geometry is None:
             return range(len(snapshot["ids"]))
-        min_x, min_y, max_x, max_y = geometry.bounds
-        bounds = snapshot["bounds"]
-        mask = ((bounds[:, 0] <= max_x) & (bounds[:, 1] >= min_x)
-                & (bounds[:, 2] <= max_y) & (bounds[:, 3] >= min_y))
-        return np.flatnonzero(mask)
+        tree = snapshot["spatial_index"]
+        if tree is None:
+            return []
+        return sorted(int(index) for index in tree.query(
+            geometry, predicate="intersects"))
 
     @staticmethod
-    def _matching_payloads(snapshot, indexes, geometry, limit):
+    def _matching_payloads(snapshot, indexes, limit):
         results = []
         for index in indexes:
             record = snapshot["records"][snapshot["ids"][int(index)]]
-            candidate = wkb.loads(record[2]) if geometry is not None else None
-            if geometry is None or candidate.intersects(geometry):
-                results.append(_payload(record[1]))
+            results.append(MirroredMqsEntity(
+                geometry=record[2], entity=_payload(record[1])))
             if limit is not None and len(results) >= limit:
                 break
         return results
@@ -109,7 +122,7 @@ class InMemoryMqsMirrorStore:
         completed = snapshot["completed_at"] if snapshot is not None else None
         lag = ((datetime.now(timezone.utc) - completed).total_seconds()
                if completed is not None else None)
-        return {
+        row = {
             "layer_id": layer_id,
             "active_run": self._active_runs.get(layer_id),
             "last_completed_at": completed,
@@ -119,6 +132,8 @@ class InMemoryMqsMirrorStore:
             "fresh": lag is not None and lag <= max_age_seconds,
             "storage": "compressed_memory",
         }
+        row.update(self._read_stats.get(layer_id, {}))
+        return row
 
     def begin_snapshot(self, layer_id: str) -> Optional[str]:
         with self._guard:
@@ -165,9 +180,7 @@ class InMemoryMqsMirrorStore:
         geometry = _geometry(entity)
         if entity_id is None or geometry is None:
             return None
-        min_x, min_y, max_x, max_y = geometry.bounds
-        record = (_history_id(entity), _compressed_payload(entity), geometry.wkb,
-                  (min_x, max_x, min_y, max_y))
+        record = (_history_id(entity), _compressed_payload(entity), geometry)
         return entity_id, record
 
     def complete_snapshot(self, layer_id: str, run_id: str) -> None:
@@ -175,10 +188,10 @@ class InMemoryMqsMirrorStore:
             run = self._required_run(layer_id, run_id)
             records = run["records"]
         ids = tuple(sorted(records))
-        bounds = np.asarray([records[entity_id][3] for entity_id in ids], dtype="f8")
-        if not len(ids):
-            bounds = np.empty((0, 4), dtype="f8")
-        snapshot = {"records": records, "ids": ids, "bounds": bounds,
+        geometries = tuple(records[entity_id][2] for entity_id in ids)
+        spatial_index = STRtree(geometries) if geometries else None
+        snapshot = {"records": records, "ids": ids,
+                    "spatial_index": spatial_index,
                     "completed_at": datetime.now(timezone.utc)}
         with self._guard:
             self._layers[layer_id] = snapshot

@@ -74,7 +74,6 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     mqs_provider = MqsProvider(
         settings_store,
         mirror=mqs_mirror if settings.mqs_mirror_enabled else None,
-        mirror_max_staleness_seconds=settings.mqs_mirror_max_staleness_seconds,
         detail_concurrency=settings.mqs_detail_concurrency,
     )
     providers.register("mqs", mqs_provider)

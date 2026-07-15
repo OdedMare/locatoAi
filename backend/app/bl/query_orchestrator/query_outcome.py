@@ -14,7 +14,7 @@ class QueryOutcome:
     plan: Optional[GeoQueryPlan] = None
     features: Optional[gpd.GeoDataFrame] = None
     scalar_result: Optional[int] = None
-    """For count plans, set alongside the geometries that were counted."""
+    """For count plans, set while features remains None."""
     timing_ms: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
     # Agent trace — what the model chose and why (the UI's "thinking" view).

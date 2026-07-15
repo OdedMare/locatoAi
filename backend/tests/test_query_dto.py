@@ -1,7 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
+from app.bl.query_orchestrator.query_outcome import QueryOutcome
 from app.service.dto.query_request import QueryRequest
+from app.service.dto.query_response import QueryResponse
 
 
 def test_query_request_requires_boundaries():
@@ -19,3 +21,12 @@ def test_query_request_accepts_multipolygon_boundaries():
         },
     })
     assert request.boundaries.to_shapely().is_valid
+
+
+def test_count_response_omits_redundant_feature_collection():
+    response = QueryResponse.from_outcome(QueryOutcome(
+        status="ok", features=None, scalar_result=123456,
+    ))
+
+    assert response.scalar_result == 123456
+    assert response.features is None
