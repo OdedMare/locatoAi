@@ -118,6 +118,10 @@ Handles every response state. Feature results become a dynamic property table ca
 
 Loads and searches catalog metadata. It supports manual layer creation and browsing remote MQS inventory before copying a remote layer into the creation form. Selecting a remote layer automatically asks the backend to sample up to 10 random entities and generate a description and tags; the suggestions populate normal editable fields and are not saved until the user submits the form. Catalog writes go through backend endpoints; this component never talks to PostgreSQL or MQS itself.
 
+“Add Cubes layer” presets `provider=cubes`. The user supplies a display name and a
+cube/database name; the backend normalizes it, executes the known request, dynamically
+infers fields and samples, and returns editable AI-generated description/tags before save.
+
 ### `SettingsPanel`
 
 Loads runtime settings, populates editable LLM/MQS/Cubes/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, Cubes token, and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.

@@ -8,6 +8,7 @@ from app.bl.catalog.mqs_sync import browse_mqs_layers, sync_mqs_layers
 from app.common.errors import ProviderError
 from app.main import _register_error_handlers
 from app.service import catalog_router
+from app.service.catalog_router import _normalized_source
 from tests.conftest import FakeLayersRepository
 
 
@@ -153,3 +154,8 @@ def test_browse_endpoint_unknown_provider_payload_is_502():
     response = TestClient(app, raise_server_exceptions=False).get("/api/layers/mqs")
     assert response.status_code == 502
     assert "unrecognized" in response.json()["detail"]
+
+
+def test_cubes_database_name_normalizes_to_catalog_source_url():
+    assert _normalized_source("cubes", "transport") == "cubes://db/transport"
+    assert _normalized_source("cubes", "cubes://db/transport") == "cubes://db/transport"

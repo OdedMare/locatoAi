@@ -163,6 +163,16 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     void handleGenerateMetadata(layer);
   };
 
+  const startCubesLayer = () => {
+    setProvider("cubes");
+    setSourceUrl("");
+    setName("");
+    setDescription("");
+    setTags([]);
+    setFormMessage("הזינו שם שכבה ושם Cube, ואז הפעילו יצירת תיאור ותגיות.");
+    setShowAddForm(true);
+  };
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div
@@ -195,6 +205,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
           onClick={() => setShowAddForm((open) => !open)}
         >
           {showAddForm ? "ביטול" : "+ הוספת שכבה"}
+        </button>
+
+        <button type="button" className="add-layer-toggle" onClick={startCubesLayer}>
+          + הוספת שכבת Cubes
         </button>
 
         <button
@@ -270,8 +284,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
                 dir="auto"
               />
             </div>
-            <label className="field-label" htmlFor="layer-source-url">כתובת המקור</label>
-            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://provider.example/layer" dir="ltr" />
+            <label className="field-label" htmlFor="layer-source-url">
+              {provider.trim().toLowerCase() === "cubes" ? "שם Cube / database" : "כתובת המקור"}
+            </label>
+            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : "https://provider.example/layer"} dir="ltr" />
             {formMessage && <p className="settings-message">{formMessage}</p>}
             <button
               type="button"

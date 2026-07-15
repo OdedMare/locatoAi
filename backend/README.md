@@ -286,6 +286,9 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
   from being mistaken for multiple vehicles and support trajectory questions.
+  The generic metadata endpoint accepts a bare database name, normalizes it to
+  `cubes://db/<dbname>`, fetches the known one-hour sample, infers all response fields,
+  and feeds those fields and entity samples to editable description/tag generation.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —

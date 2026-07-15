@@ -6,6 +6,7 @@ from shapely.geometry import Point
 from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.ports import LayerField, LayerSchema
 from app.dal.providers.registry import InMemoryProviderRegistry
+from tests.test_cubes_provider import make_provider as make_cubes_provider
 
 
 class SampleProvider:
@@ -69,3 +70,25 @@ def test_generates_editable_metadata_from_ten_random_entities():
     # Must sample via a capped fetch, not the whole layer (see #4: MQS
     # layers can be huge — tagging must not trigger a full paginated fetch).
     assert sample_provider.fetch_features_limit == 100
+
+
+def test_generates_metadata_from_known_cubes_request(tmp_path):
+    rows = [{
+        "netId": f"vehicle-{index}",
+        "forceType": "ambulance",
+        "eventTime": "2026-07-15T10:00:00Z",
+        "geometry": f"POINT (34.{70 + index} 32.08)",
+    } for index in range(10)]
+    cubes, _ = make_cubes_provider(tmp_path, rows)
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="כוחות נעים", provider_name="cubes", source_url="transport"
+    )
+
+    fields = {field["name"] for field in llm.user["fields"]}
+    assert {"netId", "forceType", "eventTime"} <= fields
+    assert len(llm.user["random_entity_sample"]) == 10
+    assert result.sample_count == 10

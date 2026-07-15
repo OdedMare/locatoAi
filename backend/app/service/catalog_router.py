@@ -71,6 +71,13 @@ class GeneratedLayerMetadataResponse(BaseModel):
     sample_count: int
 
 
+def _normalized_source(provider: str, source_url: str) -> str:
+    source = source_url.strip()
+    if provider.strip().lower() == "cubes" and "://" not in source:
+        return f"cubes://db/{source.strip('/')}"
+    return source
+
+
 @router.get("/api/layers", response_model=LayersResponse)
 def list_layers(request: Request) -> LayersResponse:
     layers = request.app.state.catalog.list_layers()
@@ -133,7 +140,7 @@ def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
         description=body.description.strip(),
         tags=tags,
         provider=body.provider.strip(),
-        source_url=body.source_url.strip(),
+        source_url=_normalized_source(body.provider, body.source_url),
     )
     try:
         created = request.app.state.catalog.add_layer(layer)
@@ -156,7 +163,8 @@ def generate_layer_metadata(
     """Generate suggestions only; the user can edit them before layer creation."""
     generator: LayerMetadataGenerator = request.app.state.layer_metadata_generator
     result = generator.generate(
-        name=body.name, provider_name=body.provider, source_url=body.source_url
+        name=body.name, provider_name=body.provider,
+        source_url=_normalized_source(body.provider, body.source_url),
     )
     return GeneratedLayerMetadataResponse(
         description=result.description,

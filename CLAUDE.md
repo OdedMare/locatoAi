@@ -13,6 +13,12 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 
 **Agent loop:** planning has up to three `sample_field` calls and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, `netId` identity, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool.
 
+**Cubes catalog workflow:** the first supported request is the known one-hour payload.
+The Layers UI accepts a bare database name; the backend canonicalizes it to
+`cubes://db/<dbname>`, samples through `CubesProvider`, infers every non-geometry JSON
+field, and uses `LayerMetadataGenerator` for editable description/tags. Do not hardcode
+response fields. Future per-cube parameter templates need an explicit discovery contract.
+
 ## Commands
 
 ```bash

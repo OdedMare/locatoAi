@@ -173,6 +173,12 @@ MQS is the production feature provider. Catalog entries use `provider="mqs"` and
 
 Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter posts a one-hour lookback query to `/cube/v1/<dbname>`, sends the configured secret Authorization token, parses WKT `POINT (longitude latitude)`, preserves all JSON fields, declares `eventTime` as the temporal field, and sends the user boundary through `Location`. `netId` is the stable entity identity. Plans can collapse repeated observations with `latest_per_entity` or detect north/south/east/west trajectories with `movement_direction`. Deterministic operations still recheck spatial and temporal conditions locally.
 
+The Layers UI has a dedicated first-version Cubes workflow. Enter the cube/database
+name, run metadata generation, review the dynamically inferred fields and LLM-generated
+description/tags, then save. A bare database name is normalized to
+`cubes://db/<dbname>`. The known one-hour request body is currently shared by this
+first integration; per-cube request-template discovery is the next generalization.
+
 ### LLM provider
 
 The LLM client uses an OpenAI-compatible API. The default points to local Ollama and model `gemma4:31b-cloud`, but model, base URL, and optional key are runtime editable. The client progressively falls back from JSON response mode when a compatible server implements a smaller subset of the OpenAI API.
