@@ -12,7 +12,11 @@ from app.bl.executor.ops import (  # noqa: F401
     near,
     near_all,
     nearest_n,
-    spatial_relation,
     temporal_filter,
     within_geometry,
+)
+from app.bl.executor.ops.spatial_relation import (  # noqa: F401
+    contains_op,
+    crosses_op,
+    touches_op,
 )

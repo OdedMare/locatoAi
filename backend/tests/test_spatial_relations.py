@@ -4,7 +4,9 @@ import geopandas as gpd
 from shapely.geometry import LineString, Point, Polygon
 
 from app.bl.executor.ops.between import BetweenOp
-from app.bl.executor.ops.spatial_relation import ContainsOp, CrossesOp, TouchesOp
+from app.bl.executor.ops.spatial_relation.contains_op import ContainsOp
+from app.bl.executor.ops.spatial_relation.crosses_op import CrossesOp
+from app.bl.executor.ops.spatial_relation.touches_op import TouchesOp
 from app.bl.plan.models.between_step import BetweenStep
 from app.bl.plan.models.contains_step import ContainsStep
 from app.bl.plan.models.crosses_step import CrossesStep
