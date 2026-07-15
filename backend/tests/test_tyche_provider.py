@@ -229,3 +229,10 @@ def test_rejects_invalid_response_and_missing_configuration(tmp_path):
     provider, _ = make_provider(tmp_path, [], token="")
     with pytest.raises(ProviderError, match="token"):
         provider.fetch_features(layer())
+
+
+def test_rejects_noncanonical_catalog_source(tmp_path):
+    provider, _ = make_provider(tmp_path, [])
+
+    with pytest.raises(ProviderError, match="tyche://ourforces"):
+        provider.fetch_features(layer("tyche://something-else"))

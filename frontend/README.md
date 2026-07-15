@@ -186,6 +186,7 @@ src/
 | `getMqsLayers` | `GET /api/layers/mqs` | Browse remote inventory without writing. |
 | `createLayer` | `POST /api/layers` | Add one catalog entry. |
 | `generateLayerMetadata` | `POST /api/layers/generate-metadata` | Generate editable metadata from a random entity sample. |
+| `activateTycheLayer` | `POST /api/layers/activate-tyche` | Probe and activate the Tyche Our Forces layer. |
 | `syncMqsLayers` | `POST /api/layers/sync-mqs` | Bulk upsert remote inventory. |
 | `getSettings` | `GET /api/settings` | Load settings and catalog status. |
 | `updateSettings` | `PUT /api/settings` | Save validated runtime overrides. |

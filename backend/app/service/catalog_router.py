@@ -14,6 +14,7 @@ from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
 )
 from app.bl.catalog.mqs_sync.browse_mqs_layers import browse_mqs_layers
 from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
+from app.bl.catalog.tyche_activation import TYCHE_SOURCE, activate_tyche_layer
 from app.bl.ports.layer_meta import LayerMeta
 from app.service.catalog_dto.catalog_layer import CatalogLayer
 from app.service.catalog_dto.create_layer_request import CreateLayerRequest
@@ -31,14 +32,6 @@ from app.service.catalog_dto.remote_mqs_layers_response import (
 )
 
 router = APIRouter()
-
-_TYCHE_LAYER_NAME = "כוחותינו"
-_TYCHE_SOURCE = "tyche://ourforces"
-_TYCHE_DESCRIPTION = "מיקומים ואירועי זמן של כוחותינו ממערכת Tyche"
-_TYCHE_TAGS = [
-    "כוחותינו", "כוחות", "רכב", "יחידות", "מיקום בזמן אמת",
-    "our forces", "vehicles", "units", "live location", "tyche",
-]
 
 
 def _with_cubes_mode(source: str, mode: str) -> str:
@@ -120,21 +113,16 @@ def list_remote_mqs_layers(request: Request) -> RemoteMqsLayersResponse:
 @router.post("/api/layers/activate-tyche", response_model=CatalogLayer)
 def activate_tyche(request: Request) -> CatalogLayer:
     """Probe Tyche and idempotently activate its Our Forces catalog layer."""
-    layer = LayerMeta(
-        id=str(uuid4()), name=_TYCHE_LAYER_NAME,
-        description=_TYCHE_DESCRIPTION, tags=_TYCHE_TAGS,
-        provider="tyche", source_url=_TYCHE_SOURCE,
+    activated, created, sample_count = activate_tyche_layer(
+        request.app.state.repository, request.app.state.tyche_provider,
     )
-    sample = request.app.state.tyche_provider.fetch_features(layer, limit=1)
-    activated, created = request.app.state.repository.upsert_layer(layer)
-    persisted = request.app.state.repository.get_layer(activated.id) or activated
     request.app.state.request_log.info(
-        "tyche_layer_activated", layer_id=persisted.id, created=created,
-        sample_count=len(sample), source_url=_TYCHE_SOURCE,
+        "tyche_layer_activated", layer_id=activated.id, created=created,
+        sample_count=sample_count, source_url=TYCHE_SOURCE,
     )
     return CatalogLayer(
-        id=persisted.id, name=persisted.name,
-        description=persisted.description, tags=persisted.tags,
+        id=activated.id, name=activated.name,
+        description=activated.description, tags=activated.tags,
     )
 
 

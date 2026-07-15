@@ -28,6 +28,7 @@ _DEFAULT_LOOKBACK = timedelta(hours=1)
 _DEFAULT_PAGE_SIZE = 10000
 _MAX_FETCHED_ROWS = 100000
 _MAX_SAMPLE_CHARS = 80
+_SOURCE_URL = "tyche://ourforces"
 _LOGGER = logging.getLogger(__name__)
 
 _FIELDS = (
@@ -169,6 +170,13 @@ def _deduplicate(rows: List[dict]) -> List[dict]:
     return list(unique.values())
 
 
+def _validate_source(layer: LayerMeta) -> None:
+    if layer.source_url.strip().rstrip("/").lower() != _SOURCE_URL:
+        raise ProviderError(
+            "Tyche supports only source_url=tyche://ourforces"
+        )
+
+
 class TycheProvider:
     def __init__(
         self,
@@ -180,6 +188,7 @@ class TycheProvider:
         self._samples: Dict[str, List[dict]] = {}
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
+        _validate_source(layer)
         sample_rows = self._samples.get(layer.id, [])
         fields = []
         for name, field_type, description in _FIELDS:
@@ -216,6 +225,7 @@ class TycheProvider:
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
+        _validate_source(layer)
         if limit is not None and limit < 1:
             return empty_features_gdf()
         rows: List[dict] = []

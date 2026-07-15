@@ -180,6 +180,11 @@ the request boundary expanded by their requested distance.
 
 Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, sends the user boundary through `Location`, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect north/south/east/west trajectories with `movement_direction`.
 
+Tyche provides the time-varying Our Forces layer. After its URL, username, and
+write-only authorization token are configured, the Layers UI can probe the service and
+idempotently activate the canonical `provider="tyche"`,
+`source_url="tyche://ourforces"` catalog row. Failed probes do not modify the catalog.
+
 Cubes metadata declares `ResultsLimit` (10,000 on the current API). A boundary query
 that reaches the cap is recovered with adaptive quadtree partitioning: only saturated
 tiles are split, complete observation rows are deduplicated, recursion is bounded, and

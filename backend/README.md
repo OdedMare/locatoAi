@@ -43,7 +43,7 @@ app/
 │   ├── query_router.py      # POST /api/query           (NL entry point)
 │   ├── plan_router.py       # POST /api/execute-plan    (debug: run a raw plan)
 │   ├── agent_router.py      # POST /api/select-layers   (debug: LLM call 1 only)
-│   ├── catalog_router.py    # GET/POST /api/layers + POST /api/layers/sync-mqs
+│   ├── catalog_router.py    # Layer CRUD, MQS sync/browse, Tyche activation
 │   ├── settings_router.py   # GET/PUT /api/settings     (backs the UI ⚙ panel)
 │   ├── feedback_router.py   # POST /api/feedback        (👍/👎 → PostgreSQL)
 │   └── deps.py              # FastAPI dependency accessors (app.state)
@@ -97,6 +97,7 @@ The service tier exposes these routes:
 | `GET /api/layers` | Return local catalog metadata. |
 | `POST /api/layers` | Create one catalog record. |
 | `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
+| `POST /api/layers/activate-tyche` | Probe Tyche and idempotently activate the Our Forces layer. |
 | `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
 | `POST /api/layers/sync-mqs` | Upsert remote MQS inventory into PostgreSQL. |
 | `GET /api/settings` | Read masked runtime settings and live catalog status. |
