@@ -20,6 +20,8 @@ from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_registry import get_op_handler
 from app.bl.plan.models.count_step import CountStep
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
+from app.bl.plan.models.load_step import LoadStep
+from app.bl.plan.models.temporal_filter_step import TemporalFilterStep
 from app.bl.ports.provider_registry import ProviderRegistry
 
 
@@ -64,6 +66,7 @@ class PlanExecutor:
             providers=self._providers,
             user_geometry=user_geometry,
             now=now or datetime.now(timezone.utc),
+            load_temporal_ranges=self._load_temporal_ranges(plan),
         )
         step_traces: List[Dict[str, Any]] = []
         for step in plan.steps:
@@ -99,3 +102,24 @@ class PlanExecutor:
         return ExecutionOutput(
             features=ctx.results[plan.output], step_traces=step_traces
         )
+
+    @staticmethod
+    def _load_temporal_ranges(plan: GeoQueryPlan):
+        by_id = {step.id: step for step in plan.steps}
+        ranges = {}
+        for step in plan.steps:
+            if not isinstance(step, TemporalFilterStep):
+                continue
+            load = PlanExecutor._source_load(step.input, by_id)
+            if load is not None:
+                ranges[load.id] = (step.from_, step.to)
+        return ranges
+
+    @staticmethod
+    def _source_load(step_id, by_id):
+        step = by_id.get(step_id)
+        while step is not None:
+            if isinstance(step, LoadStep):
+                return step
+            step = by_id.get(getattr(step, "input", None))
+        return None

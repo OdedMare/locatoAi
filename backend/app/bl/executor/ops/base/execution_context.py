@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -20,10 +20,12 @@ class ExecutionContext:
     now: datetime
     results: Dict[str, gpd.GeoDataFrame] = field(default_factory=dict)
     feature_cache: Dict[str, gpd.GeoDataFrame] = field(default_factory=dict)
+    load_temporal_ranges: Dict[str, Tuple[str, str]] = field(default_factory=dict)
 
     def load_layer_features(
         self, layer_id: str, push_down_geometry: bool = True,
         geometry_hint: Optional[BaseGeometry] = None,
+        temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
         """Shared by `load` and `near` (which loads its target layer).
 
@@ -41,20 +43,27 @@ class ExecutionContext:
         geometry = geometry_hint
         if geometry is None and push_down_geometry:
             geometry = self.user_geometry
-        cache_key = self._cache_key(layer_id, geometry)
+        cache_key = self._cache_key(layer_id, geometry, temporal_range)
         if cache_key in self.feature_cache:
             return self.feature_cache[cache_key]
         layer = self.catalog.get_layer(layer_id)
         provider = self.providers.get(layer.provider)
-        gdf = provider.fetch_features(layer, now=self.now, geometry=geometry)
+        options = {"now": self.now, "geometry": geometry}
+        if temporal_range is not None:
+            options["temporal_range"] = temporal_range
+        gdf = provider.fetch_features(layer, **options)
         gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
         self.feature_cache[cache_key] = gdf
         return gdf
 
     @staticmethod
-    def _cache_key(layer_id: str, geometry: Optional[BaseGeometry]) -> str:
+    def _cache_key(
+        layer_id: str, geometry: Optional[BaseGeometry],
+        temporal_range: Optional[Tuple[str, str]],
+    ) -> str:
         geometry_key = geometry.wkb_hex if geometry is not None else "unbounded"
-        return f"{layer_id}:{geometry_key}"
+        time_key = ":".join(temporal_range) if temporal_range is not None else "all-time"
+        return f"{layer_id}:{geometry_key}:{time_key}"
 
     def proximity_geometry(self, distance_m: float) -> Optional[BaseGeometry]:
         if self.user_geometry is None:

@@ -421,6 +421,7 @@ class MqsProvider:
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
+        temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
         # `now` is part of the Provider protocol (mock temporal synthesis);
         # MQS serves real data, so it is ignored. `geometry`, when given,

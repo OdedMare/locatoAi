@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
 
@@ -30,6 +30,9 @@ _MAX_FIELD_SAMPLES = 5
 _MAX_SAMPLE_CHARS = 80
 _TIME_FIELD_NAMES = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
 _PARAMETER_OPERATORS = ("match", "not")
+_DEFAULT_PARAMETER_KEYS = (
+    "eventTime", "eventTime.not", "arriveTime", "arriveTime.not",
+)
 _DEFAULT_RESULTS_LIMIT = 10000
 _MAX_CHUNK_DEPTH = 5
 _MAX_FETCHED_ROWS = 100000
@@ -71,40 +74,71 @@ def _parameter_parts(name: str) -> Tuple[str, Optional[str]]:
     return name, None
 
 
-def _parameter_key(base: str, operator: str) -> str:
-    return base if operator == "match" else f"{base}.not"
+def _parameter_key(base: str, operator: Optional[str]) -> str:
+    return base if operator is None else f"{base}.{operator}"
 
 
-def _declared_parameter_keys(parameters: List[LayerParameter]) -> Set[str]:
-    keys = set()
+def _declared_parameter_keys(parameters: List[LayerParameter]) -> List[str]:
+    keys: List[str] = []
     for parameter in parameters or []:
         base, operator = _parameter_parts(parameter.name)
-        operators = (operator,) if operator else _PARAMETER_OPERATORS
-        keys.update(_parameter_key(base, item) for item in operators)
+        declared = (operator,) if operator else (None, "not")
+        for item in declared:
+            key = _parameter_key(base, item)
+            if key not in keys:
+                keys.append(key)
     return keys
 
 
-def _query_body(geometry: Optional[BaseGeometry],
-                parameters: Optional[List[LayerParameter]] = None) -> dict:
-    time_values = {
-        "eventTime": {"TimeBackUnit": "hour", "TimeBackValue": 1},
-        "arriveTime": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
-    }
-    known = {key: value.copy() for base, value in time_values.items()
-             for key in (base, f"{base}.not")}
-    allowed = _declared_parameter_keys(parameters or [])
-    body = known if not parameters else {key: value for key, value in known.items()
-                                         if key in allowed}
+def _iso_milliseconds(value: datetime) -> str:
+    normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return normalized.astimezone(timezone.utc).isoformat(
+        timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _absolute_window(now: Optional[datetime], temporal_range):
+    if temporal_range is not None:
+        return {"From": temporal_range[0], "To": temporal_range[1]}
+    end = now or datetime.now(timezone.utc)
+    return {"From": _iso_milliseconds(end - timedelta(hours=1)),
+            "To": _iso_milliseconds(end)}
+
+
+def _parameter_value(key: str, now: Optional[datetime], temporal_range) -> dict:
+    base, operator = _parameter_parts(key)
+    if operator == "match":
+        return _absolute_window(now, temporal_range)
+    unit = "no_time" if base == "arriveTime" and operator is None else "hour"
+    return {"TimeBackValue": "1", "TimeBackUnit": unit}
+
+
+def _location_key(body: dict) -> Optional[str]:
+    for key in ("arriveTime.not", "eventTime.not"):
+        if key in body:
+            return key
+    return next((key for key in body if _parameter_parts(key)[0] in _TIME_FIELD_NAMES),
+                None)
+
+
+def _query_body(
+    geometry: Optional[BaseGeometry], parameters: Optional[List[LayerParameter]] = None,
+    now: Optional[datetime] = None, temporal_range=None,
+) -> dict:
+    keys = (_declared_parameter_keys(parameters) if parameters
+            else list(_DEFAULT_PARAMETER_KEYS))
+    body = {key: _parameter_value(key, now, temporal_range) for key in keys
+            if _parameter_parts(key)[0] in _TIME_FIELD_NAMES}
     _validate_required_parameters(parameters or [], body)
-    if geometry is not None and "arriveTime.not" in body:
-        body["arriveTime.not"]["Location"] = geometry.wkt
+    location_key = _location_key(body)
+    if geometry is not None and location_key is not None:
+        body[location_key]["Location"] = geometry.wkt
     return body
 
 
 def _validate_required_parameters(parameters: List[LayerParameter], body: dict) -> None:
     for parameter in parameters:
         base, operator = _parameter_parts(parameter.name)
-        key = _parameter_key(base, operator or "match")
+        key = _parameter_key(base, operator)
         if parameter.required and key not in body:
             raise ProviderError(
                 f"Cubes parameter '{parameter.name}' is required and has no configured value"
@@ -291,6 +325,7 @@ class CubesProvider:
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
+        temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
         # `now` belongs to the shared Provider protocol. Cubes evaluates the
         # relative one-hour window server-side, so no client timestamp is sent.
@@ -300,7 +335,8 @@ class CubesProvider:
         parameters = _metadata_parameters(metadata)
         with self._client() as client:
             rows = self._fetch_rows(
-                client, path, parameters, geometry, _results_limit(metadata), limit
+                client, path, parameters, geometry, _results_limit(metadata), limit,
+                now, temporal_range,
             )
         self._schema_cache[layer.id] = _infer_schema(layer.id, rows)
         return _rows_to_gdf(rows[:limit] if limit is not None else rows)
@@ -313,8 +349,11 @@ class CubesProvider:
         geometry: Optional[BaseGeometry],
         results_limit: int,
         requested_limit: Optional[int],
+        now: Optional[datetime],
+        temporal_range: Optional[Tuple[str, str]],
     ) -> List[dict]:
-        rows = self._post_rows(client, path, _query_body(geometry, parameters))
+        rows = self._post_rows(
+            client, path, _query_body(geometry, parameters, now, temporal_range))
         if requested_limit is not None or len(rows) < results_limit:
             return rows
         if geometry is None:
@@ -323,7 +362,8 @@ class CubesProvider:
             )
         logger.info("Cubes result cap reached; splitting boundary into chunks")
         return self._fetch_spatial_chunks(
-            client, path, parameters, geometry, results_limit, depth=0
+            client, path, parameters, geometry, results_limit, now,
+            temporal_range, depth=0,
         )
 
     def _fetch_spatial_chunks(
@@ -333,26 +373,33 @@ class CubesProvider:
         parameters: List[LayerParameter],
         geometry: BaseGeometry,
         results_limit: int,
+        now: Optional[datetime],
+        temporal_range: Optional[Tuple[str, str]],
         depth: int,
     ) -> List[dict]:
         rows: List[dict] = []
         for chunk in _spatial_chunks(geometry):
             chunk_rows = self._fetch_chunk(
-                client, path, parameters, chunk, results_limit, depth)
+                client, path, parameters, chunk, results_limit, now,
+                temporal_range, depth)
             rows.extend(chunk_rows)
             self._validate_row_count(rows)
         return _deduplicate_rows(rows)
 
     def _fetch_chunk(self, client: httpx.Client, path: str,
                      parameters: List[LayerParameter], geometry: BaseGeometry,
-                     results_limit: int, depth: int) -> List[dict]:
-        rows = self._post_rows(client, path, _query_body(geometry, parameters))
+                     results_limit: int, now: Optional[datetime],
+                     temporal_range: Optional[Tuple[str, str]],
+                     depth: int) -> List[dict]:
+        rows = self._post_rows(
+            client, path, _query_body(geometry, parameters, now, temporal_range))
         if len(rows) < results_limit:
             return rows
         if depth >= _MAX_CHUNK_DEPTH:
             raise ProviderError("Cubes result chunks remain capped; narrow the map boundary")
         return self._fetch_spatial_chunks(
-            client, path, parameters, geometry, results_limit, depth + 1)
+            client, path, parameters, geometry, results_limit, now,
+            temporal_range, depth + 1)
 
     @staticmethod
     def _validate_row_count(rows: List[dict]) -> None:
