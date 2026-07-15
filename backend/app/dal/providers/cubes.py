@@ -388,18 +388,27 @@ class CubesProvider:
         temporal_range: Optional[Tuple[str, str]],
         query_mode: str,
     ) -> List[dict]:
-        rows = self._post_rows(
-            client, path, _query_body(
-                geometry, parameters, now, temporal_range, query_mode))
-        if requested_limit is not None or len(rows) < results_limit or geometry is None:
-            # Capped with no boundary to chunk by (or an explicit small
-            # limit already satisfied): return whatever Cubes gave back.
-            # There is no pagination in this API to fetch the remainder.
+        body = _query_body(geometry, parameters, now, temporal_range, query_mode)
+        rows = self._post_rows(client, path, body)
+        if requested_limit is not None or len(rows) < results_limit:
             return rows
-        logger.info("Cubes result cap reached; splitting boundary into chunks")
-        return self._fetch_spatial_chunks(
-            client, path, parameters, geometry, results_limit, now,
-            temporal_range, query_mode, depth=0,
+        if geometry is not None:
+            logger.info("Cubes result cap reached; splitting boundary into chunks")
+            return self._fetch_spatial_chunks(
+                client, path, parameters, geometry, results_limit, now,
+                temporal_range, query_mode, depth=0,
+            )
+        window_key = _match_window_key(body)
+        if window_key is None:
+            # No boundary and no absolute time window to split by (e.g. a
+            # relative-only "no_time"/TimeBack cube) — nothing left to
+            # chunk by; Cubes has no pagination to fetch the remainder.
+            return rows
+        logger.info("Cubes result cap reached; splitting time window into chunks")
+        return self._fetch_temporal_chunks(
+            client, path, parameters, results_limit,
+            (body[window_key]["From"], body[window_key]["To"]),
+            query_mode, depth=0,
         )
 
     def _fetch_spatial_chunks(
