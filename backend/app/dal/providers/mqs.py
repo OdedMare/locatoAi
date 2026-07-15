@@ -6,10 +6,10 @@ base URL is the mqs_base_url runtime setting, read on every call). The
 last path segment is the layer id, so a bare id or a pasted full URL
 (including a pasted layer_entities_link) also work.
 
-Per the real MoriaProject API doc (both the original Entities doc and the
-"Additional API Endpoints and Pagination" update), an entity has NO
-free-form per-layer attribute table — every entity, in the list response
-or the single-entity response, carries exactly the same fixed shape:
+The paginated Entities response carries the fixed transport fields below.
+The single-entity endpoint additionally carries `property_list`, which is
+the authoritative source for searchable business attributes such as name,
+description, essence and type:
 
     exclusive_id: {data_store_name, layer_id, entity_id, history_id}
     classification: {triangle, clearence_level (sic — preserve the
@@ -18,10 +18,10 @@ or the single-entity response, carries exactly the same fixed shape:
     link: direct URL to the single-entity resource
     geo: {wkt: "POLYGON ((lon lat alt, ...))", area, perimeter}
 
-So describe_schema/sample_field_values expose exactly these fixed fields
-(_FIXED_FIELDS below) — there is no Layers/{id} field-list endpoint or
-ValueList endpoint in this API; earlier code that guessed at one has been
-removed.
+`property_list` is flattened into ordinary GeoDataFrame columns using its
+original field names. Consequently the same attributes are available to
+metadata/tag generation, schema/value sampling, attribute filters and every
+spatial operation that carries the input feature rows forward.
 
 GET /MoriaProject/{layer_id}/Entities requires the `User_ID` header (the
 mqs_user_id runtime setting) and `Accept: application/json`, and is
@@ -32,10 +32,9 @@ absent, guarded by _MAX_FEATURES. (The doc's very first section showed a
 bare-array response with no wrapper — _extract_entities stays lenient and
 accepts both.)
 
-GET /MoriaProject/{layer_id}/Entities/{entity_id} returns a single entity
-(same shape as one entities_list item) — not currently used by this
-provider (fetch-all-filter-locally makes it unnecessary) but kept in mind
-for a future per-entity refresh path.
+GET /MoriaProject/{layer_id}/Entities/{entity_id} returns the entity detail.
+The provider follows it for every fetched list entity unless that entity
+already embeds `property_list`.
 
 WKT coordinates are lon/lat (the doc says to confirm the CRS with the
 service owner); assumed WGS84 — if a real instance serves ITM
@@ -59,7 +58,7 @@ just slower.
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import geopandas as gpd
 import httpx
@@ -88,10 +87,18 @@ _ENTITY_LIST_KEYS = (
 )
 _LAYER_LIST_KEYS = ("layers_list", "LayersList", "layers", "Layers")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
+_PROPERTY_LIST_KEYS = (
+    "property_list", "propertyList", "PropertyList", "properties", "Properties",
+)
+_PROPERTY_NAME_KEYS = (
+    "name", "Name", "key", "Key", "field", "field_name", "property_name",
+)
+_PROPERTY_VALUE_KEYS = (
+    "value", "Value", "field_value", "property_value", "display_value",
+)
 
-# The only fields an entity actually has, per the real API doc — no
-# per-layer attribute schema exists. `clearence_level` is the service's
-# own (misspelled) name; preserved verbatim rather than "corrected".
+# Fixed transport fields present alongside dynamic property_list attributes.
+# `clearence_level` is the service's own (misspelled) name; preserve it.
 _FIXED_FIELDS = (
     LayerField(name="triangle", type="string", description="קוד מיון (Triangle classification code)"),
     LayerField(name="clearence_level", type="string", description="רמת הסיווג/הרשאה (Clearance level)"),
@@ -174,20 +181,69 @@ def _parse_geometry(value: object) -> Optional[BaseGeometry]:
     return None
 
 
+def _entity_id(entity: dict) -> Optional[str]:
+    """Return the stable MQS entity id from either the fixed envelope or a
+    common top-level spelling."""
+    exclusive_id = entity.get("exclusive_id")
+    value = (
+        _first_key(exclusive_id, _ENTITY_ID_KEYS)
+        if isinstance(exclusive_id, dict)
+        else _first_key(entity, _ENTITY_ID_KEYS)
+    )
+    return str(value) if value is not None else None
+
+
+def _property_value(value: object) -> object:
+    """Unwrap a common {value: ...} wrapper while keeping scalar values."""
+    if isinstance(value, dict):
+        nested = _first_key(value, _PROPERTY_VALUE_KEYS)
+        if nested is not None:
+            return nested
+    return value
+
+
+def _property_attributes(entity: dict) -> Dict[str, object]:
+    """Normalize MQS property_list variants into flat searchable columns.
+
+    Deployments have returned both a JSON object and a list of name/value
+    objects. Unknown nested values are stringified by GeoPandas at response
+    serialization time; geometry is never read from property_list.
+    """
+    raw = _first_key(entity, _PROPERTY_LIST_KEYS)
+    attributes: Dict[str, object] = {}
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            name = str(key).strip()
+            if name and name != "geometry":
+                attributes[name] = _property_value(value)
+        return attributes
+    if not isinstance(raw, list):
+        return attributes
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = _first_key(item, _PROPERTY_NAME_KEYS)
+        value = _first_key(item, _PROPERTY_VALUE_KEYS)
+        if name is None and len(item) == 1:
+            name, value = next(iter(item.items()))
+        field_name = str(name).strip() if name is not None else ""
+        if field_name and field_name != "geometry":
+            attributes[field_name] = _property_value(value)
+    return attributes
+
+
 def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
     """One MQS entity → (geometry, attributes), or None if no usable
-    geometry. Only the doc's fixed shape is supported — see module
-    docstring for the field list."""
+    geometry. Fixed transport fields and dynamic property_list fields are
+    flattened into the same attribute row."""
     geometry = _parse_geometry(entity.get("geo"))
     if geometry is None:
         return None
 
     attributes: dict = {}
-    exclusive_id = entity.get("exclusive_id")
-    if isinstance(exclusive_id, dict):
-        entity_id = _first_key(exclusive_id, _ENTITY_ID_KEYS)
-        if entity_id is not None:
-            attributes["id"] = entity_id
+    entity_id = _entity_id(entity)
+    if entity_id is not None:
+        attributes["id"] = entity_id
 
     classification = entity.get("classification")
     if isinstance(classification, dict):
@@ -205,6 +261,12 @@ def _entity_to_record(entity: dict) -> Optional[Tuple[BaseGeometry, dict]]:
         for key in ("area", "perimeter"):
             if key in geo:
                 attributes[key] = geo[key]
+
+    # Business properties deliberately remain top-level, under the original
+    # MQS names, so the planner can emit filters such as field="שם".
+    for key, value in _property_attributes(entity).items():
+        if key not in attributes:  # preserve stable transport identifiers
+            attributes[key] = value
 
     return geometry, attributes
 
@@ -424,18 +486,65 @@ class MqsProvider:
                 return
             params = self._next_page_params(next_page)
 
+    def _entity_detail(
+        self, client: httpx.Client, layer_id: str, entity: dict
+    ) -> dict:
+        """Return an entity enriched with detail-only property_list fields."""
+        if _first_key(entity, _PROPERTY_LIST_KEYS) is not None:
+            return entity
+        entity_id = _entity_id(entity)
+        if entity_id is None:
+            logger.warning("MQS layer %s: entity has no entity_id", layer_id)
+            return entity
+        path = f"/MoriaProject/{layer_id}/Entities/{quote(entity_id, safe='')}"
+        payload = self._get_json(client, path)
+        detail = payload
+        if isinstance(payload, dict):
+            # Accept wrappers such as {"entity": {...}} as well as a bare object.
+            for key in ("entity", "Entity", "data", "Data"):
+                if isinstance(payload.get(key), dict):
+                    detail = payload[key]
+                    break
+        if not isinstance(detail, dict):
+            logger.warning(
+                "MQS entity %s returned an unrecognized detail shape; "
+                "using list-entity fields only", entity_id,
+            )
+            return entity
+        merged = dict(entity)
+        merged.update(detail)
+        return merged
+
     # -- Provider protocol ---------------------------------------------------
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
-        # No per-layer field-list endpoint exists in this API — every
-        # entity has exactly _FIXED_FIELDS (see module docstring).
+        # There is no layer field-list endpoint. Infer business fields and
+        # bounded samples from entity details, then append them to fixed fields.
         has_override, temporal_field = _temporal_field_override(layer)
         if not has_override:
             temporal_field = _TEMPORAL_FIELD
+        dynamic: Dict[str, LayerField] = {}
+        layer_id = mqs_layer_id(layer)
+        with self._client() as client:
+            for entity in self._iter_all_entities(client, layer_id, limit=20):
+                detail = self._entity_detail(client, layer_id, entity)
+                for name, value in _property_attributes(detail).items():
+                    sample = str(value)[:_MAX_SAMPLE_CHARS]
+                    existing = dynamic.get(name)
+                    if existing is None:
+                        field_type = (
+                            "number" if isinstance(value, (int, float))
+                            and not isinstance(value, bool) else "string"
+                        )
+                        dynamic[name] = LayerField(
+                            name=name, type=field_type, samples=[sample]
+                        )
+                    elif sample not in existing.samples and len(existing.samples) < 5:
+                        existing.samples.append(sample)
         return LayerSchema(
             layer_id=layer.id,
             geometry_type="Polygon",
-            fields=list(_FIXED_FIELDS),
+            fields=list(_FIXED_FIELDS) + list(dynamic.values()),
             temporal_field=temporal_field,
         )
 
@@ -458,7 +567,8 @@ class MqsProvider:
         skipped = 0
         with self._client() as client:
             for entity in self._iter_all_entities(client, layer_id, geometry, limit):
-                record = _entity_to_record(entity)
+                detail = self._entity_detail(client, layer_id, entity)
+                record = _entity_to_record(detail)
                 if record is None:
                     skipped += 1
                     continue
@@ -477,29 +587,28 @@ class MqsProvider:
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20
     ) -> List[str]:
-        """Distinct values of one of _FIXED_FIELDS, sampled from a page of
-        entities (no dedicated domain-values endpoint exists in this API).
+        """Distinct fixed or property_list values sampled from entity details.
         Values are untrusted text — truncated."""
-        if field not in {f.name for f in _FIXED_FIELDS}:
-            return []
         layer_id = mqs_layer_id(layer)
         values: List[str] = []
+        sample_size = min(_PAGE_SIZE, max(limit * 5, 20))
         with self._client() as client:
             entities, _ = self._entities_page(
-                client, layer_id, {"from": 0, "to": _PAGE_SIZE}
+                client, layer_id, {"from": 0, "to": sample_size}
             )
-        for entity in entities:
-            record = _entity_to_record(entity)
-            if record is None:
-                continue
-            value = record[1].get(field)
-            if value is None:
-                continue
-            text = str(value)[:_MAX_SAMPLE_CHARS]
-            if text not in values:
-                values.append(text)
-            if len(values) >= limit:
-                break
+            for entity in entities:
+                detail = self._entity_detail(client, layer_id, entity)
+                record = _entity_to_record(detail)
+                if record is None:
+                    continue
+                value = record[1].get(field)
+                if value is None:
+                    continue
+                text = str(value)[:_MAX_SAMPLE_CHARS]
+                if text not in values:
+                    values.append(text)
+                if len(values) >= limit:
+                    break
         return values[:limit]
 
     # -- Sync support (beyond the Provider protocol) -------------------------

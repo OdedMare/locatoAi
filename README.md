@@ -163,7 +163,7 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. The live base URL comes from runtime settings. MQS supplies inventory metadata, layer schemas, sample values, and paginated features; spatial filtering is performed locally by the executor.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. The live base URL comes from runtime settings. Paginated list entities are enriched through `Entities/{entity_id}`; each detail response's `property_list` becomes ordinary feature fields used for schema/value sampling, tags, attribute filters, results, and spatial-operation outputs. Boundary filters are pushed down when possible and rechecked locally.
 
 ### LLM provider
 

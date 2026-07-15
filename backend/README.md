@@ -230,7 +230,7 @@ returns per-stage timings (`select`/`plan`/`execute`) and summed token usage.
 values of that field (JSON-protocol tool — the client is JSON-mode-only). Max 3 rounds
 per query, separate from the validation retry; rounds are reported as `tool_calls` in
 the response and listed in the UI agent panel. Backed by `Provider.sample_field_values`
-(mock: distinct GeoJSON values; MQS: `ValueList`, falling back to an entities page).
+(mock: distinct GeoJSON values; MQS: searchable `property_list` values from entity details).
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
@@ -241,8 +241,9 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
   layer sets, incl. typos/slang/must-clarify; exit 1 on regression). Run after every
   prompt/model change. Add every real-world miss as a case.
 - UI 👍/👎 → `POST /api/feedback` → configurable PostgreSQL feedback table.
-- `scripts/enrich_layer_tags.py` — LLM-generated bilingual alias tags for the catalog
-  (dry-run by default; `--apply` writes; previous tags in `scripts/tags_backup.txt`).
+- `scripts/enrich_layer_tags.py` — LLM-generated bilingual alias tags using catalog
+  metadata plus MQS `property_list` field names/samples (dry-run by default;
+  `--apply` writes; previous tags in `scripts/tags_backup.txt`).
 
 ---
 
@@ -255,13 +256,13 @@ registers only `mqs`** — `arcgis` is not a real provider anymore.
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
-  unset means the provider errors with a clear message → HTTP 502). Fetching is
-  fetch-all-filter-locally: `GET /MoriaProject/{id}/Entities` paginated
-  (`geo_type=GeoJSON`, page 1000, hard cap 50k → error, never silent truncation);
-  the executor does all spatial ops locally. Schemas come from
-  `GET /MoriaProject/Layers/{id}` + best-effort `ValueList/{id}` samples. Response
-  parsing is deliberately lenient (candidate-key lists) — no live MQS existed when
-  written; adapting to a real instance stays inside `mqs.py`.
+  unset means the provider errors with a clear message → HTTP 502). It pages through
+  `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k) and follows
+  `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
+  `property_list` into normal feature columns. Those columns drive schema discovery,
+  value sampling, metadata/tag generation, attribute filters, displayed results, and
+  every spatial operation. Viewport/polygon filters are pushed down with POST when
+  available and are always rechecked locally for correctness.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —

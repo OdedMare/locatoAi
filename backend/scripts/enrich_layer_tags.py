@@ -23,10 +23,12 @@ from app.common.config import get_settings
 from app.common.runtime_settings import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
+from app.dal.providers.mqs import MqsProvider
 
 _SYSTEM = """You generate search alias tags for a GIS layer catalog.
 
-Given one layer (Hebrew name, description, current tags), return up to 8
+Given one layer (Hebrew name, description, current tags, and searchable
+property_list fields with bounded sample values), return up to 8
 NEW alias tags that help match user queries to this layer:
 - Hebrew synonyms, singular form, and common everyday words
 - English equivalents (lowercase)
@@ -58,6 +60,7 @@ def main() -> int:
     store = RuntimeSettingsStore(settings)
     repository = PostgresLayersRepository(store)
     llm = OpenAIJsonClient(store)
+    mqs = MqsProvider(store)
 
     layers = repository.list_layers()
     print("BACKUP", json.dumps({l.id: l.tags for l in layers}, ensure_ascii=False))
@@ -65,8 +68,30 @@ def main() -> int:
 
     updates = []
     for layer in layers:
-        user = "name: {}\ndescription: {}\ncurrent tags: {}".format(
-            layer.name, layer.description, ", ".join(layer.tags)
+        searchable_fields = []
+        if layer.provider == "mqs":
+            try:
+                schema = mqs.describe_schema(layer)
+                searchable_fields = [
+                    {
+                        "name": field.name,
+                        "type": field.type,
+                        "samples": field.samples[:5],
+                    }
+                    for field in schema.fields
+                ]
+            except Exception as exc:
+                print("! {:<28} property_list unavailable: {}".format(
+                    layer.name, exc
+                ))
+        user = json.dumps(
+            {
+                "name": layer.name,
+                "description": layer.description,
+                "current_tags": layer.tags,
+                "searchable_fields": searchable_fields,
+            },
+            ensure_ascii=False,
         )
         try:
             data = llm.complete_json(system=_SYSTEM, user=user)
