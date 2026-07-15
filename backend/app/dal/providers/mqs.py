@@ -94,8 +94,8 @@ _ENTITY_LIST_KEYS = (
 _LAYER_LIST_KEYS = ("layers_list", "LayersList", "layers", "Layers")
 _ENTITY_ID_KEYS = ("id", "entityId", "entity_id", "Id")
 _PROPERTY_LIST_KEYS = (
-    "property_list", "propertyList", "PropertyList", "Property_List",
-    "properties", "Properties",
+    "property_list", "PropertiesList", "PropertyList", "Property_List",
+    "properties_list", "PropertiesList",
 )
 _PROPERTY_NAME_KEYS = (
     "name", "Name", "key", "Key", "field", "fieldName", "FieldName",
@@ -163,9 +163,6 @@ def _first_key(entity: dict, keys: Tuple[str, ...]) -> Optional[object]:
 
 
 def _find_list(payload: object, keys: Tuple[str, ...]) -> Optional[List[dict]]:
-    """Find a list of dicts in common MQS/ASP.NET response envelopes, or a
-    bare array. Returning None (rather than []) lets callers distinguish
-    an unrecognized shape from a genuinely empty result."""
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
     if isinstance(payload, dict):
@@ -390,7 +387,6 @@ class MqsProvider:
         self._transport = transport  # tests inject httpx.MockTransport
         self._mirror = mirror
         self._detail_concurrency = max(1, detail_concurrency)
-        self._data_endpoint_support: Dict[str, bool] = {}
 
     # -- Provider protocol ---------------------------------------------------
 
@@ -541,22 +537,16 @@ class MqsProvider:
         return count
 
     def _iter_snapshot_entities(self, client, layer_id):
-        if self._data_endpoint_support.get(layer_id) is False:
-            yield from self._iter_all_entities(
-                client, layer_id, max_features=None)
-            return
         params = self._data_page_params()
         fetched = False
         while True:
             page = self._data_entities_page(client, layer_id, params)
             if page is None and not fetched:
-                self._data_endpoint_support[layer_id] = False
                 yield from self._iter_all_entities(
                     client, layer_id, max_features=None)
                 return
             if page is None:
                 raise ProviderError("MQS Data endpoint disappeared during pagination")
-            self._data_endpoint_support[layer_id] = True
             entities, next_page = page
             fetched = True
             yield from entities

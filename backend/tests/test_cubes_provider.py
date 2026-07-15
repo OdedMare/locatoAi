@@ -332,6 +332,48 @@ def test_capped_result_without_boundary_returns_rows_as_is(tmp_path):
     assert set(features["id"]) == {"one", "two"}
 
 
+def test_capped_result_without_boundary_chunks_by_time_window(tmp_path):
+    """No geometry but a real absolute {From, To} match window (match_not
+    mode) — a capped response is recovered by bisecting the time window,
+    same idea as spatial chunking but along the time axis."""
+    rows = [
+        record("morning", "POINT (34.78 32.08)"),
+        record("evening", "POINT (34.79 32.09)"),
+    ]
+    requests = []
+    full_from, full_to = "2024-11-26T00:00:00.000Z", "2024-11-26T23:59:59.000Z"
+
+    def handler(request):
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "ResultsLimit": 1, "Parameters": [], "Fields": [],
+            })
+        window = json.loads(request.content)["eventTime.match"]
+        # First half of the day → "morning", second half → "evening".
+        if window["To"] <= "2024-11-26T12:00:00.000Z":
+            matching = [rows[0]]
+        else:
+            matching = [rows[1]]
+        return httpx.Response(200, json=matching)
+
+    store = RuntimeSettingsStore(Settings(
+        _env_file=None,
+        runtime_settings_file=str(tmp_path / "runtime-settings.json"),
+        cubes_base_url="https://cubes.test",
+        cubes_token="jwt",
+    ))
+    provider = CubesProvider(store, httpx.MockTransport(handler))
+
+    features = provider.fetch_features(
+        layer("cubes://db/transport?query_mode=match_not"),
+        temporal_range=(full_from, full_to),
+    )
+
+    assert set(features["id"]) == {"morning", "evening"}
+    assert len([r for r in requests if r.method == "POST"]) == 3  # 1 capped + 2 halves
+
+
 def test_sample_field_values(tmp_path):
     provider, _ = make_provider(tmp_path, [
         record("bus-1"), record("bus-2"), record("bus-1")
