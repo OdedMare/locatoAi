@@ -22,7 +22,8 @@ def frame(names, geometries):
 def context(subject, targets):
     return SimpleNamespace(
         results={"input": subject},
-        load_layer_features=lambda layer_id: targets[layer_id],
+        load_layer_features=lambda layer_id, geometry_hint=None: targets[layer_id],
+        proximity_geometry=lambda distance_m: None,
     )
 
 
@@ -96,3 +97,33 @@ def test_between_uses_meter_corridor_between_two_references():
 
     assert list(result["name"]) == ["between"]
     assert "100" in result.iloc[0]["match_reason"]
+
+
+def test_between_buffers_target_fetches_by_corridor_width():
+    """Both reference layers must be fetched using a geometry hint buffered
+    by corridor_width_m — avoids pulling the whole target layer for large
+    MQS/Cubes layers when only a narrow corridor around the request matters."""
+    subject = frame(["between"], [Point(34.005, 32.0)])
+    first = frame(["a"], [Point(34.0, 32.0)])
+    second = frame(["b"], [Point(34.01, 32.0)])
+    step = BetweenStep(
+        id="b", op="between", input="input",
+        first_target_layer="first", second_target_layer="second",
+        corridor_width_m=250,
+    )
+
+    calls = []
+    ctx = SimpleNamespace(
+        results={"input": subject},
+        load_layer_features=lambda layer_id, geometry_hint=None: (
+            calls.append((layer_id, geometry_hint)), {"first": first, "second": second}[layer_id]
+        )[1],
+        proximity_geometry=lambda distance_m: f"buffered:{distance_m}",
+    )
+
+    BetweenOp().run(step, ctx)
+
+    assert calls == [
+        ("first", "buffered:250.0"),
+        ("second", "buffered:250.0"),
+    ]

@@ -8,5 +8,5 @@ class AttributeFilterStep(BaseModel):
     op: Literal["attribute_filter"]
     input: str
     field: str
-    operator: Literal["eq", "neq", "gt", "lt", "contains"]
+    operator: Literal["eq", "neq", "gt", "lt", "contains", "fuzzy_contains"]
     value: Union[str, float]
