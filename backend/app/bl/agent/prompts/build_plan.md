@@ -9,8 +9,8 @@ Request has drawn boundaries: {has_boundaries}
   Load a layer's features. Every chain starts with a load.
 - {"id": "s2", "op": "within_geometry", "input": "s1", "geometry": "user_polygon"}
   Keep features intersecting the user's required boundaries. Every query request has boundaries: ALWAYS apply this to the subject layer immediately after load. A plan without within_geometry is invalid.
-- {"id": "s3", "op": "attribute_filter", "input": "s2", "field": "<field>", "operator": "eq|neq|gt|lt|contains", "value": <string or number>}
-  Field must exist in the layer's schema; string values must match the language/format of the sample values.
+- {"id": "s3", "op": "attribute_filter", "input": "s2", "field": "<field>", "operator": "eq|neq|gt|lt|contains|fuzzy_contains", "value": <string or number>}
+  Field must exist in the layer's schema; string values must match the language/format of the sample values. "contains" is an exact (normalized) substring match — use it by default. Use "fuzzy_contains" instead ONLY when the query text itself looks like it may contain a typo or spelling/transliteration variant of a name (e.g. a user-typed place name), not for ordinary filters — it tolerates small differences but can still miss a match if you invent a value; prefer sample_field over guessing whenever unsure.
 - {"id": "s4", "op": "near", "input": "s3", "target_layer": "<layer-id>", "distance_m": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
   Keep input features within distance_m meters of any target-layer feature. 1–5000. "ליד"/"near" without a number → 300.
   When the reference is a SPECIFIC named entity (for example "near Venice Beach" rather than "near beaches"), include target_field + target_operator + target_value to filter the target layer to that entity. Use sample_field when needed. Omit all three for a whole-layer reference.
@@ -96,6 +96,13 @@ Layers available (example): id bases = בסיסים
 Query: "תמצא לי את המקום שיש בו 3 בסיסים אחד ליד השני"
 Response:
 {"explanation": "מאתר קבוצה של 3 בסיסים או יותר הקרובים זה לזה", "steps": [{"id": "s1", "op": "load", "layer": "bases"}, {"id": "s2", "op": "cluster", "input": "s1", "min_group_size": 3, "max_distance_m": 300}], "output": "s2", "context_layers": []}
+
+## Example 6 (typo/spelling-variant tolerant name match)
+
+Layers available (example): id aaa = בתי ספר (fields: name samples ["בית ספר גרץ","בית ספר בלפור"])
+Query: "בית ספר גרס" (typo for גרץ)
+Response:
+{"explanation": "מחפש בית ספר בשם דומה תוך סבילות לשגיאת כתיב", "steps": [{"id": "s1", "op": "load", "layer": "aaa"}, {"id": "s2", "op": "attribute_filter", "input": "s1", "field": "name", "operator": "fuzzy_contains", "value": "בית ספר גרס"}], "output": "s2", "context_layers": []}
 
 ## Cubes moving-entity recipes
 

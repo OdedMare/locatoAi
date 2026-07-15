@@ -57,6 +57,46 @@ def test_attribute_filter_contains_hebrew(executor):
     assert len(result) == 2
 
 
+def test_attribute_filter_contains_ignores_niqqud_and_punctuation(executor):
+    """Normalization is applied before "contains" — a query written with
+    niqqud/gershayim still matches plain stored text (and vice versa)."""
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "name", "operator": "contains", "value": "עירוני ד׳"},
+    ], "s2")
+    assert list(result["name"]) == ["עירוני ד'"]
+
+
+def test_attribute_filter_fuzzy_contains_tolerates_a_typo(executor):
+    """A one-letter typo (ץ→ס) still matches via fuzzy_contains, but not
+    via the exact "contains" operator — proves the two are distinct."""
+    typo_query = "בית ספר גרס"  # real name: בית ספר גרץ
+
+    fuzzy = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "name", "operator": "fuzzy_contains", "value": typo_query},
+    ], "s2")
+    assert "בית ספר גרץ" in list(fuzzy["name"])
+
+    exact = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "name", "operator": "contains", "value": typo_query},
+    ], "s2")
+    assert exact.empty
+
+
+def test_attribute_filter_fuzzy_contains_rejects_unrelated_text(executor):
+    result = run_steps(executor, [
+        {"id": "s1", "op": "load", "layer": "schools"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "name", "operator": "fuzzy_contains", "value": "מקום שלא קיים בכלל"},
+    ], "s2")
+    assert result.empty
+
+
 def test_within_geometry(executor):
     result = run_steps(executor, [
         {"id": "s1", "op": "load", "layer": "schools"},
