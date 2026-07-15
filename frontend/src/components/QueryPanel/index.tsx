@@ -5,7 +5,10 @@ import GeographyControls from "@/components/GeographyControls";
 import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
-import { Layers, Map, MessageSquarePlus, Moon, PanelLeft, Settings, Sparkles, Sun } from "lucide-react";
+import {
+  Activity, Ambulance, Bus, Clock3, Layers, MapPin, MessageSquarePlus,
+  Moon, Navigation, PanelLeft, Radar, Settings, Sparkles, Sun,
+} from "lucide-react";
 import type {
   GeographyMode,
   GeoQueryRequest,
@@ -22,12 +25,41 @@ interface QueryPanelProps {
   isSubmitting: boolean;
   lastRequest: GeoQueryRequest | null;
   lastResponse: GeoQueryResponse | null;
+  lastDisplayQuery: string;
+  history: Array<{
+    request: GeoQueryRequest;
+    response: GeoQueryResponse;
+    displayQuery: string;
+  }>;
   onOpenSettings: () => void;
   onOpenLayers: () => void;
   onNewChat: () => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
 }
+
+const STARTER_QUERIES = [
+  {
+    icon: Ambulance,
+    label: "כוחות קרובים",
+    text: "מצא לי את שני האמבולנסים הקרובים ביותר באזור",
+  },
+  {
+    icon: Bus,
+    label: "ניתוח תנועה",
+    text: "מצא אוטובוסים שנסעו מצפון לדרום בשעה האחרונה",
+  },
+  {
+    icon: MapPin,
+    label: "חיפוש מקום",
+    text: "מצא בתי כנסת לפי שם וסוג באזור המפה",
+  },
+  {
+    icon: Navigation,
+    label: "קרבה מרחבית",
+    text: "מצא כלי רכב שהיו ליד בית כנסת בשעה האחרונה",
+  },
+];
 
 /** Left-hand panel: query input, geography controls, run button, debug + results. */
 export default function QueryPanel({
@@ -40,6 +72,8 @@ export default function QueryPanel({
   isSubmitting,
   lastRequest,
   lastResponse,
+  lastDisplayQuery,
+  history,
   onOpenSettings,
   onOpenLayers,
   onNewChat,
@@ -56,16 +90,22 @@ export default function QueryPanel({
     <aside className="query-panel">
       <nav className="chat-sidebar" aria-label="ניווט באפליקציה">
         <div className="chat-brand">
-          <span className="chat-brand-mark"><Map size={18} /></span>
-          <span>LocatoAI</span>
+          <span className="chat-brand-mark"><Radar size={18} /></span>
+          <span>LOCATO<span className="brand-ai">AI</span></span>
           <PanelLeft size={17} className="chat-sidebar-collapse" />
         </div>
+        <div className="workspace-chip"><span /> מרחב מבצעי חי</div>
         <button type="button" className="new-chat-button" onClick={onNewChat}>
           <MessageSquarePlus size={17} />
           שאילתה חדשה
         </button>
         <p className="chat-sidebar-label">היום</p>
-        {lastRequest && <div className="chat-history-item">{lastRequest.query}</div>}
+        {history.slice(-4).map((turn, index) => (
+          <div key={`${turn.displayQuery}-${index}`} className="chat-history-item">
+            {turn.displayQuery}
+          </div>
+        ))}
+        {lastRequest && <div className="chat-history-item active">{lastDisplayQuery}</div>}
         <button
           type="button"
           className="chat-settings-button chat-sidebar-bottom"
@@ -97,7 +137,10 @@ export default function QueryPanel({
       <section className="chat-main">
         <header className="query-panel-header">
           <div className="header-row">
-            <h1>LocatoAI <span className="model-pill">עוזר גיאוגרפי</span></h1>
+            <div>
+              <h1>מרכז חקירה <span className="model-pill"><Activity size={10} /> LIVE</span></h1>
+              <p className="header-context">מודיעין גיאוגרפי מבוסס סוכן</p>
+            </div>
           <button
             type="button"
             className="settings-button"
@@ -113,15 +156,45 @@ export default function QueryPanel({
         <div className="query-panel-body">
           {!lastRequest && !isSubmitting ? (
             <div className="chat-welcome">
-              <span className="welcome-mark"><Sparkles size={25} /></span>
-              <h2>איך אפשר לעזור לכם לחקור את המפה?</h2>
-              <p>שאלו בשפה טבעית על מקומות, קשרים, מרחקים או אירועים.</p>
+              <div className="welcome-visual">
+                <span className="welcome-orbit orbit-one" />
+                <span className="welcome-orbit orbit-two" />
+                <span className="welcome-mark"><Radar size={27} /></span>
+              </div>
+              <span className="welcome-eyebrow"><Sparkles size={12} /> GEO AGENT ONLINE</span>
+              <h2>מה תרצו לגלות על המרחב?</h2>
+              <p>חברו בין מיקומים, זמן ותנועה. הסוכן יבחר שכבות, יבנה תוכנית ויציג את התוצאה על המפה.</p>
+              <div className="starter-grid">
+                {STARTER_QUERIES.map(({ icon: Icon, label, text }) => (
+                  <button key={label} type="button" onClick={() => onQueryTextChange(text)}>
+                    <span className="starter-icon"><Icon size={16} /></span>
+                    <span><strong>{label}</strong><small>{text}</small></span>
+                    <span className="starter-arrow">←</span>
+                  </button>
+                ))}
+              </div>
+              <div className="capability-strip">
+                <span><Radar size={12} /> ניתוח מרחבי</span>
+                <span><Clock3 size={12} /> נתוני זמן אמת</span>
+                <span><Layers size={12} /> מקורות מרובים</span>
+              </div>
             </div>
           ) : (
             <div className="chat-conversation">
+              {history.map((turn, index) => (
+                <div className="chat-turn" key={`${turn.displayQuery}-${index}`}>
+                  <div className="chat-message user-message" dir="auto">{turn.displayQuery}</div>
+                  <div className="assistant-message compact-turn">
+                    <span className="assistant-avatar"><Sparkles size={14} /></span>
+                    <div className="assistant-content">
+                      <ResultsPanel response={turn.response} />
+                    </div>
+                  </div>
+                </div>
+              ))}
               {lastRequest && (
                 <div className="chat-message user-message" dir="auto">
-                  {lastRequest.query}
+                  {lastDisplayQuery}
                 </div>
               )}
               <div className="assistant-message">

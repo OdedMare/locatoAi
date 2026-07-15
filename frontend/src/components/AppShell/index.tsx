@@ -34,6 +34,12 @@ export default function AppShell() {
   const [mapView, setMapView] = useState<MapViewState>(INITIAL_VIEW);
   const [lastRequest, setLastRequest] = useState<GeoQueryRequest | null>(null);
   const [lastResponse, setLastResponse] = useState<GeoQueryResponse | null>(null);
+  const [lastDisplayQuery, setLastDisplayQuery] = useState("");
+  const [history, setHistory] = useState<Array<{
+    request: GeoQueryRequest;
+    response: GeoQueryResponse;
+    displayQuery: string;
+  }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayersOpen, setIsLayersOpen] = useState(false);
@@ -70,6 +76,8 @@ export default function AppShell() {
     setDrawnGeometry(null);
     setLastRequest(null);
     setLastResponse(null);
+    setLastDisplayQuery("");
+    setHistory([]);
   }, []);
 
   /** Build the backend request — exactly {query, boundaries}. */
@@ -86,8 +94,22 @@ export default function AppShell() {
   const handleRunQuery = async () => {
     const needsDrawing = geographyMode === "polygon" || geographyMode === "rectangle";
     if (!queryText.trim() || isSubmitting || (needsDrawing && !drawnGeometry)) return;
+    if (lastRequest && lastResponse) {
+      setHistory((turns) => [...turns, {
+        request: lastRequest,
+        response: lastResponse,
+        displayQuery: lastDisplayQuery,
+      }].slice(-8));
+    }
+    const displayQuery = queryText.trim();
     const request = buildRequest();
+    if (lastResponse?.status === "clarify" && lastRequest) {
+      request.query = `${lastRequest.query}\nUser clarification: ${displayQuery}`;
+    }
+    setLastDisplayQuery(displayQuery);
     setLastRequest(request);
+    setLastResponse(null);
+    setQueryText("");
     setIsSubmitting(true);
     try {
       const response = await submitQuery(request);
@@ -109,6 +131,8 @@ export default function AppShell() {
         isSubmitting={isSubmitting}
         lastRequest={lastRequest}
         lastResponse={lastResponse}
+        lastDisplayQuery={lastDisplayQuery}
+        history={history}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenLayers={() => setIsLayersOpen(true)}
         onNewChat={handleNewChat}
@@ -128,6 +152,7 @@ export default function AppShell() {
         onViewChange={setMapView}
         onGeometryDrawn={handleGeometryDrawn}
         initialView={INITIAL_VIEW}
+        view={mapView}
       />
     </div>
   );

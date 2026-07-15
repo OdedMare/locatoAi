@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.bl.agent.build_plan import PlanBuilder
+from app.bl.agent.build_plan.plan_builder import PlanBuilder
 from app.bl.agent.generate_layer_metadata import LayerMetadataGenerator
 from app.bl.agent.select_layers import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService

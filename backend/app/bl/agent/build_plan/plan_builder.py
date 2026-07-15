@@ -11,13 +11,15 @@ clarify. Both attempts are visible in `attempts`.
 
 import json
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
 from pydantic import ValidationError
 
+from app.bl.agent.build_plan.plan_build_result import PlanBuildResult
+from app.bl.agent.build_plan.preserves_constraints import preserves_constraints
+from app.bl.agent.build_plan.usage_accumulator import UsageAccumulator
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
@@ -26,7 +28,7 @@ from app.bl.ports.layer_schema import LayerSchema
 from app.bl.ports.llm_client import LLMClient
 from app.common.errors.plan_validation_error import PlanValidationError
 
-_PROMPT_PATH = Path(__file__).parent / "prompts" / "build_plan.md"
+_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "build_plan.md"
 logger = logging.getLogger(__name__)
 
 # Clarify is ALWAYS Hebrew (product decision, same as selection).
@@ -46,44 +48,6 @@ _TOOL_NAME = "sample_field"
 _MAX_TOOL_ROUNDS = 3
 _SAMPLE_LIMIT = 20
 _MAX_SAMPLE_CHARS = 40
-
-_CONSTRAINT_FIELDS = {
-    "attribute_filter": ("field", "operator", "value"),
-    "near": ("target_layer", "distance_m", "target_field", "target_operator", "target_value"),
-    "nearest_n": ("target_layer", "count", "target_field", "target_operator", "target_value"),
-    "near_all": ("targets", "distance_m", "count"),
-    "between": ("first_target_layer", "second_target_layer", "corridor_width_m"),
-    "temporal_filter": ("from", "to"),
-    "cluster": ("min_group_size", "max_distance_m"),
-    "movement_direction": ("direction", "entity_field", "time_field", "min_distance_m"),
-    "latest_per_entity": ("entity_field", "time_field"),
-    "within_geometry": ("geometry",),
-}
-
-
-def preserves_constraints(original: GeoQueryPlan, revised: GeoQueryPlan) -> bool:
-    def signatures(plan: GeoQueryPlan):
-        result = []
-        for step in plan.steps:
-            fields = _CONSTRAINT_FIELDS.get(step.op)
-            if fields:
-                data = step.model_dump(by_alias=True)
-                result.append((step.op, tuple(json.dumps(data.get(name), sort_keys=True,
-                                                         ensure_ascii=False)
-                                              for name in fields)))
-        return result
-    revised_signatures = signatures(revised)
-    return all(signature in revised_signatures for signature in signatures(original))
-
-
-@dataclass
-class PlanBuildResult:
-    plan: Optional[GeoQueryPlan] = None
-    clarify: Optional[str] = None
-    attempts: int = 0
-    token_usage: Optional[Dict[str, int]] = None
-    tool_calls: List[Dict[str, str]] = field(default_factory=list)
-    """sample_field rounds the model requested ({layer_id, field} each)."""
 
 
 class PlanBuilder:
@@ -107,7 +71,7 @@ class PlanBuilder:
         selected_ids = {layer.id for layer in layers}
 
         user = query.strip()
-        usage = _UsageAccumulator()
+        usage = UsageAccumulator()
         tool_notes: List[str] = []
         tool_calls: List[Dict[str, str]] = []
         attempt = 0
@@ -247,18 +211,3 @@ class PlanBuilder:
                 text += " samples: " + json.dumps(field.samples[:5], ensure_ascii=False)
             parts.append(text)
         return "; ".join(parts)
-
-
-class _UsageAccumulator:
-    """Sums token usage across build attempts."""
-
-    def __init__(self) -> None:
-        self.total: Optional[Dict[str, int]] = None
-
-    def add(self, usage) -> None:
-        if not isinstance(usage, dict):
-            return
-        if self.total is None:
-            self.total = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-        for key in self.total:
-            self.total[key] += int(usage.get(key, 0))
