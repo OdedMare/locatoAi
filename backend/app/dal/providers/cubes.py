@@ -23,6 +23,7 @@ _SCHEMA_SAMPLE_LIMIT = 100
 _MAX_FIELD_SAMPLES = 5
 _MAX_SAMPLE_CHARS = 80
 _TIME_FIELD_NAMES = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
+_PARAMETER_OPERATORS = ("match", "not")
 
 
 def cubes_database_name(layer: LayerMeta) -> str:
@@ -53,21 +54,41 @@ def _records(payload: object) -> List[dict]:
     raise ProviderError("Cubes returned an unrecognized response shape")
 
 
+def _parameter_parts(name: str) -> tuple[str, Optional[str]]:
+    base, separator, operator = name.rpartition(".")
+    if separator and operator.lower() in _PARAMETER_OPERATORS:
+        return base, operator.lower()
+    return name, None
+
+
+def _parameter_key(base: str, operator: str) -> str:
+    return base if operator == "match" else f"{base}.not"
+
+
+def _declared_parameter_keys(parameters: List[LayerParameter]) -> set[str]:
+    keys = set()
+    for parameter in parameters or []:
+        base, operator = _parameter_parts(parameter.name)
+        operators = (operator,) if operator else _PARAMETER_OPERATORS
+        keys.update(_parameter_key(base, item) for item in operators)
+    return keys
+
+
 def _query_body(geometry: Optional[BaseGeometry],
                 parameters: Optional[List[LayerParameter]] = None) -> dict:
-    known = {
+    time_values = {
         "eventTime": {"TimeBackUnit": "hour", "TimeBackValue": 1},
-        "eventTime.not": {"TimeBackUnit": "hour", "TimeBackValue": 1},
         "arriveTime": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
-        "arriveTime.not": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
     }
-    declared = {parameter.name for parameter in parameters or []}
-    body = dict(known) if not parameters else {
-        name: value for name, value in known.items()
-        if name.removesuffix(".not") in declared
-    }
+    known = {key: value.copy() for base, value in time_values.items()
+             for key in (base, f"{base}.not")}
+    allowed = _declared_parameter_keys(parameters or [])
+    body = known if not parameters else {key: value for key, value in known.items()
+                                         if key in allowed}
     for parameter in parameters or []:
-        if parameter.required and parameter.name not in body:
+        base, operator = _parameter_parts(parameter.name)
+        required_keys = [_parameter_key(base, operator or "match")]
+        if parameter.required and not any(key in body for key in required_keys):
             raise ProviderError(
                 f"Cubes parameter '{parameter.name}' is required and has no configured value"
             )

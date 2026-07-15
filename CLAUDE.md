@@ -18,7 +18,8 @@ payload. The Layers UI accepts a bare database name; the backend canonicalizes i
 `cubes://db/<dbname>`. `CubesProvider` reads `GET /cube/v1/{cubeName}` and falls back to
 `GET /cube/v1/{cubeName}/parameters`, merges declared fields with sampled response fields,
 and gives the official cube name/description, parameter options, and entity samples to
-`LayerMetadataGenerator`. Never hardcode the response field list.
+`LayerMetadataGenerator`. Cubes parameter operators normalize `<name>.match` to `<name>`
+and preserve `<name>.not`; a plain name enables both. Never hardcode the response field list.
 
 ## Commands
 

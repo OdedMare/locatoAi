@@ -205,6 +205,31 @@ def test_rejects_unknown_required_parameter_instead_of_guessing(tmp_path):
         provider.fetch_features(layer())
 
 
+def test_match_and_not_parameter_names_map_to_request_operators(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [
+                    {"Name": "eventTime.match", "IsRequired": True,
+                     "IsSingleValue": True, "Type": "DateTime"},
+                    {"Name": "arriveTime.not", "IsRequired": True,
+                     "IsSingleValue": True, "Type": "DateTime"},
+                ],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    boundary = box(34.7, 32.0, 34.9, 32.2)
+    provider.fetch_features(layer(), geometry=boundary)
+    body = json.loads(posted_request(handler).content)
+    assert set(body) == {"eventTime", "arriveTime.not"}
+    assert body["arriveTime.not"]["Location"] == boundary.wkt
+
+
 def test_sample_field_values(tmp_path):
     provider, _ = make_provider(tmp_path, [
         record("bus-1"), record("bus-2"), record("bus-1")

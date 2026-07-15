@@ -282,7 +282,9 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   It posts the supported one-hour payload to `/cube/v1/<dbname>`, sends the write-only
   Authorization token, and converts WKT POINT geometry to WGS84. Declared fields are
   merged with every non-geometry JSON key discovered dynamically; types, samples, and
-  the temporal field are inferred and cached. User geometry is
+  the temporal field are inferred and cached. Special parameter names are normalized:
+  `<name>.match` is sent as `<name>`, `<name>.not` remains `<name>.not`, and an
+  unsuffixed parameter supports both operators. User geometry is
   sent as `arriveTime.not.Location`; local executor filtering remains authoritative.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
