@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, CheckCircle2, Database, MapPinned, SearchX } from "lucide-react";
 import type { GeoQueryResponse } from "@/types/geo-query";
 
 interface ResultsPanelProps {
@@ -20,7 +21,7 @@ function ResultsTable({ response }: { response: GeoQueryResponse }) {
   const features = response.features?.features ?? [];
   if (features.length === 0) {
     return (
-      <p className="panel-placeholder">לא נמצאו תוצאות מתאימות לשאילתה.</p>
+      <div className="result-state empty"><SearchX size={20} /><span>לא נמצאו תוצאות מתאימות לשאילתה.</span></div>
     );
   }
 
@@ -43,13 +44,16 @@ function ResultsTable({ response }: { response: GeoQueryResponse }) {
 
   return (
     <div dir="auto">
-      <p className="panel-placeholder">
-        ✅ נמצאו {features.length} תוצאות (מסומנות על המפה):
-      </p>
+      <div className="results-summary">
+        <span className="results-summary-icon"><MapPinned size={17} /></span>
+        <span><strong>{features.length} תוצאות</strong><small>מוצגות ומסומנות על המפה</small></span>
+        <span className="results-live"><i /> LIVE</span>
+      </div>
       <div className="results-table-scroll">
         <table className="results-table">
           <thead>
             <tr>
+              <th className="result-index">#</th>
               {columns.map((col) => (
                 <th key={col} dir="ltr">{col}</th>
               ))}
@@ -59,11 +63,12 @@ function ResultsTable({ response }: { response: GeoQueryResponse }) {
           <tbody>
             {visibleRows.map((row, i) => (
               <tr key={i}>
+                <td className="result-index"><span>{i + 1}</span></td>
                 {columns.map((col) => (
                   <td key={col}>{formatValue(row[col])}</td>
                 ))}
                 {hasDistance && (
-                  <td dir="ltr">
+                  <td dir="ltr" className="distance-cell">
                     {typeof row[DISTANCE_FIELD] === "number"
                       ? `${Math.round(row[DISTANCE_FIELD] as number)} מ'`
                       : "—"}
@@ -91,7 +96,7 @@ export default function ResultsPanel({ response }: ResultsPanelProps) {
   return (
     <section className="results-panel">
       <header className="panel-section-header">
-        <h2>תוצאות</h2>
+        <h2><Database size={13} /> תוצאות</h2>
       </header>
       {response === null ? (
         <p className="panel-placeholder">
@@ -108,14 +113,13 @@ export default function ResultsPanel({ response }: ResultsPanelProps) {
           </p>
         )
       ) : response.status === "error" ? (
-        <p className="panel-placeholder">
-          ⚠️ הבקשה נכשלה{response.clarify ? ` — ${response.clarify}` : ""}.
-          האם השרת פועל בפורט 8000?
-        </p>
+        <div className="result-state error"><AlertTriangle size={20} /><span>
+          הבקשה נכשלה{response.clarify ? ` — ${response.clarify}` : ""}.
+        </span></div>
       ) : response.scalar_result !== null ? (
-        <p className="panel-placeholder" dir="auto">
-          ✅ נמצאו {response.scalar_result} תוצאות
-        </p>
+        <div className="result-state success" dir="auto"><CheckCircle2 size={20} />
+          <span><strong>{response.scalar_result}</strong> תוצאות נמצאו</span>
+        </div>
       ) : (
         <ResultsTable response={response} />
       )}

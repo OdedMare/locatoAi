@@ -58,6 +58,16 @@ const STAGE_HE: Record<string, string> = {
   response: "הכנת תשובה",
 };
 
+const OP_HE: Record<string, string> = {
+  load: "טעינת נתונים", within_geometry: "תחום גיאוגרפי",
+  attribute_filter: "סינון מאפיינים", near: "בדיקת קרבה",
+  nearest_n: "הקרובים ביותר", near_all: "קרבה למספר יעדים",
+  between: "בין יעדים", crosses: "חצייה", touches: "נגיעה",
+  contains: "הכלה", directional: "כיוון", temporal_filter: "טווח זמן",
+  cluster: "קיבוץ", latest_per_entity: "מיקום אחרון",
+  movement_direction: "כיוון תנועה", count: "ספירה",
+};
+
 function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
   const trace = response.pipeline_trace ?? [];
   if (trace.length === 0) return null;
@@ -228,9 +238,14 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
             <div className="plan-trace" dir="auto">
               <p className="agent-step done">✓ תוכנית השאילתה שנבנתה:</p>
               <ol className="plan-steps">
-                {response!.plan.steps.map((step) => (
-                  <li key={step.id} className="plan-step">
-                    {describeStep(step, layerName)}
+                {response!.plan.steps.map((step, index) => (
+                  <li key={step.id} className="plan-step query-plan-step">
+                    <span className="plan-step-index">{index + 1}</span>
+                    <span className="plan-step-content">
+                      <strong>{OP_HE[step.op] ?? step.op}</strong>
+                      <small>{describeStep(step, layerName)}</small>
+                    </span>
+                    <code>{step.op}</code>
                   </li>
                 ))}
               </ol>

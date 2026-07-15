@@ -38,11 +38,41 @@ const INTERNAL_PROPERTIES = new Set([
 
 function popupContent(feature: GeoJSON.Feature, title: string): HTMLElement {
   const root = document.createElement("div");
+  root.className = "entity-popup";
+  const properties = feature.properties ?? {};
+  const displayName = ["שם", "name", "Name", "title", "callSign", "netId", "id"]
+    .map((key) => properties[key])
+    .find((value) => value != null && String(value).trim());
+  const header = document.createElement("div");
+  header.className = "entity-popup-header";
+  const marker = document.createElement("span");
+  marker.className = title === "ישות ייחוס" ? "entity-kind target" : "entity-kind";
+  marker.textContent = title === "ישות ייחוס" ? "ייחוס" : "תוצאה";
   const heading = document.createElement("strong");
-  heading.textContent = title;
-  root.appendChild(heading);
+  heading.textContent = displayName ? String(displayName) : title;
+  const subheading = document.createElement("small");
+  subheading.textContent = title;
+  const headingGroup = document.createElement("div");
+  headingGroup.append(heading, subheading);
+  header.append(marker, headingGroup);
+  root.appendChild(header);
+
+  if (feature.geometry?.type === "Point") {
+    const [lng, lat] = feature.geometry.coordinates;
+    const coordinates = document.createElement("button");
+    coordinates.type = "button";
+    coordinates.className = "entity-coordinates";
+    coordinates.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}  ⧉`;
+    coordinates.title = "העתקת קואורדינטות";
+    coordinates.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      coordinates.textContent = "הועתק ✓";
+    });
+    root.appendChild(coordinates);
+  }
+
   const list = document.createElement("dl");
-  Object.entries(feature.properties ?? {}).forEach(([key, value]) => {
+  Object.entries(properties).forEach(([key, value]) => {
     if (INTERNAL_PROPERTIES.has(key)) return;
     const term = document.createElement("dt");
     term.textContent = key;
@@ -81,7 +111,11 @@ export default function MapResults({ features }: MapResultsProps) {
       pointToLayer: (_feature, latlng) => L.circleMarker(latlng, POINT_STYLE),
       style: () => SHAPE_STYLE,
       onEachFeature: (feature, featureLayer) => {
-        featureLayer.bindPopup(popupContent(feature, "ישות שנמצאה"));
+        featureLayer.bindPopup(popupContent(feature, "ישות שנמצאה"), {
+          className: "entity-popup-shell",
+          maxWidth: 360,
+          minWidth: 260,
+        });
 
         const nearestTarget = feature.properties?.nearest_target_feature as
           | GeoJSON.Feature
@@ -97,9 +131,11 @@ export default function MapResults({ features }: MapResultsProps) {
               L.circleMarker(latlng, TARGET_STYLE),
             style: { color: "#1d4ed8", weight: 2, fillOpacity: 0.12 },
             onEachFeature: (targetFeature, targetFeatureLayer) => {
-              targetFeatureLayer.bindPopup(
-                popupContent(targetFeature, "ישות ייחוס")
-              );
+              targetFeatureLayer.bindPopup(popupContent(targetFeature, "ישות ייחוס"), {
+                className: "entity-popup-shell",
+                maxWidth: 360,
+                minWidth: 260,
+              });
             },
           });
           targetLayer.eachLayer((item) => {
