@@ -24,8 +24,10 @@ class SettingsUpdate(BaseModel):
     openai_api_key: Optional[str] = None  # empty/omitted = keep current
     mqs_base_url: Optional[str] = None
     mqs_user_id: Optional[str] = None
+    mqs_verify_tls: Optional[bool] = None
     cubes_base_url: Optional[str] = None
     cubes_token: Optional[str] = None  # empty/omitted = keep current
+    cubes_verify_tls: Optional[bool] = None
     database_url: Optional[str] = None
     database_user: Optional[str] = None
     database_password: Optional[str] = None  # empty/omitted = keep current
@@ -49,8 +51,10 @@ class SettingsResponse(BaseModel):
     openai_api_key_hint: Optional[str]
     mqs_base_url: Optional[str]
     mqs_user_id: Optional[str]
+    mqs_verify_tls: bool
     cubes_base_url: Optional[str]
     cubes_token_set: bool
+    cubes_verify_tls: bool
     database_url: str
     database_user: str
     database_password_set: bool
@@ -90,8 +94,10 @@ def _to_response(
         openai_api_key_hint=_mask_key(settings.openai_api_key),
         mqs_base_url=settings.mqs_base_url,
         mqs_user_id=settings.mqs_user_id,
+        mqs_verify_tls=settings.mqs_verify_tls,
         cubes_base_url=settings.cubes_base_url,
         cubes_token_set=bool(settings.cubes_token),
+        cubes_verify_tls=settings.cubes_verify_tls,
         database_url=_mask_db_password(settings.database_url),
         database_user=settings.database_user,
         database_password_set=bool(settings.database_password),

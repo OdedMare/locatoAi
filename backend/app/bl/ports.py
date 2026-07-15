@@ -1,7 +1,7 @@
 """Ports (abstract interfaces) the business logic depends on.
 
 DIP: the BL owns these contracts; the DAL implements them. Swapping
-Postgres for another store, or the mock ArcGIS provider for a real one,
+Postgres for another store, or one GIS provider for another,
 must not touch any BL module.
 """
 

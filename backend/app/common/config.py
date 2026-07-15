@@ -57,20 +57,21 @@ class Settings(BaseSettings):
     official Entities doc's example value is "tt/T"). Deployment-specific;
     unset = header omitted."""
 
+    mqs_verify_tls: bool = True
+
     cubes_base_url: Optional[str] = None
     """Base URL hosting /cube/v1/<dbname>."""
 
     cubes_token: str = ""
     """Authorization header value for the Cubes API. Never returned by the API."""
 
+    cubes_verify_tls: bool = True
+
     runtime_settings_file: str = "runtime-settings.json"
     """UI-edited settings are persisted here, overriding the env defaults."""
 
     schema_cache_ttl_seconds: int = 3600
     """Provider schemas are cached this long; a stale schema beats a failed request."""
-
-    data_dir: str = "data"
-    """Directory of mock GeoJSON files served by the mock ArcGIS provider."""
 
     request_log_path: str = "logs/requests.jsonl"
 

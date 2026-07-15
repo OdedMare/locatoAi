@@ -80,8 +80,10 @@ class RuntimeSettings:
     openai_api_key: str
     mqs_base_url: Optional[str]
     mqs_user_id: Optional[str]
+    mqs_verify_tls: bool
     cubes_base_url: Optional[str]
     cubes_token: str
+    cubes_verify_tls: bool
     database_url: str
     database_user: str
     database_password: str
@@ -118,8 +120,10 @@ class RuntimeSettingsStore:
             openai_api_key=env.openai_api_key,
             mqs_base_url=env.mqs_base_url,
             mqs_user_id=env.mqs_user_id,
+            mqs_verify_tls=env.mqs_verify_tls,
             cubes_base_url=env.cubes_base_url,
             cubes_token=env.cubes_token,
+            cubes_verify_tls=env.cubes_verify_tls,
             database_url=env.database_url,
             database_user=env.database_user,
             database_password=env.database_password,

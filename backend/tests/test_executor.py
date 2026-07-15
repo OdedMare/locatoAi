@@ -92,9 +92,9 @@ def test_load_pushes_down_user_geometry_to_provider(executor, providers):
     """load must forward the request's user_geometry to the provider as a
     pushdown hint — regression test for fetching the whole layer and only
     filtering client-side via within_geometry afterwards."""
-    from app.dal.providers.arcgis_mock import MockArcgisProvider
+    from tests.mock_gis_provider import MockGisProvider
 
-    real_provider: MockArcgisProvider = providers.get("arcgis")
+    real_provider: MockGisProvider = providers.get("arcgis")
     calls = []
     original = real_provider.fetch_features
 
@@ -116,9 +116,9 @@ def test_load_pushes_down_user_geometry_to_provider(executor, providers):
 
 def test_load_without_request_geometry_does_not_push_down(executor, providers):
     """No boundaries on the request → load must not invent a geometry filter."""
-    from app.dal.providers.arcgis_mock import MockArcgisProvider
+    from tests.mock_gis_provider import MockGisProvider
 
-    real_provider: MockArcgisProvider = providers.get("arcgis")
+    real_provider: MockGisProvider = providers.get("arcgis")
     calls = []
     original = real_provider.fetch_features
 
@@ -138,9 +138,9 @@ def test_load_without_request_geometry_does_not_push_down(executor, providers):
 def test_near_target_layer_is_not_geometry_scoped(executor, providers):
     """near's target layer must stay unscoped: a target outside the
     viewport can still be the nearest one to an in-viewport feature."""
-    from app.dal.providers.arcgis_mock import MockArcgisProvider
+    from tests.mock_gis_provider import MockGisProvider
 
-    real_provider: MockArcgisProvider = providers.get("arcgis")
+    real_provider: MockGisProvider = providers.get("arcgis")
     calls = {}
     original = real_provider.fetch_features
 

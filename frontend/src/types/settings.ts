@@ -14,8 +14,10 @@ export interface AppSettings {
   openai_api_key_hint: string | null;
   mqs_base_url: string | null;
   mqs_user_id: string | null;
+  mqs_verify_tls: boolean;
   cubes_base_url: string | null;
   cubes_token_set: boolean;
+  cubes_verify_tls: boolean;
   database_url: string;
   database_user: string;
   database_password_set: boolean;
@@ -34,8 +36,10 @@ export interface SettingsUpdate {
   openai_api_key?: string;
   mqs_base_url?: string | null;
   mqs_user_id?: string | null;
+  mqs_verify_tls?: boolean;
   cubes_base_url?: string | null;
   cubes_token?: string;
+  cubes_verify_tls?: boolean;
   database_url?: string;
   database_user?: string;
   database_password?: string;

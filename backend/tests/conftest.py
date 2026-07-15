@@ -8,7 +8,7 @@ import pytest
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine import PlanExecutor
 from app.bl.ports import LayerMeta
-from app.dal.providers.arcgis_mock import MockArcgisProvider
+from tests.mock_gis_provider import MockGisProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -76,7 +76,7 @@ class FakeLayersRepository:
 @pytest.fixture
 def providers() -> InMemoryProviderRegistry:
     registry = InMemoryProviderRegistry()
-    registry.register("arcgis", MockArcgisProvider(DATA_DIR))
+    registry.register("arcgis", MockGisProvider(DATA_DIR))
     return registry
 
 

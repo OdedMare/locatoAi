@@ -20,8 +20,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [baseUrl, setBaseUrl] = useState("");
   const [mqsBaseUrl, setMqsBaseUrl] = useState("");
   const [mqsUserId, setMqsUserId] = useState("");
+  const [mqsVerifyTls, setMqsVerifyTls] = useState(true);
   const [cubesBaseUrl, setCubesBaseUrl] = useState("");
   const [cubesToken, setCubesToken] = useState("");
+  const [cubesVerifyTls, setCubesVerifyTls] = useState(true);
   const [databaseUrl, setDatabaseUrl] = useState("");
   const [databaseUser, setDatabaseUser] = useState("");
   const [databasePassword, setDatabasePassword] = useState("");
@@ -62,7 +64,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setBaseUrl(s.llm_base_url ?? "");
         setMqsBaseUrl(s.mqs_base_url ?? "");
         setMqsUserId(s.mqs_user_id ?? "");
+        setMqsVerifyTls(s.mqs_verify_tls);
         setCubesBaseUrl(s.cubes_base_url ?? "");
+        setCubesVerifyTls(s.cubes_verify_tls);
         setDatabaseUrl(s.database_url ?? "");
         setDatabaseUser(s.database_user ?? "");
         setDatabaseHost(s.database_host ?? "");
@@ -85,8 +89,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         openai_api_key: apiKey, // backend ignores empty
         mqs_base_url: (mqsBaseUrl ?? "").trim() === "" ? null : (mqsBaseUrl ?? "").trim(),
         mqs_user_id: (mqsUserId ?? "").trim() === "" ? null : (mqsUserId ?? "").trim(),
+        mqs_verify_tls: mqsVerifyTls,
         cubes_base_url: (cubesBaseUrl ?? "").trim() === "" ? null : (cubesBaseUrl ?? "").trim(),
         cubes_token: cubesToken, // backend ignores empty
+        cubes_verify_tls: cubesVerifyTls,
         database_url: databaseUrl,
         database_user: (databaseUser ?? "").trim(),
         database_password: databasePassword, // backend ignores empty
@@ -204,6 +210,11 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={cubesToken}
             onChange={(e) => setCubesToken(e.target.value)}
           />
+          <label className="field-label">
+            <input type="checkbox" checked={cubesVerifyTls}
+              onChange={(e) => setCubesVerifyTls(e.target.checked)} />
+            אימות תעודת TLS
+          </label>
           <p className="models-status" dir="auto">
             שכבת קטלוג: provider=cubes, source_url=cubes://db/&lt;dbname&gt;
           </p>
@@ -235,6 +246,11 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={mqsUserId}
             onChange={(e) => setMqsUserId(e.target.value)}
           />
+          <label className="field-label">
+            <input type="checkbox" checked={mqsVerifyTls}
+              onChange={(e) => setMqsVerifyTls(e.target.checked)} />
+            אימות תעודת TLS
+          </label>
         </section>
 
         <section className="settings-section">

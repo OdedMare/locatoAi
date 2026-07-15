@@ -381,7 +381,7 @@ class MqsProvider:
         return httpx.Client(
             base_url=self._base_url(),
             timeout=_TIMEOUT_SECONDS,
-            verify=False,
+            verify=self._store.get().mqs_verify_tls,
             transport=self._transport,
             headers=self._headers(),
         )
