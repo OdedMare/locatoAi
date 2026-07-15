@@ -27,7 +27,7 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 from app.dal.feedback_repository import PostgresFeedbackRepository
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.mqs_mirror_store import PostgresMqsMirrorStore
+from app.dal.mqs_mirror_store import InMemoryMqsMirrorStore
 from app.dal.providers.cubes import CubesProvider
 from app.dal.providers.mqs import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
@@ -70,7 +70,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     repository = PostgresLayersRepository(settings_store)
     feedback_repository = PostgresFeedbackRepository(settings_store)
     providers = InMemoryProviderRegistry()
-    mqs_mirror = PostgresMqsMirrorStore(settings_store)
+    mqs_mirror = InMemoryMqsMirrorStore()
     mqs_provider = MqsProvider(
         settings_store,
         mirror=mqs_mirror if settings.mqs_mirror_enabled else None,

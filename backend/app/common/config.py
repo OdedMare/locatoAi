@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     mqs_verify_tls: bool = True
 
     mqs_mirror_enabled: bool = True
-    """Continuously mirror MQS entities into PostGIS when MQS is configured."""
+    """Continuously mirror compressed MQS entities inside the backend process."""
 
     mqs_mirror_sync_interval_seconds: int = 10
     """Pause between completed MQS mirror scans."""
@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     mqs_mirror_batch_size: int = 10000
     """Number of MQS list entities processed per mirror batch."""
 
-    mqs_mirror_layer_concurrency: int = 2
+    mqs_mirror_layer_concurrency: int = 1
     """Maximum layer snapshots refreshed in parallel."""
 
     mqs_detail_concurrency: int = 16

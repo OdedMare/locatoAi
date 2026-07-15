@@ -439,9 +439,9 @@ class MqsProvider:
         if mirrored is not None:
             return mirrored
         with self._client() as client:
-            entities = list(self._iter_enriched_entities(
-                client, layer_id, geometry=geometry, limit=limit))
-        return self._entities_to_gdf(layer_id, entities)
+            entities = self._iter_enriched_entities(
+                client, layer_id, geometry=geometry, limit=limit)
+            return self._entities_to_gdf(layer_id, entities, geometry)
 
     def _mirrored_features(self, layer_id, geometry, limit):
         if self._mirror is None:
@@ -449,16 +449,22 @@ class MqsProvider:
         try:
             entities = self._mirror.fetch_fresh(
                 layer_id, geometry, self._mirror_max_age, limit)
-            return None if entities is None else self._entities_to_gdf(layer_id, entities)
+            return (None if entities is None
+                    else self._entities_to_gdf(layer_id, entities, geometry))
         except Exception:
             logger.exception("MQS mirror read failed layer=%s; using live MQS", layer_id)
             return None
 
     @staticmethod
-    def _entities_to_gdf(layer_id: str, entities: Iterable[dict]):
-        records = [_entity_to_record(entity) for entity in entities]
-        valid = [record for record in records if record is not None]
-        skipped = len(records) - len(valid)
+    def _entities_to_gdf(layer_id: str, entities: Iterable[dict], geometry=None):
+        valid = []
+        skipped = 0
+        for entity in entities:
+            record = _entity_to_record(entity)
+            if record is None:
+                skipped += 1
+            elif geometry is None or record[0].intersects(geometry):
+                valid.append(record)
         if skipped:
             logger.warning("MQS layer %s skipped %d invalid geometries", layer_id, skipped)
         if not valid:

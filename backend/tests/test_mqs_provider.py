@@ -399,6 +399,22 @@ def test_fetch_features_with_polygon_geometry_posts_geo_polygon(tmp_path):
     assert geo_polygon["values"] == [triangle.wkt]
 
 
+def test_geometry_filter_is_rechecked_when_mqs_ignores_it(tmp_path):
+    """Only polygon matches may enter GeoPandas, even if MQS returns extras."""
+    provider, _ = make_provider(tmp_path, lambda request: {
+        "next_page": None,
+        "entities_list": [
+            entity("inside", wkt_value="POINT (34.78 32.08)", property_list={}),
+            entity("outside", wkt_value="POINT (35.5 33.0)", property_list={}),
+        ],
+    })
+
+    result = provider.fetch_features(
+        mqs_layer(), geometry=box(34.7, 32.0, 34.9, 32.2))
+
+    assert list(result["id"]) == ["inside"]
+
+
 def test_fetch_features_with_geometry_follows_pagination(tmp_path):
     """Spatial pushdown and pagination compose — next_page still followed
     on the POST path."""

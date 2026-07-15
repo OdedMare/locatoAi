@@ -1,19 +1,15 @@
-"""PostGIS read model for the current MQS entity snapshot."""
+"""Compressed in-process read model for MQS entity snapshots."""
 
 import json
+import zlib
 from datetime import datetime, timedelta, timezone
-from threading import Lock
+from threading import RLock
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from uuid import uuid4
 
-from shapely import wkt
+import numpy as np
+from shapely import wkb, wkt
 from shapely.geometry.base import BaseGeometry
-
-from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.postgres import connect
-
-_FEATURES_TABLE = "public.mqs_feature_mirror"
-_STATE_TABLE = "public.mqs_mirror_state"
 
 
 def _exclusive_id(entity: dict) -> dict:
@@ -31,239 +27,175 @@ def _history_id(entity: dict) -> str:
     return "" if value is None else str(value)
 
 
-def _geometry_wkt(entity: dict) -> Optional[str]:
+def _geometry(entity: dict) -> Optional[BaseGeometry]:
     geo = entity.get("geo")
     value = geo.get("wkt") if isinstance(geo, dict) else None
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        return wkt.loads(value).wkt
+        return wkt.loads(value)
     except Exception:
         return None
 
 
-class PostgresMqsMirrorStore:
-    def __init__(self, settings_store: RuntimeSettingsStore):
-        self._store = settings_store
-        self._ready = False
-        self._locks = {}
-        self._schema_lock = Lock()
-        self._locks_guard = Lock()
+def _compressed_payload(entity: dict) -> bytes:
+    raw = json.dumps(entity, ensure_ascii=False, default=str).encode("utf-8")
+    return zlib.compress(raw, level=3)
 
-    def ensure_schema(self) -> None:
-        if self._ready:
-            return
-        with self._schema_lock:
-            if self._ready:
-                return
-            with connect(self._store) as conn:
-                conn.execute(self._features_ddl())
-                conn.execute(self._state_ddl())
-                conn.execute(
-                    f"ALTER TABLE {_STATE_TABLE} ADD COLUMN IF NOT EXISTS "
-                    "entity_count bigint")
-                conn.execute(self._spatial_index_ddl())
-            self._ready = True
 
-    @staticmethod
-    def _features_ddl() -> str:
-        return f"""CREATE TABLE IF NOT EXISTS {_FEATURES_TABLE} (
-            layer_id text NOT NULL, entity_id text NOT NULL,
-            history_id text NOT NULL DEFAULT '', payload jsonb NOT NULL,
-            geometry geometry(Geometry, 4326), sync_run text NOT NULL,
-            mirrored_at timestamptz NOT NULL DEFAULT now(),
-            PRIMARY KEY (layer_id, entity_id))"""
+def _payload(value: bytes) -> dict:
+    return json.loads(zlib.decompress(value).decode("utf-8"))
 
-    @staticmethod
-    def _state_ddl() -> str:
-        return f"""CREATE TABLE IF NOT EXISTS {_STATE_TABLE} (
-            layer_id text PRIMARY KEY, active_run text,
-            last_completed_at timestamptz, last_error text)"""
 
-    @staticmethod
-    def _spatial_index_ddl() -> str:
-        return (
-            "CREATE INDEX IF NOT EXISTS mqs_feature_mirror_geometry_gix "
-            f"ON {_FEATURES_TABLE} USING gist (geometry)"
-        )
+class InMemoryMqsMirrorStore:
+    """Atomic per-layer snapshots with compact spatial candidate arrays."""
+
+    def __init__(self):
+        self._guard = RLock()
+        self._layers = {}
+        self._runs = {}
+        self._active_runs = {}
+        self._last_errors = {}
 
     def fetch_fresh(
         self, layer_id: str, geometry: Optional[BaseGeometry],
         max_age_seconds: int, limit: Optional[int],
     ) -> Optional[List[dict]]:
-        self.ensure_schema()
-        if not self._is_fresh(layer_id, max_age_seconds):
+        with self._guard:
+            snapshot = self._layers.get(layer_id)
+        if not self._is_fresh(snapshot, max_age_seconds):
             return None
-        query, params = self._fetch_query(layer_id, geometry, limit)
-        with connect(self._store) as conn:
-            rows = conn.execute(query, params).fetchall()
-        return [self._payload(row["payload"]) for row in rows]
+        indexes = self._candidate_indexes(snapshot, geometry)
+        return self._matching_payloads(snapshot, indexes, geometry, limit)
+
+    @staticmethod
+    def _is_fresh(snapshot, max_age_seconds: int) -> bool:
+        if snapshot is None:
+            return False
+        age = datetime.now(timezone.utc) - snapshot["completed_at"]
+        return age <= timedelta(seconds=max_age_seconds)
+
+    @staticmethod
+    def _candidate_indexes(snapshot, geometry):
+        if geometry is None:
+            return range(len(snapshot["ids"]))
+        min_x, min_y, max_x, max_y = geometry.bounds
+        bounds = snapshot["bounds"]
+        mask = ((bounds[:, 0] <= max_x) & (bounds[:, 1] >= min_x)
+                & (bounds[:, 2] <= max_y) & (bounds[:, 3] >= min_y))
+        return np.flatnonzero(mask)
+
+    @staticmethod
+    def _matching_payloads(snapshot, indexes, geometry, limit):
+        results = []
+        for index in indexes:
+            record = snapshot["records"][snapshot["ids"][int(index)]]
+            candidate = wkb.loads(record[2]) if geometry is not None else None
+            if geometry is None or candidate.intersects(geometry):
+                results.append(_payload(record[1]))
+            if limit is not None and len(results) >= limit:
+                break
+        return results
 
     def status(self, max_age_seconds: int) -> List[dict]:
-        self.ensure_schema()
-        with connect(self._store) as conn:
-            rows = conn.execute(
-                f"""SELECT layer_id, active_run, last_completed_at,
-                last_error, COALESCE(entity_count, 0) AS entity_count
-                FROM {_STATE_TABLE} ORDER BY layer_id""").fetchall()
-        return [self._status_row(row, max_age_seconds) for row in rows]
+        with self._guard:
+            layer_ids = sorted(set(self._layers) | set(self._active_runs)
+                               | set(self._last_errors))
+            return [self._status_row(layer_id, max_age_seconds)
+                    for layer_id in layer_ids]
 
-    @staticmethod
-    def _status_row(row: dict, max_age_seconds: int) -> dict:
-        completed = row["last_completed_at"]
+    def _status_row(self, layer_id: str, max_age_seconds: int) -> dict:
+        snapshot = self._layers.get(layer_id)
+        completed = snapshot["completed_at"] if snapshot is not None else None
         lag = ((datetime.now(timezone.utc) - completed).total_seconds()
                if completed is not None else None)
-        return {**row, "lag_seconds": None if lag is None else round(lag, 3),
-                "fresh": lag is not None and lag <= max_age_seconds}
-
-    def _is_fresh(self, layer_id: str, max_age_seconds: int) -> bool:
-        threshold = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
-        with connect(self._store) as conn:
-            row = conn.execute(
-                f"SELECT last_completed_at FROM {_STATE_TABLE} WHERE layer_id = %s",
-                (layer_id,),
-            ).fetchone()
-        return bool(row and row["last_completed_at"] >= threshold)
-
-    @staticmethod
-    def _fetch_query(layer_id, geometry, limit):
-        query = f"SELECT payload FROM {_FEATURES_TABLE} WHERE layer_id = %s"
-        params: List[object] = [layer_id]
-        if geometry is not None:
-            query += " AND ST_Intersects(geometry, ST_GeomFromText(%s, 4326))"
-            params.append(geometry.wkt)
-        query += " ORDER BY entity_id"
-        if limit is not None:
-            query += " LIMIT %s"
-            params.append(limit)
-        return query, tuple(params)
-
-    @staticmethod
-    def _payload(value) -> dict:
-        return json.loads(value) if isinstance(value, str) else value
+        return {
+            "layer_id": layer_id,
+            "active_run": self._active_runs.get(layer_id),
+            "last_completed_at": completed,
+            "last_error": self._last_errors.get(layer_id),
+            "entity_count": len(snapshot["records"]) if snapshot is not None else 0,
+            "lag_seconds": None if lag is None else round(lag, 3),
+            "fresh": lag is not None and lag <= max_age_seconds,
+            "storage": "compressed_memory",
+        }
 
     def begin_snapshot(self, layer_id: str) -> Optional[str]:
-        self.ensure_schema()
-        run_id = str(uuid4())
-        lock_connection = connect(self._store)
-        if not self._acquire_lock(lock_connection, layer_id):
-            lock_connection.close()
-            return None
-        try:
-            self._record_snapshot_start(layer_id, run_id)
-        except Exception:
-            lock_connection.close()
-            raise
-        with self._locks_guard:
-            self._locks[run_id] = lock_connection
-        return run_id
-
-    @staticmethod
-    def _acquire_lock(connection, layer_id: str) -> bool:
-        row = connection.execute(
-            "SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS acquired",
-            (layer_id,),
-        ).fetchone()
-        return bool(row and row["acquired"])
-
-    def _record_snapshot_start(self, layer_id: str, run_id: str) -> None:
-        with connect(self._store) as conn:
-            conn.execute(
-                f"""INSERT INTO {_STATE_TABLE} (layer_id, active_run, last_error)
-                VALUES (%s, %s, NULL) ON CONFLICT (layer_id) DO UPDATE SET
-                active_run = EXCLUDED.active_run, last_error = NULL""",
-                (layer_id, run_id),
-            )
+        with self._guard:
+            if layer_id in self._active_runs:
+                return None
+            run_id = str(uuid4())
+            self._active_runs[layer_id] = run_id
+            self._runs[run_id] = {"layer_id": layer_id, "records": {}}
+            self._last_errors.pop(layer_id, None)
+            return run_id
 
     def unchanged_ids(
         self, layer_id: str, versions: Sequence[Tuple[str, str]]
     ) -> Set[str]:
-        if not versions:
-            return set()
-        entity_ids = [item[0] for item in versions]
-        expected = dict(versions)
-        with connect(self._store) as conn:
-            rows = conn.execute(
-                f"""SELECT entity_id, history_id FROM {_FEATURES_TABLE}
-                WHERE layer_id = %s AND entity_id = ANY(%s)""",
-                (layer_id, entity_ids),
-            ).fetchall()
-        return {row["entity_id"] for row in rows
-                if row["history_id"] == expected[row["entity_id"]]}
+        with self._guard:
+            snapshot = self._layers.get(layer_id)
+            records = snapshot["records"] if snapshot is not None else {}
+            return {entity_id for entity_id, version in versions
+                    if entity_id in records and records[entity_id][0] == version}
 
     def mark_seen(
         self, layer_id: str, run_id: str, entity_ids: Iterable[str]
     ) -> None:
-        ids = list(entity_ids)
-        if not ids:
-            return
-        with connect(self._store) as conn:
-            conn.execute(
-                f"""UPDATE {_FEATURES_TABLE} SET sync_run = %s,
-                mirrored_at = now() WHERE layer_id = %s AND entity_id = ANY(%s)""",
-                (run_id, layer_id, ids),
-            )
+        with self._guard:
+            run = self._required_run(layer_id, run_id)
+            current = self._layers.get(layer_id)
+            records = current["records"] if current is not None else {}
+            run["records"].update(
+                (entity_id, records[entity_id]) for entity_id in entity_ids
+                if entity_id in records)
 
     def upsert_entities(
         self, layer_id: str, run_id: str, entities: Sequence[dict]
     ) -> None:
-        rows = [self._entity_row(layer_id, run_id, entity) for entity in entities]
-        rows = [row for row in rows if row is not None]
-        if not rows:
-            return
-        with connect(self._store) as conn:
-            conn.executemany(self._upsert_sql(), rows)
+        records = [self._entity_record(entity) for entity in entities]
+        records = [record for record in records if record is not None]
+        with self._guard:
+            run = self._required_run(layer_id, run_id)
+            run["records"].update(records)
 
     @staticmethod
-    def _entity_row(layer_id: str, run_id: str, entity: dict):
+    def _entity_record(entity: dict):
         entity_id = _entity_id(entity)
-        if entity_id is None:
+        geometry = _geometry(entity)
+        if entity_id is None or geometry is None:
             return None
-        return (layer_id, entity_id, _history_id(entity),
-                json.dumps(entity, ensure_ascii=False, default=str),
-                _geometry_wkt(entity), run_id)
-
-    @staticmethod
-    def _upsert_sql() -> str:
-        return f"""INSERT INTO {_FEATURES_TABLE}
-            (layer_id, entity_id, history_id, payload, geometry, sync_run)
-            VALUES (%s, %s, %s, %s::jsonb, ST_GeomFromText(%s, 4326), %s)
-            ON CONFLICT (layer_id, entity_id) DO UPDATE SET
-            history_id = EXCLUDED.history_id, payload = EXCLUDED.payload,
-            geometry = EXCLUDED.geometry, sync_run = EXCLUDED.sync_run,
-            mirrored_at = now()"""
+        min_x, min_y, max_x, max_y = geometry.bounds
+        record = (_history_id(entity), _compressed_payload(entity), geometry.wkb,
+                  (min_x, max_x, min_y, max_y))
+        return entity_id, record
 
     def complete_snapshot(self, layer_id: str, run_id: str) -> None:
-        try:
-            with connect(self._store) as conn:
-                conn.execute(
-                    f"DELETE FROM {_FEATURES_TABLE} WHERE layer_id = %s AND sync_run <> %s",
-                    (layer_id, run_id),
-                )
-                conn.execute(
-                    f"""UPDATE {_STATE_TABLE} SET active_run = NULL,
-                    last_completed_at = now(), last_error = NULL,
-                    entity_count = (SELECT count(*) FROM {_FEATURES_TABLE}
-                        WHERE layer_id = %s)
-                    WHERE layer_id = %s AND active_run = %s""",
-                    (layer_id, layer_id, run_id),
-                )
-        finally:
-            self._release_lock(run_id)
+        with self._guard:
+            run = self._required_run(layer_id, run_id)
+            records = run["records"]
+        ids = tuple(sorted(records))
+        bounds = np.asarray([records[entity_id][3] for entity_id in ids], dtype="f8")
+        if not len(ids):
+            bounds = np.empty((0, 4), dtype="f8")
+        snapshot = {"records": records, "ids": ids, "bounds": bounds,
+                    "completed_at": datetime.now(timezone.utc)}
+        with self._guard:
+            self._layers[layer_id] = snapshot
+            self._finish_run(layer_id, run_id)
 
     def abort_snapshot(self, layer_id: str, run_id: str, error: str) -> None:
-        try:
-            with connect(self._store) as conn:
-                conn.execute(
-                    f"""UPDATE {_STATE_TABLE} SET active_run = NULL, last_error = %s
-                    WHERE layer_id = %s AND active_run = %s""",
-                    (error[:2000], layer_id, run_id),
-                )
-        finally:
-            self._release_lock(run_id)
+        with self._guard:
+            self._last_errors[layer_id] = error[:2000]
+            self._finish_run(layer_id, run_id)
 
-    def _release_lock(self, run_id: str) -> None:
-        with self._locks_guard:
-            connection = self._locks.pop(run_id, None)
-        if connection is not None:
-            connection.close()
+    def _required_run(self, layer_id: str, run_id: str):
+        run = self._runs.get(run_id)
+        if run is None or run["layer_id"] != layer_id:
+            raise RuntimeError("MQS mirror snapshot is not active")
+        return run
+
+    def _finish_run(self, layer_id: str, run_id: str) -> None:
+        self._runs.pop(run_id, None)
+        if self._active_runs.get(layer_id) == run_id:
+            self._active_runs.pop(layer_id, None)

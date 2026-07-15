@@ -273,11 +273,11 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
   unset means the provider errors with a clear message → HTTP 502). A background
-  `MqsMirrorWorker` scans list pages in chunks and writes current entities to the
-  PostGIS tables `public.mqs_feature_mirror` and `public.mqs_mirror_state`.
+  `MqsMirrorWorker` scans list pages in chunks and keeps current entities in compressed
+  process memory with compact NumPy bounding-box indexes.
   `history_id` equality lets subsequent scans mark unchanged rows without repeating
   their detail request; changed details are fetched concurrently with a bounded pool.
-  PostgreSQL advisory locks serialize each layer across backend instances. Runtime
+  Atomic per-layer snapshots isolate concurrent activity. Runtime
   reads use the mirror only while its last completed snapshot meets the configured
   30-second freshness ceiling, with automatic fallback to live MQS otherwise. Live
   fetching pages through `GET /MoriaProject/{id}/Entities` (page 10,000, hard cap 50k)
@@ -291,14 +291,17 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
   business `property_list` fields and fails if none are found rather than producing
   polygon/clearance tags. Schema and planner logs expose discovered field names and
   bounded sample counts for diagnosis. Viewport/polygon filters are pushed down with
-  POST when available and are always rechecked locally for correctness. Bounded
+  POST for every query layer and are always rechecked locally before GeoDataFrame
+  construction, even if MQS ignores the filter. Bounded
   `near`/`near_all` target loads use the request geometry expanded in a local metric CRS,
   avoiding a complete target-layer load without excluding any possible match.
 
-  The configured PostgreSQL database must already have PostGIS installed. The backend
-  role needs permission to create/use the two mirror tables and their GIST index. The
-  `AILOCATOR_MQS_MIRROR_*` and `AILOCATOR_MQS_DETAIL_CONCURRENCY` settings are listed in
-  `.env.example`. A true MQS change feed would remove the remaining full list scan; until
+  The entity mirror performs no SQL or filesystem writes and creates no tables. It is
+  rebuilt after each backend restart. Layer synchronization defaults to sequential
+  operation to avoid loading two large changed batches simultaneously; completed layers
+  remain concurrently queryable.
+  The `AILOCATOR_MQS_MIRROR_*` and `AILOCATOR_MQS_DETAIL_CONCURRENCY` settings are listed
+  in `.env.example`. A true MQS change feed would remove the remaining full list scan; until
   such an endpoint exists, the worker scans summaries but fetches details only for new or
   changed history versions.
 

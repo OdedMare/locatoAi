@@ -167,12 +167,11 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer into PostGIS in chunked snapshots. It compares the list response's `history_id` with the stored version, so unchanged entities avoid another detail request; changed details are fetched with bounded concurrency. PostgreSQL advisory locks prevent multiple backend instances from refreshing the same layer simultaneously. Query reads use the mirror only when its completed snapshot is no older than 30 seconds, otherwise they fall back to live MQS. Spatial boundaries are pushed down, and bounded `near` targets use the request boundary expanded by the requested distance. Provider filters are still rechecked locally.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. A background worker mirrors every MQS layer inside the backend process in chunked snapshots. It compares the list response's `history_id` with the stored version, so unchanged entities avoid another detail request; changed details are fetched with bounded concurrency. Entity JSON is compressed and spatial bounds live in compact NumPy arrays, preventing full layers from becoming expanded GeoDataFrames. Query reads use the mirror only when its completed snapshot is no older than 30 seconds, otherwise they fall back to live MQS. Spatial boundaries are pushed down, and bounded `near` targets use the request boundary expanded by the requested distance. Provider filters are still rechecked locally.
 
-The mirror uses `public.mqs_feature_mirror` and `public.mqs_mirror_state`. PostGIS must
-already be installed in the configured database, and the backend database role needs
-permission to create and use these tables. Bootstrap still scans all list pages; after
-bootstrap, only changed `history_id` values require detail requests. The mirror settings
+The entity mirror makes no SQL connection and creates no additional tables. It is rebuilt
+after a backend restart. Bootstrap still scans all list pages; after bootstrap, only
+changed `history_id` values require detail requests. The mirror settings
 (`enabled`, interval, staleness, batch size, layer concurrency, and detail concurrency)
 are exposed through `AILOCATOR_MQS_*` environment variables in `backend/.env.example`.
 `GET /api/mqs-mirror/status` reports the entity count, active run, last error, lag and

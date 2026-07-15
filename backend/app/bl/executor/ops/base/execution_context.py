@@ -22,15 +22,15 @@ class ExecutionContext:
     feature_cache: Dict[str, gpd.GeoDataFrame] = field(default_factory=dict)
 
     def load_layer_features(
-        self, layer_id: str, push_down_geometry: bool = False,
+        self, layer_id: str, push_down_geometry: bool = True,
         geometry_hint: Optional[BaseGeometry] = None,
     ) -> gpd.GeoDataFrame:
         """Shared by `load` and `near` (which loads its target layer).
 
-        push_down_geometry=True passes the request's user_geometry (when
-        present) to the provider as an optional spatial-filter hint. A caller
-        may instead provide geometry_hint; bounded proximity operations use
-        the request geometry expanded by their maximum distance.
+        Every layer is scoped to the request's user_geometry by default. A
+        caller may instead provide geometry_hint; bounded proximity operations
+        use the request geometry expanded by their maximum distance. Explicitly
+        disabling pushdown is reserved for non-query/internal callers.
 
         Stashes the layer's temporal_field (from its provider-reported
         schema) on the GeoDataFrame's .attrs — pandas/GeoPandas .attrs

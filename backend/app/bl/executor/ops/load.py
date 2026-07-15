@@ -12,4 +12,4 @@ class LoadOp(OpHandler):
         # When the request carries boundaries, push them down as a
         # provider-side spatial filter hint so the whole layer isn't
         # fetched just to be cut down by within_geometry afterwards.
-        return ctx.load_layer_features(step.layer, push_down_geometry=True)
+        return ctx.load_layer_features(step.layer)

@@ -1,7 +1,9 @@
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import httpx
+from shapely.geometry import box
 
+from app.dal.mqs_mirror_store import InMemoryMqsMirrorStore
 from app.dal.providers.mqs import MqsProvider
 from tests.test_mqs_provider import (
     RecordingHandler,
@@ -106,3 +108,46 @@ def test_snapshot_skips_detail_for_unchanged_history(tmp_path):
     detail_paths = [request.url.path for request in handler.requests
                     if not request.url.path.endswith("/Entities")]
     assert detail_paths == ["/MoriaProject/42/Entities/G2"]
+
+
+def _complete_snapshot(store, layer_id, entities):
+    run_id = store.begin_snapshot(layer_id)
+    assert run_id is not None
+    store.upsert_entities(layer_id, run_id, entities)
+    store.complete_snapshot(layer_id, run_id)
+
+
+def test_memory_mirror_keeps_multiple_layers_isolated():
+    store = InMemoryMqsMirrorStore()
+    _complete_snapshot(store, "42", [entity("A", layer_id="42")])
+    _complete_snapshot(store, "43", [entity("B", layer_id="43")])
+
+    first = store.fetch_fresh("42", None, 30, None)
+    second = store.fetch_fresh("43", None, 30, None)
+
+    assert [item["exclusive_id"]["entity_id"] for item in first] == ["A"]
+    assert [item["exclusive_id"]["entity_id"] for item in second] == ["B"]
+
+
+def test_memory_mirror_uses_compact_spatial_filter():
+    store = InMemoryMqsMirrorStore()
+    inside = entity("inside", wkt_value="POINT (34.78 32.08)")
+    outside = entity("outside", wkt_value="POINT (35.5 33.0)")
+    _complete_snapshot(store, "42", [inside, outside])
+
+    results = store.fetch_fresh(
+        "42", box(34.7, 32.0, 34.9, 32.2), 30, None)
+
+    assert [item["exclusive_id"]["entity_id"] for item in results] == ["inside"]
+
+
+def test_memory_mirror_snapshot_lock_is_per_layer():
+    store = InMemoryMqsMirrorStore()
+    first_run = store.begin_snapshot("42")
+
+    assert first_run is not None
+    assert store.begin_snapshot("42") is None
+    assert store.begin_snapshot("43") is not None
+
+    store.abort_snapshot("42", first_run, "cancelled")
+    assert store.begin_snapshot("42") is not None

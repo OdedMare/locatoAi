@@ -162,6 +162,31 @@ def test_near_target_layer_uses_distance_expanded_geometry(executor, providers):
     assert calls["roundabouts"] != CENTRAL_TLV
 
 
+def test_nearest_target_layer_is_scoped_to_request_polygon(executor, providers):
+    """Every layer load must carry the request polygon to its provider."""
+    from tests.mock_gis_provider import MockGisProvider
+
+    real_provider: MockGisProvider = providers.get("arcgis")
+    calls = {}
+    original = real_provider.fetch_features
+
+    def spy_fetch_features(layer, now=None, geometry=None):
+        calls[layer.id] = geometry
+        return original(layer, now=now, geometry=geometry)
+
+    real_provider.fetch_features = spy_fetch_features
+    try:
+        run_steps(executor, [
+            {"id": "s1", "op": "load", "layer": "schools"},
+            {"id": "s2", "op": "nearest_n", "input": "s1",
+             "target_layer": "roundabouts", "count": 2},
+        ], "s2", user_geometry=CENTRAL_TLV)
+    finally:
+        del real_provider.fetch_features
+
+    assert calls == {"schools": CENTRAL_TLV, "roundabouts": CENTRAL_TLV}
+
+
 def test_cluster_finds_group_of_close_features(executor):
     """חולון schools (שרת/קציר) are ~400m apart, isolated from the rest of
     the layer by several km — a clean 2-member cluster with a generous
