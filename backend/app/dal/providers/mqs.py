@@ -57,8 +57,9 @@ just slower.
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import parse_qs, quote, urlparse
 
 import geopandas as gpd
@@ -70,6 +71,7 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
+from app.bl.ports.mqs_mirror import MqsMirror
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -198,6 +200,12 @@ def _entity_id(entity: dict) -> Optional[str]:
         else _first_key(entity, _ENTITY_ID_KEYS)
     )
     return str(value) if value is not None else None
+
+
+def _history_id(entity: dict) -> str:
+    exclusive_id = entity.get("exclusive_id")
+    value = exclusive_id.get("history_id") if isinstance(exclusive_id, dict) else None
+    return "" if value is None else str(value)
 
 
 def _property_value(value: object) -> object:
@@ -366,9 +374,15 @@ class MqsProvider:
         self,
         settings_store: RuntimeSettingsStore,
         transport: Optional[httpx.BaseTransport] = None,
+        mirror: Optional[MqsMirror] = None,
+        mirror_max_staleness_seconds: int = 30,
+        detail_concurrency: int = 16,
     ):
         self._store = settings_store
         self._transport = transport  # tests inject httpx.MockTransport
+        self._mirror = mirror
+        self._mirror_max_age = max(1, mirror_max_staleness_seconds)
+        self._detail_concurrency = max(1, detail_concurrency)
 
     # -- Provider protocol ---------------------------------------------------
 
@@ -421,27 +435,100 @@ class MqsProvider:
         # `limit` caps pagination to a small first page (e.g. metadata
         # sampling) instead of fetching the whole layer.
         layer_id = mqs_layer_id(layer)
-        geometries: List[BaseGeometry] = []
-        attribute_rows: List[dict] = []
-        skipped = 0
+        mirrored = self._mirrored_features(layer_id, geometry, limit)
+        if mirrored is not None:
+            return mirrored
         with self._client() as client:
-            for entity in self._iter_all_entities(client, layer_id, geometry, limit):
-                detail = self._entity_detail(client, layer_id, entity)
-                record = _entity_to_record(detail)
-                if record is None:
-                    skipped += 1
-                    continue
-                geometries.append(record[0])
-                attribute_rows.append(record[1])
+            entities = list(self._iter_enriched_entities(
+                client, layer_id, geometry=geometry, limit=limit))
+        return self._entities_to_gdf(layer_id, entities)
+
+    def _mirrored_features(self, layer_id, geometry, limit):
+        if self._mirror is None:
+            return None
+        try:
+            entities = self._mirror.fetch_fresh(
+                layer_id, geometry, self._mirror_max_age, limit)
+            return None if entities is None else self._entities_to_gdf(layer_id, entities)
+        except Exception:
+            logger.exception("MQS mirror read failed layer=%s; using live MQS", layer_id)
+            return None
+
+    @staticmethod
+    def _entities_to_gdf(layer_id: str, entities: Iterable[dict]):
+        records = [_entity_to_record(entity) for entity in entities]
+        valid = [record for record in records if record is not None]
+        skipped = len(records) - len(valid)
         if skipped:
-            logger.warning(
-                "MQS layer %s: skipped %d entities without parseable "
-                "geometry", layer_id, skipped,
-            )
-        if not geometries:
+            logger.warning("MQS layer %s skipped %d invalid geometries", layer_id, skipped)
+        if not valid:
             return empty_features_gdf()
-        gdf = gpd.GeoDataFrame(attribute_rows, geometry=geometries, crs=WGS84)
-        return _ensure_wgs84(gdf)
+        geometries, attributes = zip(*valid)
+        return _ensure_wgs84(gpd.GeoDataFrame(
+            list(attributes), geometry=list(geometries), crs=WGS84))
+
+    def _iter_enriched_entities(self, client, layer_id, geometry=None, limit=None):
+        pending: List[dict] = []
+        entities = self._iter_all_entities(client, layer_id, geometry, limit)
+        for entity in entities:
+            pending.append(entity)
+            if len(pending) >= self._detail_concurrency:
+                yield from self._enrich_batch(client, layer_id, pending)
+                pending = []
+        if pending:
+            yield from self._enrich_batch(client, layer_id, pending)
+
+    def _enrich_batch(
+        self, client: httpx.Client, layer_id: str, entities: Sequence[dict]
+    ) -> List[dict]:
+        if self._detail_concurrency == 1 or len(entities) == 1:
+            return [self._entity_detail(client, layer_id, item) for item in entities]
+        with ThreadPoolExecutor(max_workers=self._detail_concurrency) as executor:
+            return list(executor.map(
+                lambda item: self._entity_detail(client, layer_id, item), entities))
+
+    def sync_layer_to_mirror(
+        self, layer: LayerMeta, mirror: MqsMirror, batch_size: int
+    ) -> int:
+        layer_id = mqs_layer_id(layer)
+        run_id = mirror.begin_snapshot(layer_id)
+        try:
+            count = self._sync_snapshot(layer_id, run_id, mirror, batch_size)
+            mirror.complete_snapshot(layer_id, run_id)
+            return count
+        except Exception as exc:
+            mirror.abort_snapshot(layer_id, run_id, str(exc))
+            raise
+
+    def _sync_snapshot(self, layer_id, run_id, mirror, batch_size):
+        count = 0
+        with self._client() as client:
+            entities = self._iter_all_entities(client, layer_id)
+            for batch in self._batched(entities, batch_size):
+                self._sync_batch(client, layer_id, run_id, mirror, batch)
+                count += len(batch)
+        return count
+
+    def _sync_batch(self, client, layer_id, run_id, mirror, batch):
+        versions = [(_entity_id(item), _history_id(item)) for item in batch]
+        versions = [(entity_id, version) for entity_id, version in versions
+                    if entity_id is not None and version]
+        unchanged = mirror.unchanged_ids(layer_id, versions)
+        mirror.mark_seen(layer_id, run_id, unchanged)
+        changed = [item for item in batch if _entity_id(item) not in unchanged]
+        mirror.upsert_entities(
+            layer_id, run_id, self._enrich_batch(client, layer_id, changed))
+
+    @staticmethod
+    def _batched(entities: Iterable[dict], batch_size: int):
+        batch: List[dict] = []
+        for entity in entities:
+            batch.append(entity)
+            if len(batch) >= max(1, batch_size):
+                yield batch
+                batch = []
+        if batch:
+            yield batch
 
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20

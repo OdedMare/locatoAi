@@ -59,6 +59,21 @@ class Settings(BaseSettings):
 
     mqs_verify_tls: bool = True
 
+    mqs_mirror_enabled: bool = True
+    """Continuously mirror MQS entities into PostGIS when MQS is configured."""
+
+    mqs_mirror_sync_interval_seconds: int = 10
+    """Pause between completed MQS mirror scans."""
+
+    mqs_mirror_max_staleness_seconds: int = 30
+    """Use mirrored rows only while their layer snapshot is this fresh."""
+
+    mqs_mirror_batch_size: int = 10000
+    """Number of MQS list entities processed per mirror batch."""
+
+    mqs_detail_concurrency: int = 16
+    """Maximum concurrent MQS detail requests for changed entities."""
+
     cubes_base_url: Optional[str] = None
     """Base URL hosting /cube/v1/<dbname>."""
 
