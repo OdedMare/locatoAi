@@ -8,6 +8,13 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
+async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
+  return getModels({
+    llm_base_url: baseUrl.trim() || undefined,
+    openai_api_key: apiKey.trim() || undefined,
+  });
+}
+
 /**
  * Settings modal: LLM (API key / model / base URL) and catalog database
  * (Postgres URL / layers table). Saved values persist on the backend and
@@ -43,12 +50,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setModelsError(null);
     try {
       // Send what's typed in the form — tests the values BEFORE saving.
-      setAvailableModels(
-        await getModels({
-          llm_base_url: baseUrl.trim() || undefined,
-          openai_api_key: apiKey.trim() || undefined,
-        })
-      );
+      setAvailableModels(await fetchModels(baseUrl, apiKey));
     } catch (err) {
       setModelsError(err instanceof Error ? err.message : "טעינת המודלים נכשלה");
     } finally {
@@ -74,7 +76,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setDatabaseName(s.database_name ?? "");
         setLayersTable(s.layers_table ?? "");
         setFeedbackTable(s.feedback_table ?? "");
-        void loadModels();
+        void fetchModels(s.llm_base_url ?? "", "").then(setAvailableModels);
       })
       .catch(() => setMessage("לא ניתן לטעון את ההגדרות — האם השרת פועל?"));
   }, []);

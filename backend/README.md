@@ -70,7 +70,6 @@ app/
 │   ├── layers_repository.py # configurable PostgreSQL catalog table
 │   ├── feedback_repository.py # configurable PostgreSQL feedback table
 │   ├── providers/
-│   │   ├── arcgis_mock.py   # TEST FIXTURE ONLY — used by tests/conftest.py, not production
 │   │   ├── mqs.py           # MQS REST adapter + property_list enrichment
 │   │   ├── cubes.py         # generic Cubes time-varying POINT adapter
 │   │   └── registry.py      # provider name → adapter instance
@@ -279,10 +278,8 @@ registers `mqs` and `cubes`** — `arcgis` is not a real provider anymore.
 re-syncs update name/description in place and **preserve tags** (rerun
 `scripts/enrich_layer_tags.py` after syncing new layers).
 
-**`arcgis` / `MockArcgisProvider`** ([`arcgis_mock.py`](app/dal/providers/arcgis_mock.py))
-is a **test fixture only** — it serves local `data/*.geojson` and backs
-`tests/conftest.py`'s fixtures (so the suite runs without live MQS/Postgres) but
-is never registered in production (`main.py`) or the eval script.
+Test-only GIS adapters live under `tests/`; no mock provider is shipped in `app/`
+or copied into the production container.
 
 ---
 
@@ -309,6 +306,9 @@ write that feedback table.
 Secrets have write-only API semantics: empty key/password fields keep the saved
 value, GET responses expose only presence or masked hints, and the full values
 remain in the backend runtime settings file.
+
+Every deployable setting has an environment default; see [`.env.example`](.env.example).
+UI values remain live overrides. MQS and Cubes verify TLS certificates by default.
 
 ---
 
@@ -343,6 +343,9 @@ annotations that pydantic/FastAPI evaluate — use `typing.Optional/Union/List/D
 (this is DIP paying rent). Mock data lives in `data/*.geojson`; accident timestamps are
 generated relative to `now`, which tests freeze (`frozen_now` fixture). Golden plans:
 `tests/fixtures/plans/`.
+
+The production image installs runtime dependencies only, copies only `app/`, and
+runs as an unprivileged `app` user. Tests, scripts, and fixture data are excluded.
 
 ## Roadmap
 

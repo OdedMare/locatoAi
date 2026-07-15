@@ -9,28 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@emotion/react": "^11.13.0",
-    "@emotion/styled": "^11.13.0",
-    "@monaco-editor/react": "^4.6.0",
-    "@mui/icons-material": "^5.16.7",
-    "@mui/material": "^5.16.7",
-    "axios": "^1.7.7",
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
     "lucide-react": "^1.24.0",
-    "monaco-editor": "^0.50.0",
     "next": "16.2.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
-    "react-leaflet-draw": "^0.20.6",
-    "react-resizable-panels": "^2.1.0",
-    "react-toastify": "^10.0.5",
-    "stylis": "^4.3.2",
-    "stylis-plugin-rtl": "^2.1.1",
-    "uuid": "^10.0.0",
-    "wellknown": "^0.5.0",
-    "zustand": "^4.5.5"
+    "react-leaflet-draw": "^0.20.6"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",

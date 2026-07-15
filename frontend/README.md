@@ -122,6 +122,8 @@ Loads and searches catalog metadata. It supports manual layer creation and brows
 
 Loads runtime settings, populates editable LLM/MQS/Cubes/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, Cubes token, and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.
 
+MQS and Cubes TLS verification is enabled by default and independently editable. Environment variables provide deployment defaults; saved UI values remain live overrides.
+
 ### `RequestPreview`
 
 A developer-oriented transparency panel showing the exact structured request and backend status/timing.

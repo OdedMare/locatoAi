@@ -16,3 +16,5 @@ full backend pipeline and repository-wide constraints.
 - Keep Leaflet and Leaflet Draw behind the dynamically imported client-only map
   path. GeoJSON is `[lng, lat]`; Leaflet positions are `[lat, lng]`.
 - Preserve RTL defaults and mark URLs, identifiers, JSON, and credentials LTR.
+- Keep the Settings UI: environment variables are deployment defaults and saved UI
+  values are live overrides. Provider TLS verification must default to enabled.

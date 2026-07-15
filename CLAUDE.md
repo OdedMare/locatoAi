@@ -9,7 +9,7 @@ LocatoAI — a Geo-AI query application: users ask geographic questions in natur
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus a ⚙ settings panel (LLM key/model, PG connection, layers table).
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the whole MVP loop works end-to-end — NL query (Hebrew/English) → selected layers → GeoQueryPlan → deterministic execution → features/count on the map. The plan language currently has 14 operations: load, required boundary filtering, attributes, temporal filtering, directional selection, near/nearest/multi-target proximity, same-layer clustering, between-corridor, crosses/touches/contains, and terminal count. Responses include a public `pipeline_trace` with stage/step timings and row counts; count responses retain the geometries counted. **Clarify questions are always Hebrew.** Plan building validates and retries once; before committing, the model may run up to 3 `sample_field` rounds. **Production providers are MQS and Cubes.** MQS enriches list entities from `Entities/{entity_id}.property_list`. Cubes rows use `cubes://db/<dbname>` and return time-varying WKT POINT locations; all non-geometry fields, types, samples, and the temporal field are inferred dynamically from JSON and cached, never hardcoded. Both providers push down user geometry while deterministic local filtering remains authoritative. Runtime LLM/MQS/Cubes/PostgreSQL settings are UI-editable; the Cubes Authorization token is write-only. `MockArcgisProvider` remains a test fixture. **Next candidates:** multi-turn clarify, client time/timezone, batched MQS detail retrieval, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS enriches entities from `property_list`; Cubes infers arbitrary JSON schemas and WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Known scaling risk:** MQS performs one detail request per entity. **Next candidates:** batched detail retrieval, multi-turn clarification, client timezone, and SSE streaming.
 
 ## Commands
 
@@ -51,7 +51,7 @@ Tiers under `backend/app/` — dependency direction is service → bl ← dal (D
 - `bl/plan/` — **GeoQueryPlan is the core contract**: a 14-member discriminated union (`load`, `within_geometry`, `attribute_filter`, `near`, `nearest_n`, `near_all`, `cluster`, `between`, `crosses`, `touches`, `contains`, `directional`, `temporal_filter`, `count`; the three topological relations share a base model). Semantic validation enforces earlier references, catalog IDs, complete target filters, required boundaries, final output ordering, and terminal count.
 - `bl/executor/` — engine dispatches via an op registry; each op is one self-registering module in `ops/` (OCP: new op = new file, engine untouched).
 - `bl/agent/` — `select_layers.py` (call 1: catalog → prompt → layer ids; drops hallucinated ids, sanitizes/truncates catalog text per the untrusted-metadata rule) and `build_plan.py` (call 2: query + selected-layer schemas incl. sample field values → GeoQueryPlan; validate → retry once with the error → Hebrew clarify). Prompts are files in `prompts/`. `bl/query_orchestrator.py` owns the select → plan → execute flow with per-stage timings and summed token usage.
-- `dal/` — `layers_repository.py` owns catalog SQL; `providers/mqs.py` enriches MQS entities; `providers/cubes.py` infers arbitrary Cubes JSON schemas and WKT POINT features; `providers/arcgis_mock.py` is test-only; `llm/openai_client.py` implements the OpenAI-compatible LLM port.
+- `dal/` — `layers_repository.py` owns catalog SQL; `providers/mqs.py` enriches MQS entities; `providers/cubes.py` infers arbitrary Cubes JSON schemas and WKT POINT features; `llm/openai_client.py` implements the OpenAI-compatible LLM port. Production contains no mock provider.
 
 **Layer catalog is Postgres**, not a file: table `public.layers` in the local `gis` DB (25 Hebrew layers; columns id/name/description/tags/provider/source_url). Plans reference layers by UUID.
 
@@ -59,7 +59,7 @@ Tiers under `backend/app/` — dependency direction is service → bl ← dal (D
 
 **Locked decisions** (from the MVP guide — don't relitigate): agent emits plans, never SQL; meters math only after reprojecting to EPSG:2039 (`common/geo.py`), never in WGS84 degrees; provider metadata is untrusted input for prompts; clarify is a first-class response, not a confidence score.
 
-**Mock temporal data:** `data/accidents.geojson` uses `timestamp_offset_hours`; the mock provider converts it to concrete timestamps relative to `now` (tests freeze `now` — see `frozen_now` fixture).
+**Test temporal data:** `data/accidents.geojson` uses `timestamp_offset_hours`; the test provider converts it relative to frozen `now` values.
 
 Every request is logged to `backend/logs/requests.jsonl` (JSON lines).
 

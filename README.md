@@ -49,7 +49,7 @@ locatoAi/
 │   │   ├── bl/                       # business rules, agents, plans, executor
 │   │   ├── dal/                      # PostgreSQL, MQS, Cubes, and LLM adapters
 │   │   └── common/                   # settings, errors, CRS, logging
-│   ├── data/                         # local GeoJSON test fixtures
+│   ├── data/                         # test-only fixtures; excluded from image
 │   ├── scripts/                      # evaluation and tag enrichment tools
 │   ├── tests/                        # isolated business/provider tests
 │   ├── Dockerfile
@@ -187,6 +187,8 @@ Backend configuration has two layers:
 
 Database, table, LLM, MQS, and Cubes settings are read from the runtime store on every relevant call, so a saved change does not require a backend restart. API keys, the Cubes token, and database passwords are never returned to the browser; settings responses expose only presence flags and masked hints.
 
+`backend/.env.example` lists every deployment variable. TLS certificate verification defaults to enabled for MQS and Cubes and can be controlled independently by environment or the Settings UI.
+
 The frontend accepts:
 
 - `BACKEND_URL`, used server-side by the Next.js rewrite and defaulting to `http://127.0.0.1:8000`.
@@ -267,4 +269,5 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 - MQS uses fetch-all-then-filter-locally with a 50,000-feature safety cap.
 - Runtime settings persist to a local JSON file and are not multi-user settings.
 - There is no streaming progress channel; the UI shows a single loading phase.
-- The production provider registry registers MQS and Cubes. The ArcGIS adapter is a local test fixture.
+- The production provider registry registers MQS and Cubes only. Test providers and fixtures live outside `backend/app` and are excluded from the image.
+- MQS performs one detail request per returned entity for `property_list`; high-volume production needs batching or a richer list endpoint.
