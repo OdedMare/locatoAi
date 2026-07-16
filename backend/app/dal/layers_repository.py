@@ -23,9 +23,6 @@ class PostgresLayersRepository:
     def __init__(self, settings_store: RuntimeSettingsStore):
         self._store = settings_store
 
-    def _select(self) -> str:
-        return f"SELECT {_COLUMNS} FROM {self._store.get().quoted_layers_table()}"
-
     def list_layers(self) -> List[LayerMeta]:
         with connect(self._store) as conn:
             rows = conn.execute(self._select()).fetchall()
@@ -106,6 +103,9 @@ class PostgresLayersRepository:
                 ),
             ).fetchone()
             return layer.model_copy(update={"id": str(row["id"])}), True
+
+    def _select(self) -> str:
+        return f"SELECT {_COLUMNS} FROM {self._store.get().quoted_layers_table()}"
 
     @staticmethod
     def _to_meta(row: dict) -> LayerMeta:

@@ -66,6 +66,11 @@ class ExecutionContext:
         self.feature_cache[cache_key] = gdf
         return gdf
 
+    def proximity_geometry(self, distance_m: float) -> Optional[BaseGeometry]:
+        if self.user_geometry is None:
+            return None
+        return buffer_wgs84_geometry(self.user_geometry, distance_m)
+
     @staticmethod
     def _cache_key(
         layer_id: str, geometry: Optional[BaseGeometry],
@@ -79,8 +84,3 @@ class ExecutionContext:
             if attribute_filters else "no-filters"
         )
         return f"{layer_id}:{geometry_key}:{time_key}:{filters_key}"
-
-    def proximity_geometry(self, distance_m: float) -> Optional[BaseGeometry]:
-        if self.user_geometry is None:
-            return None
-        return buffer_wgs84_geometry(self.user_geometry, distance_m)

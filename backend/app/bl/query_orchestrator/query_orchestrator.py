@@ -61,6 +61,22 @@ class QueryOrchestrator:
             [selection_trace, planning_trace], timer, usage, event_sink,
         )
 
+    def execute_plan(
+        self, plan: GeoQueryPlan, boundaries: Optional[BaseGeometry]
+    ) -> QueryOutcome:
+        self._validate_explicit_plan(plan, boundaries)
+        timer = StageTimer()
+        result = self._executor.execute_detailed(plan, user_geometry=boundaries)
+        timer.mark("execute")
+        return QueryOutcome(
+            status="ok",
+            plan=plan,
+            features=result.features,
+            scalar_result=result.scalar_result,
+            timing_ms=timer.timing,
+            pipeline_trace=self._explicit_trace(plan, result),
+        )
+
     def _select(self, query: str, timer: StageTimer, event_sink
                 ) -> Tuple[LayerSelection, dict]:
         selection = self._run_stage(
@@ -251,22 +267,6 @@ class QueryOrchestrator:
             "geometry_returned": result.features is not None,
         }
 
-    def execute_plan(
-        self, plan: GeoQueryPlan, boundaries: Optional[BaseGeometry]
-    ) -> QueryOutcome:
-        self._validate_explicit_plan(plan, boundaries)
-        timer = StageTimer()
-        result = self._executor.execute_detailed(plan, user_geometry=boundaries)
-        timer.mark("execute")
-        return QueryOutcome(
-            status="ok",
-            plan=plan,
-            features=result.features,
-            scalar_result=result.scalar_result,
-            timing_ms=timer.timing,
-            pipeline_trace=self._explicit_trace(plan, result),
-        )
-
     def _validate_explicit_plan(self, plan: GeoQueryPlan,
                                 boundaries: Optional[BaseGeometry]) -> None:
         known_ids = {layer.id for layer in self._catalog.list_queryable_layers()}
@@ -280,3 +280,4 @@ class QueryOrchestrator:
         }
         return [validation, *result.step_traces,
                 QueryOrchestrator._response_trace(result)]
+
