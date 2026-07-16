@@ -131,16 +131,6 @@ class PlanBuilder:
             diagnostics=diagnostics,
         )
 
-    @staticmethod
-    def _diagnostic(data: dict, status: str, attempt: int,
-                    error: Exception = None) -> dict:
-        diagnostic = {"attempt": attempt, "status": status, "model_output": data}
-        if error is not None:
-            diagnostic.update({
-                "error_type": type(error).__name__, "error": str(error),
-            })
-        return diagnostic
-
     def replan_after_empty(self, query: str, layers: List[LayerMeta],
                            previous: GeoQueryPlan, has_boundaries: bool,
                            now: datetime) -> PlanBuildResult:
@@ -157,6 +147,16 @@ class PlanBuilder:
             result.plan = None
             result.clarify = "לא נמצאו תוצאות, ותוכנית התיקון שינתה מגבלה מהבקשה."
         return result
+
+    @staticmethod
+    def _diagnostic(data: dict, status: str, attempt: int,
+                    error: Exception = None) -> dict:
+        diagnostic = {"attempt": attempt, "status": status, "model_output": data}
+        if error is not None:
+            diagnostic.update({
+                "error_type": type(error).__name__, "error": str(error),
+            })
+        return diagnostic
 
     def _run_sample_tool(
         self,
