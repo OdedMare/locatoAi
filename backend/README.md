@@ -356,7 +356,9 @@ registers `mqs`, `cubes`, and `tyche`** — `arcgis` is not a real provider anym
   or repeated paging tokens, and stops at a 100,000-row safety ceiling.
   `POST /api/layers/activate-tyche` (the Layers UI's Tyche activation button)
   first probes one bounded entity and then idempotently upserts the canonical
-  `כוחותינו` catalog row. Failed configuration/API probes never modify the catalog.
+  `כוחותינו` catalog row. Activation adds a detailed Hebrew capability description
+  and bilingual selection tags; existing custom metadata is preserved and missing
+  defaults are merged in. Failed configuration/API probes never modify the catalog.
 
 **Catalog sync:** `POST /api/layers/sync-mqs` (UI: button in the layers panel) pulls
 `GET /MoriaProject/Layers` and upserts rows keyed on `(provider, source_url)` —

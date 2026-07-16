@@ -1,6 +1,6 @@
 """Validated activation of the singleton Tyche Our Forces catalog layer."""
 
-from typing import Tuple
+from typing import List, Optional, Tuple
 from uuid import uuid4
 
 from app.bl.ports.layer_meta import LayerMeta
@@ -10,22 +10,55 @@ from app.bl.ports.provider import Provider
 TYCHE_SOURCE = "tyche://ourforces"
 
 _NAME = "כוחותינו"
-_DESCRIPTION = "מיקומים ואירועי זמן של כוחותינו ממערכת Tyche"
+_DESCRIPTION = (
+    "שכבת Tyche של דיווחי מיקום מתוזמנים לכוחותינו. כוללת מזהה רשת, "
+    "סוג כוח, יחידה, סימן קריאה, זמני אירוע והגעה וגאומטריה; מתאימה "
+    "להצגת מיקום אחרון, סינון זמן וסוג כוח, קרבה, קיבוץ וניתוח כיוון תנועה."
+)
+_LEGACY_DESCRIPTIONS = {
+    "מיקומים ואירועי זמן של כוחותינו ממערכת Tyche",
+}
 _TAGS = [
-    "כוחותינו", "כוחות", "רכב", "יחידות", "מיקום בזמן אמת",
-    "our forces", "vehicles", "units", "live location", "tyche",
+    "כוחותינו", "כוחות", "כלי רכב", "יחידות", "סימן קריאה",
+    "מיקום בזמן אמת", "תנועת כוחות", "מסלול תנועה", "כיוון נסיעה",
+    "אירועי מיקום", "our forces", "forces", "vehicles", "units",
+    "call sign", "live location", "force tracking", "movement",
+    "trajectory", "tyche",
 ]
+
+
+def _existing_layer(repository: LayersRepository) -> Optional[LayerMeta]:
+    return next((
+        layer for layer in repository.list_layers()
+        if layer.provider == "tyche" and layer.source_url == TYCHE_SOURCE
+    ), None)
+
+
+def _merged_tags(existing: Optional[LayerMeta]) -> List[str]:
+    tags = existing.tags if existing is not None else []
+    return list(dict.fromkeys([*_TAGS, *tags]))
+
+
+def _description(existing: Optional[LayerMeta]) -> str:
+    if existing is None or not existing.description.strip():
+        return _DESCRIPTION
+    if existing.description.strip() in _LEGACY_DESCRIPTIONS:
+        return _DESCRIPTION
+    return existing.description
 
 
 def activate_tyche_layer(
     repository: LayersRepository, provider: Provider,
 ) -> Tuple[LayerMeta, bool, int]:
     """Probe one row, then upsert; a failed probe never changes the catalog."""
+    existing = _existing_layer(repository)
     candidate = LayerMeta(
         id=str(uuid4()), name=_NAME, description=_DESCRIPTION, tags=_TAGS,
         provider="tyche", source_url=TYCHE_SOURCE,
     )
     sample = provider.fetch_features(candidate, limit=1)
     activated, created = repository.upsert_layer(candidate)
-    persisted = repository.get_layer(activated.id) or activated
+    persisted = repository.update_layer_metadata(
+        activated.id, _description(existing), _merged_tags(existing)
+    )
     return persisted, created, len(sample)

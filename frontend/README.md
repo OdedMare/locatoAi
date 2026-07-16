@@ -193,6 +193,10 @@ src/
 | `getModels` | `POST /api/models` | Probe a saved or unsaved LLM endpoint. |
 | `submitFeedback` | `POST /api/feedback` | Persist a thumbs verdict. |
 
+If Tyche activation returns HTTP 404, the UI reports a backend version mismatch: an
+upstream Tyche 404 is normalized by FastAPI to a provider error (HTTP 502), while a raw
+404 means the configured `BACKEND_URL` does not expose the activation route.
+
 The TypeScript interfaces intentionally mirror Pydantic DTOs. When an API contract changes, update both sides in the same change.
 
 Moving Cubes entities use `netId` as their stable identity. Agent traces describe

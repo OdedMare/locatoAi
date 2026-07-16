@@ -43,6 +43,11 @@ export async function activateTycheLayer(): Promise<CatalogLayer> {
   const res = await fetch("/api/layers/activate-tyche", { method: "POST" });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
+    if (res.status === 404) {
+      throw new Error(
+        "נתיב הפעלת Tyche לא קיים בשרת הפעיל — יש לבנות ולהפעיל מחדש את ה-backend"
+      );
+    }
     throw new Error(body?.detail ?? `הפעלת שכבת Tyche נכשלה (${res.status})`);
   }
   return res.json();

@@ -12,6 +12,10 @@ class LayersRepository(Protocol):
 
     def add_layer(self, layer: LayerMeta) -> LayerMeta: ...
 
+    def update_layer_metadata(
+        self, layer_id: str, description: str, tags: List[str],
+    ) -> LayerMeta: ...
+
     def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
         """Insert or update by (provider, source_url); returns (layer, created).
         Updates touch name/description only — tags may be LLM-enriched."""
