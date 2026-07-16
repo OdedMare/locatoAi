@@ -207,6 +207,7 @@ def generate_layer_metadata(
         description=result.description,
         tags=result.tags,
         sample_count=result.sample_count,
+        dynamic_parameters=result.dynamic_parameters,
     )
 
 

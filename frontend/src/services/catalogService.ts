@@ -1,6 +1,8 @@
 import type {
   CatalogLayer,
   CreateLayerRequest,
+  CubesAutocompleteRequest,
+  CubesAutocompleteResponse,
   GeneratedLayerMetadataResponse,
   GenerateLayerMetadataRequest,
   LayersResponse,
@@ -66,6 +68,23 @@ export async function activateTycheLayer(): Promise<CatalogLayer> {
       );
     }
     throw new Error(body?.detail ?? `הפעלת שכבת Tyche נכשלה (${res.status})`);
+  }
+  return res.json();
+}
+
+/** Live values for a Cubes dynamic parameter (e.g. sourceSystems) — these
+ * cubes can change their schema, so options are fetched fresh, never cached. */
+export async function fetchCubesAutocompleteOptions(
+  request: CubesAutocompleteRequest
+): Promise<CubesAutocompleteResponse> {
+  const res = await fetch("/api/layers/autocomplete-parameter", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `טעינת אפשרויות הפרמטר נכשלה (${res.status})`);
   }
   return res.json();
 }

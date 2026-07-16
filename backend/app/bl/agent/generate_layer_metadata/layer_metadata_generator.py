@@ -111,8 +111,12 @@ class LayerMetadataGenerator:
         if not tags:
             raise AgentError("LLM metadata response contains no usable tags")
 
+        dynamic_parameters = [
+            item.name for item in schema.parameters if item.is_dynamic
+        ]
         return GeneratedLayerMetadata(
             description=description.strip()[:_MAX_DESCRIPTION_CHARS],
             tags=tags,
             sample_count=sample_count,
+            dynamic_parameters=dynamic_parameters,
         )

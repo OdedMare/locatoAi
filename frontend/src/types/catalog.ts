@@ -21,6 +21,7 @@ export interface CreateLayerRequest {
   provider: string;
   source_url: string;
   cubes_query_mode?: CubesQueryMode;
+  cubes_dynamic_parameters?: Record<string, string>;
 }
 
 export interface UpdateLayerRequest {
@@ -34,6 +35,21 @@ export interface GenerateLayerMetadataRequest {
   provider: string;
   source_url: string;
   cubes_query_mode?: CubesQueryMode;
+  cubes_dynamic_parameters?: Record<string, string>;
+}
+
+export interface CubesAutocompleteRequest {
+  source_url: string;
+  parameter_name: string;
+}
+
+export interface CubesAutocompleteOption {
+  value: string;
+  name: string;
+}
+
+export interface CubesAutocompleteResponse {
+  options: CubesAutocompleteOption[];
 }
 
 export interface GeneratedLayerMetadataResponse {
