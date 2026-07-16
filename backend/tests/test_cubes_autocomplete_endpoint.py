@@ -9,12 +9,13 @@ from app.main import _register_error_handlers
 from app.service import catalog_router
 
 
-def make_app(handler) -> FastAPI:
+def make_app(handler, tmp_path) -> FastAPI:
     app = FastAPI()
     _register_error_handlers(app)
     app.include_router(catalog_router.router)
     store = RuntimeSettingsStore(Settings(
         _env_file=None,
+        runtime_settings_file=str(tmp_path / "runtime-settings.json"),
         cubes_base_url="https://cubes.test",
         cubes_token="jwt",
     ))
@@ -22,7 +23,7 @@ def make_app(handler) -> FastAPI:
     return app
 
 
-def test_autocomplete_endpoint_returns_live_options():
+def test_autocomplete_endpoint_returns_live_options(tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/cube/v1/transport/autocomplete/sourceSystems"
         return httpx.Response(200, json=[
@@ -30,7 +31,7 @@ def test_autocomplete_endpoint_returns_live_options():
             {"Value": "system-b", "Name": "System B"},
         ])
 
-    response = TestClient(make_app(handler)).post(
+    response = TestClient(make_app(handler, tmp_path)).post(
         "/api/layers/autocomplete-parameter",
         json={"source_url": "cubes://db/transport", "parameter_name": "sourceSystems"},
     )
@@ -44,12 +45,12 @@ def test_autocomplete_endpoint_returns_live_options():
     }
 
 
-def test_autocomplete_endpoint_maps_provider_failure_to_502():
+def test_autocomplete_endpoint_maps_provider_failure_to_502(tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"error": "cube unavailable"})
 
     response = TestClient(
-        make_app(handler), raise_server_exceptions=False,
+        make_app(handler, tmp_path), raise_server_exceptions=False,
     ).post(
         "/api/layers/autocomplete-parameter",
         json={"source_url": "cubes://db/transport", "parameter_name": "sourceSystems"},

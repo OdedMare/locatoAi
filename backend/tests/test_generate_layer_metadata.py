@@ -1,6 +1,7 @@
 import json
 
 import geopandas as gpd
+import httpx
 import pytest
 from shapely.geometry import Point
 
@@ -97,6 +98,72 @@ def test_generates_metadata_from_known_cubes_request(tmp_path):
     assert {"netId", "forceType", "eventTime"} <= fields
     assert len(llm.user["random_entity_sample"]) == 10
     assert result.sample_count == 10
+
+
+def test_cubes_metadata_discovers_dynamic_parameter_before_row_fetch(tmp_path):
+    cubes, handler = make_cubes_provider(tmp_path, [])
+
+    def metadata_only(request):
+        handler.requests.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={
+            "Name": "Our forces", "Description": "Moving forces",
+            "Parameters": [{
+                "Name": "TeamType", "IsRequired": True,
+                "Role": "dynamic", "Type": "String",
+            }],
+            "Fields": [],
+        })
+
+    cubes._transport = httpx.MockTransport(metadata_only)
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="כוחות", provider_name="cubes", source_url="transport"
+    )
+
+    assert result.dynamic_parameters == ["TeamType"]
+    assert result.sample_count == 0
+    assert llm.user is None
+    assert [request.method for request in handler.requests] == ["GET"]
+
+
+def test_cubes_metadata_samples_main_route_after_dynamic_value_is_resolved(tmp_path):
+    rows = [{
+        "netId": f"force-{index}", "forceType": "vehicle",
+        "geometry": f"POINT (34.{70 + index} 32.08)",
+    } for index in range(10)]
+    cubes, handler = make_cubes_provider(tmp_path, rows)
+
+    def resolved_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "TeamType", "IsRequired": True,
+                    "Role": "dynamic", "Type": "String",
+                }],
+                "Fields": [{"Name": "netId", "Type": "String"}],
+            })
+        body = json.loads(request.content)
+        assert body["TeamType"] == "our_forces"
+        return httpx.Response(200, json=rows)
+
+    cubes._transport = httpx.MockTransport(resolved_handler)
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="כוחות", provider_name="cubes",
+        source_url="cubes://db/transport?param_TeamType=our_forces",
+    )
+
+    assert result.dynamic_parameters == ["TeamType"]
+    assert result.sample_count == 10
+    assert llm.user is not None
 
 
 class MqsMetadataProvider:

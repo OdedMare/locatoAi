@@ -8,6 +8,7 @@ from app.bl.agent.generate_layer_metadata.generated_layer_metadata import (
     GeneratedLayerMetadata,
 )
 from app.bl.ports.layer_meta import LayerMeta
+from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.llm_client import LLMClient
 from app.bl.ports.provider_registry import ProviderRegistry
 from app.common.errors.agent_error import AgentError
@@ -43,6 +44,12 @@ class LayerMetadataGenerator:
             source_url=source_url.strip(),
         )
         provider = self._providers.get(layer.provider)
+        dynamic_parameters = self._dynamic_parameters(layer, provider)
+        if any(item.resolved_value is None for item in dynamic_parameters):
+            return GeneratedLayerMetadata(
+                description="", sample_count=0,
+                dynamic_parameters=[item.name for item in dynamic_parameters],
+            )
         try:
             features = provider.fetch_features(layer, limit=_FETCH_LIMIT)
             schema = provider.describe_schema(layer)
@@ -111,12 +118,17 @@ class LayerMetadataGenerator:
         if not tags:
             raise AgentError("LLM metadata response contains no usable tags")
 
-        dynamic_parameters = [
-            item.name for item in schema.parameters if item.is_dynamic
-        ]
         return GeneratedLayerMetadata(
             description=description.strip()[:_MAX_DESCRIPTION_CHARS],
             tags=tags,
             sample_count=sample_count,
-            dynamic_parameters=dynamic_parameters,
+            dynamic_parameters=[item.name for item in dynamic_parameters],
         )
+
+    @staticmethod
+    def _dynamic_parameters(
+        layer: LayerMeta, provider,
+    ) -> List[LayerParameter]:
+        if layer.provider != "cubes":
+            return []
+        return provider.list_dynamic_parameters(layer)

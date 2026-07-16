@@ -452,6 +452,47 @@ def test_dynamic_parameter_required_without_resolved_value_fails(tmp_path):
         provider.fetch_features(layer())
 
 
+def test_dynamic_parameters_are_discovered_without_fetching_cube_rows(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={
+            "Parameters": [{
+                "Name": "TeamType", "IsRequired": True,
+                "Role": "dynamic", "Type": "String",
+            }],
+            "Fields": [],
+        })
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    parameters = provider.list_dynamic_parameters(layer())
+
+    assert [item.name for item in parameters] == ["TeamType"]
+    assert parameters[0].resolved_value is None
+    assert [request.method for request in handler.requests] == ["GET"]
+
+
+def test_dynamic_parameter_discovery_reads_resolved_source_value(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        return httpx.Response(200, json={
+            "Parameters": [{
+                "Name": "TeamType", "IsRequired": True,
+                "Role": "dynamic", "Type": "String",
+            }],
+            "Fields": [],
+        })
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    configured = layer("cubes://db/transport?param_TeamType=our_forces")
+
+    assert provider.list_dynamic_parameters(configured)[0].resolved_value == "our_forces"
+
+
 def test_resolved_dynamic_parameter_value_is_injected_into_request_body(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 

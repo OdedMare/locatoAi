@@ -354,6 +354,9 @@ layers remain, selection returns a clarification instead of failing during plann
   `POST /cube/v1/<dbname>/autocomplete/<parameterName>`
   (`CubesProvider.fetch_autocomplete_options`, never cached — these cubes can change
   schema), exposed to the catalog UI via `POST /api/layers/autocomplete-parameter`.
+  Metadata generation discovers unresolved dynamic parameters without fetching rows;
+  after the UI resolves them, a second metadata request samples the normal cube route
+  with those values in its request body.
   Resolution happens once at layer-add time, not per query: the user's chosen
   `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
   query params (`cubes_resolved_parameters`), the same mechanism `query_mode` already

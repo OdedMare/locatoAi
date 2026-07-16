@@ -53,6 +53,8 @@ and its valid values must be fetched live via `POST /cube/v1/{cubeName}/autocomp
 marks these; `CubesProvider.fetch_autocomplete_options` calls the route on demand — never
 cached, since these cubes can change schema between calls. Resolution happens once at
 layer-add time in the catalog UI (`POST /api/layers/autocomplete-parameter`), not per query:
+metadata generation is two-phase and MUST NOT fetch cube rows until every dynamic value
+has been resolved; the resolved metadata request then samples the normal cube route.
 the chosen `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
 query params (parsed back out by `cubes_resolved_parameters`), the same mechanism already
 used for `query_mode`. A required dynamic parameter with no resolved value fails loudly

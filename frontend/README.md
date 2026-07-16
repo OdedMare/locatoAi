@@ -144,6 +144,10 @@ as a button that calls `POST /api/layers/autocomplete-parameter` to fetch live o
 once loaded. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
 chosen value; the choices are sent as `cubes_dynamic_parameters` and the backend folds
 them into `source_url` alongside `cubes_query_mode`.
+Discovery is two-phase: the first metadata request reads parameter definitions only and
+does not call the cube row route while dynamic values are unresolved. After values are
+chosen, running metadata generation again sends those values, samples the normal
+`POST /cube/v1/<dbname>` route, and produces the editable description/tags.
 
 ### `SettingsPanel`
 

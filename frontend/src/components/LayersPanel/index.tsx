@@ -205,20 +205,33 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
       cubes_query_mode: cubesQueryMode,
+      cubes_dynamic_parameters: dynamicParameterValues,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
     setFormMessage("דוגם עד 10 ישויות ומייצר תיאור ותגיות…");
     try {
       const generated = await generateLayerMetadata(target);
-      setDescription(generated.description);
-      setTags(generated.tags);
-      setTagDraft("");
+      if (generated.sample_count > 0) {
+        setDescription(generated.description);
+        setTags(generated.tags);
+        setTagDraft("");
+      }
       setDynamicParameterNames(generated.dynamic_parameters);
-      setDynamicParameterOptions({});
-      setDynamicParameterValues({});
+      setDynamicParameterOptions((current) => Object.fromEntries(
+        generated.dynamic_parameters
+          .filter((parameterName) => current[parameterName])
+          .map((parameterName) => [parameterName, current[parameterName]])
+      ));
+      setDynamicParameterValues((current) => Object.fromEntries(
+        generated.dynamic_parameters
+          .filter((parameterName) => current[parameterName])
+          .map((parameterName) => [parameterName, current[parameterName]])
+      ));
       setFormMessage(
-        generated.dynamic_parameters.length > 0
+        generated.dynamic_parameters.length > 0 && generated.sample_count === 0
+          ? "נמצאו פרמטרים דינמיים — יש לטעון ולבחור ערכים, ואז להפעיל שוב יצירת תיאור ותגיות."
+          : generated.dynamic_parameters.length > 0
           ? `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — יש לבחור ערך לכל פרמטר דינמי לפני ההוספה ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
