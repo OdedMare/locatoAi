@@ -269,20 +269,6 @@ class TycheProvider:
             features = features[features.geometry.intersects(geometry)]
         return features.reset_index(drop=True)
 
-    @staticmethod
-    def _post_page(client: httpx.Client, body: dict) -> dict:
-        try:
-            response = client.post(_PATH, json=body)
-            response.raise_for_status()
-            payload = response.json()
-        except httpx.HTTPError as exc:
-            raise ProviderError(f"Tyche request failed ({_PATH}): {exc}") from exc
-        except ValueError as exc:
-            raise ProviderError(f"Tyche returned invalid JSON ({_PATH}): {exc}") from exc
-        if not isinstance(payload, dict):
-            raise ProviderError("Tyche response must be a JSON object")
-        return payload
-
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20,
     ) -> List[str]:
@@ -297,6 +283,20 @@ class TycheProvider:
             if len(values) >= limit:
                 break
         return values
+
+    @staticmethod
+    def _post_page(client: httpx.Client, body: dict) -> dict:
+        try:
+            response = client.post(_PATH, json=body)
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"Tyche request failed ({_PATH}): {exc}") from exc
+        except ValueError as exc:
+            raise ProviderError(f"Tyche returned invalid JSON ({_PATH}): {exc}") from exc
+        if not isinstance(payload, dict):
+            raise ProviderError("Tyche response must be a JSON object")
+        return payload
 
     def _base_url(self) -> str:
         value = self._store.get().tyche_base_url

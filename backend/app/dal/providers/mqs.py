@@ -498,6 +498,44 @@ class MqsProvider:
                 attribute_filters=attribute_filters)
             return self._entities_to_gdf(layer_id, entities, geometry)
 
+    def sample_field_values(
+        self, layer: LayerMeta, field: str, limit: int = 20
+    ) -> List[str]:
+        """Distinct fixed or property_list values sampled from entity details.
+        Values are untrusted text — truncated."""
+        layer_id = mqs_layer_id(layer)
+        values: List[str] = []
+        sample_size = min(_PAGE_SIZE, max(limit * 5, 20))
+        with self._client() as client:
+            entities, _ = self._entities_page(
+                client, layer_id, {"from": 0, "to": sample_size}
+            )
+            for batch in self._batched(entities, self._detail_concurrency):
+                for entity in self._enrich_batch(client, layer_id, batch):
+                    record = _entity_to_record(entity)
+                    value = record[1].get(field) if record is not None else None
+                    if value is not None:
+                        text = str(value)[:_MAX_SAMPLE_CHARS]
+                        if text not in values:
+                            values.append(text)
+                    if len(values) >= limit:
+                        return values[:limit]
+        return values[:limit]
+
+    # -- Sync support (beyond the Provider protocol) -------------------------
+
+    def list_remote_layers(self) -> List[dict]:
+        """Raw layer dicts from GET /MoriaProject/Layers, for catalog sync."""
+        with self._client() as client:
+            payload = self._get_json(client, "/MoriaProject/Layers")
+        layers = _find_list(payload, _LAYER_LIST_KEYS)
+        if layers is None:
+            raise ProviderError(
+                "MQS returned an unrecognized layer-list response from "
+                "/MoriaProject/Layers"
+            )
+        return layers
+
     @staticmethod
     def _entities_to_gdf(layer_id: str, entities: Iterable[dict], geometry=None):
         valid = []
@@ -662,44 +700,6 @@ class MqsProvider:
                 batch = []
         if batch:
             yield batch
-
-    def sample_field_values(
-        self, layer: LayerMeta, field: str, limit: int = 20
-    ) -> List[str]:
-        """Distinct fixed or property_list values sampled from entity details.
-        Values are untrusted text — truncated."""
-        layer_id = mqs_layer_id(layer)
-        values: List[str] = []
-        sample_size = min(_PAGE_SIZE, max(limit * 5, 20))
-        with self._client() as client:
-            entities, _ = self._entities_page(
-                client, layer_id, {"from": 0, "to": sample_size}
-            )
-            for batch in self._batched(entities, self._detail_concurrency):
-                for entity in self._enrich_batch(client, layer_id, batch):
-                    record = _entity_to_record(entity)
-                    value = record[1].get(field) if record is not None else None
-                    if value is not None:
-                        text = str(value)[:_MAX_SAMPLE_CHARS]
-                        if text not in values:
-                            values.append(text)
-                    if len(values) >= limit:
-                        return values[:limit]
-        return values[:limit]
-
-    # -- Sync support (beyond the Provider protocol) -------------------------
-
-    def list_remote_layers(self) -> List[dict]:
-        """Raw layer dicts from GET /MoriaProject/Layers, for catalog sync."""
-        with self._client() as client:
-            payload = self._get_json(client, "/MoriaProject/Layers")
-        layers = _find_list(payload, _LAYER_LIST_KEYS)
-        if layers is None:
-            raise ProviderError(
-                "MQS returned an unrecognized layer-list response from "
-                "/MoriaProject/Layers"
-            )
-        return layers
 
     # -- HTTP plumbing (private) ---------------------------------------------
 

@@ -413,6 +413,44 @@ class CubesProvider:
             features = features[features.geometry.intersects(geometry)]
         return features.iloc[:limit] if limit is not None else features
 
+    def sample_field_values(
+        self, layer: LayerMeta, field: str, limit: int = 20
+    ) -> List[str]:
+        features = self.fetch_features(layer, limit=max(limit * 5, 20))
+        if field not in features.columns:
+            return []
+        values: List[str] = []
+        for value in features[field].dropna():
+            text = str(value)[:80]
+            if text not in values:
+                values.append(text)
+            if len(values) >= limit:
+                break
+        return values
+
+    def fetch_autocomplete_options(
+        self, layer: LayerMeta, parameter_name: str
+    ) -> List[LayerParameterOption]:
+        """Values for a dynamic (Role="dynamic") parameter, fetched live —
+        these cubes can change their schema, so options are never cached."""
+        database = quote(cubes_database_name(layer), safe="")
+        parameter = quote(parameter_name, safe="")
+        path = f"/cube/v1/{database}/autocomplete/{parameter}"
+        try:
+            with self._client() as client:
+                response = client.post(path, json={})
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"Cubes autocomplete request failed ({path}): {exc}")
+        if not isinstance(payload, list):
+            raise ProviderError("Cubes autocomplete response must be a JSON array")
+        return [
+            LayerParameterOption(value=str(item["Value"]), name=str(item.get("Name") or ""))
+            for item in payload
+            if isinstance(item, dict) and item.get("Value") not in (None, "")
+        ]
+
     def _fetch_rows(
         self,
         client: httpx.Client,
@@ -532,21 +570,6 @@ class CubesProvider:
         except ValueError as exc:
             raise ProviderError(f"Cubes returned invalid JSON ({path}): {exc}")
 
-    def sample_field_values(
-        self, layer: LayerMeta, field: str, limit: int = 20
-    ) -> List[str]:
-        features = self.fetch_features(layer, limit=max(limit * 5, 20))
-        if field not in features.columns:
-            return []
-        values: List[str] = []
-        for value in features[field].dropna():
-            text = str(value)[:80]
-            if text not in values:
-                values.append(text)
-            if len(values) >= limit:
-                break
-        return values
-
     def _base_url(self) -> str:
         value = self._store.get().cubes_base_url
         if not value:
@@ -607,26 +630,3 @@ class CubesProvider:
         if not isinstance(payload, list):
             raise ProviderError("Cubes parameters response must be a JSON array")
         return [item for item in payload if isinstance(item, dict)]
-
-    def fetch_autocomplete_options(
-        self, layer: LayerMeta, parameter_name: str
-    ) -> List[LayerParameterOption]:
-        """Values for a dynamic (Role="dynamic") parameter, fetched live —
-        these cubes can change their schema, so options are never cached."""
-        database = quote(cubes_database_name(layer), safe="")
-        parameter = quote(parameter_name, safe="")
-        path = f"/cube/v1/{database}/autocomplete/{parameter}"
-        try:
-            with self._client() as client:
-                response = client.post(path, json={})
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"Cubes autocomplete request failed ({path}): {exc}")
-        if not isinstance(payload, list):
-            raise ProviderError("Cubes autocomplete response must be a JSON array")
-        return [
-            LayerParameterOption(value=str(item["Value"]), name=str(item.get("Name") or ""))
-            for item in payload
-            if isinstance(item, dict) and item.get("Value") not in (None, "")
-        ]
