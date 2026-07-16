@@ -11,3 +11,4 @@ class LayerParameter(BaseModel):
     required: bool = False
     single_value: bool = True
     options: List[str] = []
+    is_dynamic: bool = False

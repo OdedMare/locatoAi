@@ -174,7 +174,7 @@ def test_fetch_features_enriches_business_fields_from_entity_detail(tmp_path):
     })
 
     def responses(request):
-        if request.url.path.endswith("/Entities/{G1}"):
+        if request.url.path.endswith("/EntityInfo/{G1}"):
             return detailed
         return {"next_page": None, "entities_list": [listed]}
 
@@ -183,7 +183,24 @@ def test_fetch_features_enriches_business_fields_from_entity_detail(tmp_path):
     assert gdf.iloc[0]["שם"] == "בית ספר אלונים"
     assert gdf.iloc[0]["מהות"] == "חינוך"
     assert gdf.iloc[0]["סוג"] == "יסודי"
-    assert any("/Entities/%7BG1%7D" in request.url.raw_path.decode()
+    assert any("/EntityInfo/%7BG1%7D" in request.url.raw_path.decode()
+               for request in handler.requests)
+
+
+def test_entity_detail_calls_entityinfo_not_entities(tmp_path):
+    listed = entity("{G1}")
+    detailed = entity("{G1}", property_list={"שם": "פארק הירקון"})
+
+    def responses(request):
+        if request.url.path.endswith("/Entities/{G1}"):
+            raise AssertionError("detail fetch must not hit /Entities/{entity_id}")
+        if request.url.path.endswith("/EntityInfo/{G1}"):
+            return detailed
+        return {"next_page": None, "entities_list": [listed]}
+
+    provider, handler = make_provider(tmp_path, responses)
+    provider.fetch_features(mqs_layer())
+    assert any("/EntityInfo/%7BG1%7D" in request.url.raw_path.decode()
                for request in handler.requests)
 
 
@@ -230,7 +247,7 @@ def test_describe_schema_and_sample_values_use_property_list(tmp_path):
     detailed = entity("G1", property_list={"שם": "גן העיר", "סוג": "ציבורי"})
 
     def responses(request):
-        if request.url.path.endswith("/Entities/G1"):
+        if request.url.path.endswith("/EntityInfo/G1"):
             return detailed
         return {"next_page": None, "entities_list": [entity("G1")]}
 
@@ -397,6 +414,74 @@ def test_fetch_features_with_polygon_geometry_posts_geo_polygon(tmp_path):
     geo_polygon = body["filter"]["complex_operators"]["geo_polygon"]["geo"]
     assert geo_polygon["type"] == "IN"
     assert geo_polygon["values"] == [triangle.wkt]
+
+
+def test_fetch_features_with_attribute_filters_posts_simple_operators_match(tmp_path):
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    provider.fetch_features(mqs_layer(), attribute_filters=[("סוג", "בית ספר")])
+
+    request = handler.requests[0]
+    assert request.method == "POST"
+    body = json.loads(request.content)
+    assert body["filter"]["simple_operators"]["match"]["סוג"] == {
+        "type": "IN", "values": ["בית ספר"]
+    }
+    assert "complex_operators" not in body["filter"]
+
+
+def test_fetch_features_with_attribute_filters_and_geometry_merges_both(tmp_path):
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    viewport = box(34.7, 32.0, 34.9, 32.2)
+    provider.fetch_features(
+        mqs_layer(), geometry=viewport, attribute_filters=[("סוג", "בית ספר")]
+    )
+
+    request = handler.requests[0]
+    assert request.method == "POST"
+    body = json.loads(request.content)
+    assert "geo_bounding_box" in body["filter"]["complex_operators"]
+    assert body["filter"]["simple_operators"]["match"]["סוג"] == {
+        "type": "IN", "values": ["בית ספר"]
+    }
+
+
+def test_fetch_features_with_multiple_attribute_filters(tmp_path):
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    provider.fetch_features(
+        mqs_layer(),
+        attribute_filters=[("סוג", "בית ספר"), ("מהות", "חינוך")],
+    )
+
+    body = json.loads(handler.requests[0].content)
+    match = body["filter"]["simple_operators"]["match"]
+    assert match["סוג"] == {"type": "IN", "values": ["בית ספר"]}
+    assert match["מהות"] == {"type": "IN", "values": ["חינוך"]}
+
+
+def test_fetch_features_attribute_filters_alone_without_geometry_still_posts(tmp_path):
+    """Regression: attribute_filters alone (no geometry) must still trigger
+    POST, not GET — the GET/POST decision no longer depends on geometry only."""
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    provider.fetch_features(mqs_layer(), attribute_filters=[("סוג", "בית ספר")])
+
+    assert handler.requests[0].method == "POST"
+
+
+def test_fetch_features_without_attribute_filters_stays_get(tmp_path):
+    provider, handler = make_provider(
+        tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
+    )
+    provider.fetch_features(mqs_layer())
+
+    assert handler.requests[0].method == "GET"
 
 
 def test_dense_small_geometry_is_split_and_cross_tile_entities_are_deduplicated(

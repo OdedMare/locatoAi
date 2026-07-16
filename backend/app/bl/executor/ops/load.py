@@ -13,4 +13,7 @@ class LoadOp(OpHandler):
         # provider-side spatial filter hint so the whole layer isn't
         # fetched just to be cut down by within_geometry afterwards.
         return ctx.load_layer_features(
-            step.layer, temporal_range=ctx.load_temporal_ranges.get(step.id))
+            step.layer,
+            temporal_range=ctx.load_temporal_ranges.get(step.id),
+            attribute_filters=ctx.load_attribute_filters.get(step.id),
+        )

@@ -7,7 +7,7 @@ nothing about individual ops (OCP): it dispatches via the op registry.
 
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
@@ -18,6 +18,7 @@ from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.execution_output import ExecutionOutput
 from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_registry import get_op_handler
+from app.bl.plan.models.attribute_filter_step import AttributeFilterStep
 from app.bl.plan.models.count_step import CountStep
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.models.load_step import LoadStep
@@ -68,6 +69,7 @@ class PlanExecutor:
             user_geometry=user_geometry,
             now=now or datetime.now(timezone.utc),
             load_temporal_ranges=self._load_temporal_ranges(plan),
+            load_attribute_filters=self._load_attribute_filters(plan),
         )
         step_traces: List[Dict[str, Any]] = []
         for step in plan.steps:
@@ -146,6 +148,20 @@ class PlanExecutor:
             if load is not None:
                 ranges[load.id] = (step.from_, step.to)
         return ranges
+
+    @staticmethod
+    def _load_attribute_filters(plan: GeoQueryPlan):
+        by_id = {step.id: step for step in plan.steps}
+        filters: Dict[str, List[Tuple[str, str]]] = {}
+        for step in plan.steps:
+            if not isinstance(step, AttributeFilterStep):
+                continue
+            if step.operator != "eq":
+                continue
+            load = PlanExecutor._source_load(step.input, by_id)
+            if load is not None:
+                filters.setdefault(load.id, []).append((step.field, str(step.value)))
+        return filters
 
     @staticmethod
     def _source_load(step_id, by_id):

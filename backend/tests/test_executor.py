@@ -6,6 +6,7 @@ import pytest
 from shapely.geometry import Point, box
 
 from app.bl.executor.engine.plan_executor import PlanExecutor
+from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
@@ -537,6 +538,97 @@ def test_temporal_range_pushdown_reaches_temporal_providers(
 
     assert len(result) == 1
     assert cubes.fetch_features.call_args.kwargs["temporal_range"] == time_range
+
+
+def test_attribute_filter_eq_pushdown_reaches_mqs_provider():
+    mqs_layer = LayerMeta(
+        id="schools-mqs", name="schools", provider="mqs",
+        source_url="mqs://layer/42",
+    )
+    catalog, providers, mqs = Mock(), Mock(), Mock()
+    catalog.get_layer.return_value = mqs_layer
+    catalog.get_schema.return_value = LayerSchema(
+        layer_id="schools-mqs", geometry_type="Point", fields=[],
+        temporal_field=None)
+    providers.get.return_value = mqs
+    mqs.fetch_features.return_value = gpd.GeoDataFrame(
+        {"סוג": ["בית ספר"]}, geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
+
+    result = run_steps(PlanExecutor(catalog, providers), [
+        {"id": "s1", "op": "load", "layer": "schools-mqs"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "סוג", "operator": "eq", "value": "בית ספר"},
+    ], "s2")
+
+    assert len(result) == 1
+    assert mqs.fetch_features.call_args.kwargs["attribute_filters"] == [
+        ("סוג", "בית ספר")
+    ]
+
+
+def test_attribute_filter_contains_does_not_pushdown_to_mqs():
+    mqs_layer = LayerMeta(
+        id="schools-mqs", name="schools", provider="mqs",
+        source_url="mqs://layer/42",
+    )
+    catalog, providers, mqs = Mock(), Mock(), Mock()
+    catalog.get_layer.return_value = mqs_layer
+    catalog.get_schema.return_value = LayerSchema(
+        layer_id="schools-mqs", geometry_type="Point", fields=[],
+        temporal_field=None)
+    providers.get.return_value = mqs
+    mqs.fetch_features.return_value = gpd.GeoDataFrame(
+        {"name": ["בית ספר אלונים"]}, geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
+
+    run_steps(PlanExecutor(catalog, providers), [
+        {"id": "s1", "op": "load", "layer": "schools-mqs"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "name", "operator": "contains", "value": "אלונים"},
+    ], "s2")
+
+    assert mqs.fetch_features.call_args.kwargs.get("attribute_filters") is None
+
+
+@pytest.mark.parametrize("provider_name", ["cubes", "tyche"])
+def test_attribute_filter_pushdown_is_mqs_only(frozen_now, provider_name):
+    cube_layer = LayerMeta(
+        id="moving", name="moving", provider=provider_name,
+        source_url=("cubes://db/moving" if provider_name == "cubes"
+                    else "tyche://ourforces"),
+    )
+    catalog, providers, cubes = Mock(), Mock(), Mock()
+    catalog.get_layer.return_value = cube_layer
+    catalog.get_schema.return_value = LayerSchema(
+        layer_id="moving", geometry_type="Point", fields=[],
+        temporal_field="eventTime")
+    providers.get.return_value = cubes
+    cubes.fetch_features.return_value = gpd.GeoDataFrame(
+        {"status": ["active"]}, geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
+
+    run_steps(PlanExecutor(catalog, providers), [
+        {"id": "s1", "op": "load", "layer": "moving"},
+        {"id": "s2", "op": "attribute_filter", "input": "s1",
+         "field": "status", "operator": "eq", "value": "active"},
+    ], "s2", now=frozen_now)
+
+    assert cubes.fetch_features.call_args.kwargs.get("attribute_filters") is None
+
+
+def test_cache_key_distinguishes_attribute_filters():
+    """Two loads of the same layer+geometry with different eq-filter values
+    must not collide in the feature cache."""
+    base = ExecutionContext._cache_key("layer", None, None, [("סוג", "בית ספר")])
+    other_value = ExecutionContext._cache_key("layer", None, None, [("סוג", "גן ילדים")])
+    no_filters = ExecutionContext._cache_key("layer", None, None, None)
+    assert base != other_value
+    assert base != no_filters
+    assert other_value != no_filters
+    # Filter order doesn't matter — same set, same key.
+    reordered = ExecutionContext._cache_key(
+        "layer", None, None, [("מהות", "חינוך"), ("סוג", "בית ספר")])
+    same_order_different_list = ExecutionContext._cache_key(
+        "layer", None, None, [("סוג", "בית ספר"), ("מהות", "חינוך")])
+    assert reordered == same_order_different_list
 
 
 def test_temporal_filter_uses_schema_declared_field(executor, frozen_now):

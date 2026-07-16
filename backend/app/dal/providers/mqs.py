@@ -32,27 +32,29 @@ absent, guarded by _MAX_FEATURES. (The doc's very first section showed a
 bare-array response with no wrapper — _extract_entities stays lenient and
 accepts both.)
 
-GET /MoriaProject/{layer_id}/Entities/{entity_id} returns the entity detail.
-The provider follows it for every fetched list entity unless that entity
-already embeds `property_list`.
+GET /MoriaProject/{layer_id}/EntityInfo/{entity_id} returns the entity
+detail. The provider follows it for every fetched list entity unless that
+entity already embeds `property_list`. (Confirmed against a real working
+MQS client: this is a distinct route from /Entities, not a sub-path of it.)
 
 WKT coordinates are lon/lat (the doc says to confirm the CRS with the
 service owner); assumed WGS84 — if a real instance serves ITM
 (EPSG:2039), fix it inside _ensure_wgs84.
 
 Spatial pushdown: the same /Entities route also accepts POST with a
-{"filter": {"complex_operators": {...}}} body (per a follow-up doc
-excerpt covering geo_bounding_box/geo_polygon/geo_distance — the
-simple_operators section, e.g. ids/match/IN, was not provided and is not
-implemented). fetch_features/sample_field_values take an optional
-`geometry` (always WGS84); when given, a rectangular geometry becomes
-geo_bounding_box and anything else becomes geo_polygon (WKT), and the
-request is POSTed instead of GET'd — same pagination params, same
-response envelope assumed (not separately confirmed for POST, since no
-different shape was documented). This is always an optimization: it
-narrows what MQS returns, but callers (within_geometry) still re-filter
-client-side, so an instance that ignores the filter body stays correct,
-just slower.
+{"filter": {"complex_operators": {...}, "simple_operators": {...}}} body
+(confirmed against a real working MQS client). fetch_features/
+sample_field_values take an optional `geometry` (always WGS84); when
+given, a rectangular geometry becomes geo_bounding_box and anything else
+becomes geo_polygon (WKT). fetch_features also takes an optional
+`attribute_filters` (a list of (field, value) equality pairs); when
+given, it becomes simple_operators.match.<field> = {"type": "IN",
+"values": [value]}, ANDed together with any geometry filter present. Either
+one present switches the request from GET to POST — same pagination
+params, same response envelope. Both are always an optimization: they
+narrow what MQS returns, but callers (within_geometry, attribute_filter)
+still re-filter client-side, so an instance that ignores the filter body
+stays correct, just slower.
 """
 
 import json
@@ -341,6 +343,37 @@ def _geometry_filter_body(geometry: BaseGeometry) -> dict:
     }
 
 
+def _attribute_filter_body(filters: Sequence[Tuple[str, str]]) -> dict:
+    """eq-only attribute filters → the {"filter": {"simple_operators": {...}}}
+    body fragment for MQS's POST filter (confirmed against a real working
+    MQS client): simple_operators.match.<field> = {"type": "IN",
+    "values": [value]}, one field per filter. Multiple fields AND together
+    per MQS's own semantics."""
+    match = {field_name: {"type": "IN", "values": [value]} for field_name, value in filters}
+    return {"filter": {"simple_operators": {"match": match}}}
+
+
+def _merge_filter_body(
+    geometry: Optional[BaseGeometry],
+    attribute_filters: Optional[Sequence[Tuple[str, str]]],
+) -> Optional[dict]:
+    """Merge geometry + eq-attribute-filter pushdown into one POST body
+    (complex_operators and simple_operators are siblings under "filter"),
+    or None if neither is present — callers should GET instead."""
+    if geometry is None and not attribute_filters:
+        return None
+    body: dict = {"filter": {}}
+    if geometry is not None:
+        body["filter"]["complex_operators"] = (
+            _geometry_filter_body(geometry)["filter"]["complex_operators"]
+        )
+    if attribute_filters:
+        body["filter"]["simple_operators"] = (
+            _attribute_filter_body(attribute_filters)["filter"]["simple_operators"]
+        )
+    return body
+
+
 def _split_geometry(geometry: BaseGeometry) -> List[BaseGeometry]:
     """Split a polygonal request region into non-empty quadrants."""
     minx, miny, maxx, maxy = geometry.bounds
@@ -447,17 +480,21 @@ class MqsProvider:
         now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
+        attribute_filters: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
         # `now` is part of the Provider protocol (mock temporal synthesis);
         # MQS serves real data, so it is ignored. `geometry`, when given,
         # is pushed down as a POST filter (see module docstring) — an
         # optimization only; nothing downstream depends on MQS honoring it.
         # `limit` caps pagination to a small first page (e.g. metadata
-        # sampling) instead of fetching the whole layer.
+        # sampling) instead of fetching the whole layer. `attribute_filters`
+        # (eq-only) is pushed down the same way as simple_operators.match —
+        # also an optimization only.
         layer_id = mqs_layer_id(layer)
         with self._client() as client:
             entities = self._iter_enriched_entities(
-                client, layer_id, geometry=geometry, limit=limit)
+                client, layer_id, geometry=geometry, limit=limit,
+                attribute_filters=attribute_filters)
             return self._entities_to_gdf(layer_id, entities, geometry)
 
     @staticmethod
@@ -483,9 +520,11 @@ class MqsProvider:
         return _ensure_wgs84(gpd.GeoDataFrame(
             list(attributes), geometry=list(geometries), crs=WGS84))
 
-    def _iter_enriched_entities(self, client, layer_id, geometry=None, limit=None):
+    def _iter_enriched_entities(self, client, layer_id, geometry=None, limit=None,
+                                 attribute_filters=None):
         pending: List[dict] = []
-        entities = self._iter_query_entities(client, layer_id, geometry, limit)
+        entities = self._iter_query_entities(
+            client, layer_id, geometry, limit, attribute_filters)
         for entity in entities:
             pending.append(entity)
             if len(pending) >= self._detail_concurrency:
@@ -494,7 +533,8 @@ class MqsProvider:
         if pending:
             yield from self._enrich_batch(client, layer_id, pending)
 
-    def _iter_query_entities(self, client, layer_id, geometry=None, limit=None):
+    def _iter_query_entities(self, client, layer_id, geometry=None, limit=None,
+                              attribute_filters=None):
         """Fetch only the request region and deduplicate cross-tile entities.
 
         A bounded query is split recursively whenever MQS reports more than
@@ -503,7 +543,8 @@ class MqsProvider:
         """
         if geometry is None or limit is not None:
             yield from self._iter_all_entities(
-                client, layer_id, geometry=geometry, limit=limit)
+                client, layer_id, geometry=geometry, limit=limit,
+                attribute_filters=attribute_filters)
             return
 
         seen_ids = set()
@@ -511,6 +552,7 @@ class MqsProvider:
         for entity in self._iter_geometry_region(
             client, layer_id, geometry, depth=0,
             parent_total=None, parent_observed=None,
+            attribute_filters=attribute_filters,
         ):
             entity_id = _entity_id(entity)
             if entity_id is not None:
@@ -528,7 +570,7 @@ class MqsProvider:
 
     def _iter_geometry_region(
         self, client, layer_id, geometry, depth,
-        parent_total, parent_observed,
+        parent_total, parent_observed, attribute_filters=None,
     ):
         params = {"from": 0, "to": _PAGE_SIZE}
         buffered: List[dict] = []
@@ -538,7 +580,7 @@ class MqsProvider:
 
         for probe_index in range(_GEO_PROBE_PAGES):
             entities, next_page, page_total = self._entities_page_with_meta(
-                client, layer_id, params, geometry
+                client, layer_id, params, geometry, attribute_filters
             )
             buffered.extend(entities)
             if total is None:
@@ -581,6 +623,7 @@ class MqsProvider:
                 yield from self._iter_geometry_region(
                     client, layer_id, chunk, depth + 1,
                     parent_total=total, parent_observed=len(buffered),
+                    attribute_filters=attribute_filters,
                 )
             return
 
@@ -593,7 +636,7 @@ class MqsProvider:
             visited_pages.add(next_page)
             params = self._next_page_params(next_page)
             entities, next_page, _ = self._entities_page_with_meta(
-                client, layer_id, params, geometry
+                client, layer_id, params, geometry, attribute_filters
             )
             yield from entities
 
@@ -723,17 +766,19 @@ class MqsProvider:
         layer_id: str,
         params: Optional[dict],
         geometry: Optional[BaseGeometry] = None,
+        attribute_filters: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> Tuple[List[dict], Optional[str]]:
         """One page of entities_list + the next_page URL, or (entities, None)
         for a doc-variant response with no pagination wrapper at all.
 
-        geometry, when given, switches the request from GET to POST with a
-        geo_bounding_box/geo_polygon filter body (spatial pushdown — an
-        optimization only, see module docstring); pagination params are
-        still applied the same way on both paths.
+        geometry/attribute_filters, when given, switch the request from GET
+        to POST with a geo_bounding_box/geo_polygon and/or
+        simple_operators.match filter body (pushdown — an optimization only,
+        see module docstring); pagination params are still applied the same
+        way on both paths.
         """
         entities, next_page, _ = self._entities_page_with_meta(
-            client, layer_id, params, geometry
+            client, layer_id, params, geometry, attribute_filters
         )
         return entities, next_page
 
@@ -743,12 +788,12 @@ class MqsProvider:
         layer_id: str,
         params: Optional[dict],
         geometry: Optional[BaseGeometry] = None,
+        attribute_filters: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> Tuple[List[dict], Optional[str], Optional[int]]:
         path = f"/MoriaProject/{layer_id}/Entities"
-        if geometry is not None:
-            payload = self._post_json(
-                client, path, _geometry_filter_body(geometry), params
-            )
+        body = _merge_filter_body(geometry, attribute_filters)
+        if body is not None:
+            payload = self._post_json(client, path, body, params)
         else:
             payload = self._get_json(client, path, params)
         entities = _find_list(payload, _ENTITY_LIST_KEYS)
@@ -778,6 +823,7 @@ class MqsProvider:
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
         max_features: Optional[int] = _MAX_FEATURES,
+        attribute_filters: Optional[Sequence[Tuple[str, str]]] = None,
     ):
         # limit caps the *first page size* rather than truncating after a
         # full fetch — a metadata/tagging sample (limit=100) must cost one
@@ -786,7 +832,8 @@ class MqsProvider:
         params = {"from": 0, "to": page_size}
         fetched = 0
         while True:
-            entities, next_page = self._entities_page(client, layer_id, params, geometry)
+            entities, next_page = self._entities_page(
+                client, layer_id, params, geometry, attribute_filters)
             fetched += len(entities)
             if limit is not None and fetched >= limit:
                 for entity in entities[: limit - (fetched - len(entities))]:
@@ -814,7 +861,7 @@ class MqsProvider:
         if entity_id is None:
             logger.warning("MQS layer %s: entity has no entity_id", layer_id)
             return entity
-        path = f"/MoriaProject/{layer_id}/Entities/{quote(entity_id, safe='')}"
+        path = f"/MoriaProject/{layer_id}/EntityInfo/{quote(entity_id, safe='')}"
         payload = self._get_json(client, path)
         detail = payload
         if isinstance(payload, dict):
