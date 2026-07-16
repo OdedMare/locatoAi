@@ -12,7 +12,7 @@ from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.mqs import (
-    _MAX_FEATURES,
+    _MAX_FEATURES_PER_LAYER,
     _PAGE_SIZE,
     MqsProvider,
     mqs_layer_id,
@@ -312,14 +312,36 @@ def test_fetch_features_skips_bad_geometry(tmp_path):
     assert list(gdf["id"]) == ["{G1}"]
 
 
-def test_fetch_features_hard_cap(tmp_path):
+def test_fetch_features_per_layer_hard_cap(tmp_path):
+    """An unbounded (no geometry) layer load is capped at
+    _MAX_FEATURES_PER_LAYER (10,000), stricter than the whole-request
+    _MAX_FEATURES (50,000) ceiling."""
     huge_page = {
         "next_page": None,
-        "entities_list": [entity(str(i)) for i in range(_MAX_FEATURES + 1)],
+        "entities_list": [entity(str(i)) for i in range(_MAX_FEATURES_PER_LAYER + 1)],
     }
     provider, _ = make_provider(tmp_path, lambda request: huge_page)
-    with pytest.raises(ProviderError, match=str(_MAX_FEATURES)):
+    with pytest.raises(ProviderError, match=str(_MAX_FEATURES_PER_LAYER)):
         provider.fetch_features(mqs_layer())
+
+
+def test_fetch_features_within_geometry_hard_cap(tmp_path):
+    """A bounded (geometry-split) layer load is also capped at the
+    per-layer 10,000 limit, not the looser whole-request 50,000 ceiling."""
+    boundary = box(34.78, 32.08, 34.80, 32.10)
+
+    def responses(request):
+        return {
+            "next_page": None,
+            "total_entities": _MAX_FEATURES_PER_LAYER + 1,
+            "entities_list": [
+                entity(str(i)) for i in range(_MAX_FEATURES_PER_LAYER + 1)
+            ],
+        }
+
+    provider, _ = make_provider(tmp_path, responses)
+    with pytest.raises(ProviderError, match=str(_MAX_FEATURES_PER_LAYER)):
+        provider.fetch_features(mqs_layer(), geometry=boundary)
 
 
 def test_fetch_features_http_error_wrapped(tmp_path):

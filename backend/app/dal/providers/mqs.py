@@ -543,9 +543,10 @@ class MqsProvider:
         physical size alone never decides whether chunking is necessary.
         """
         if geometry is None or limit is not None:
+            max_features = _MAX_FEATURES_PER_LAYER if limit is None else _MAX_FEATURES
             yield from self._iter_all_entities(
                 client, layer_id, geometry=geometry, limit=limit,
-                attribute_filters=attribute_filters)
+                max_features=max_features, attribute_filters=attribute_filters)
             return
 
         seen_ids = set()
@@ -561,11 +562,12 @@ class MqsProvider:
                     continue
                 seen_ids.add(entity_id)
             fetched += 1
-            if fetched > _MAX_FEATURES:
+            if fetched > _MAX_FEATURES_PER_LAYER:
                 raise ProviderError(
                     f"MQS layer {layer_id} returned more than the "
-                    f"{_MAX_FEATURES} feature limit inside the requested "
-                    "geometry — narrow the boundary or use an aggregation"
+                    f"{_MAX_FEATURES_PER_LAYER} per-layer feature limit "
+                    "inside the requested geometry — narrow the boundary, "
+                    "add an attribute filter, or use an aggregation"
                 )
             yield entity
 

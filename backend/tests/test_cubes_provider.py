@@ -14,6 +14,7 @@ from app.dal.providers.cubes import (
     CubesProvider,
     cubes_database_name,
     cubes_query_mode,
+    cubes_resolved_parameters,
 )
 
 
@@ -397,3 +398,99 @@ def test_missing_configuration_fails_clearly(tmp_path):
     provider, _ = make_provider(tmp_path, [], token="")
     with pytest.raises(ProviderError, match="token"):
         provider.fetch_features(layer())
+
+
+def test_resolved_parameters_parsed_from_source_url():
+    configured = layer(
+        "cubes://db/transport?query_mode=match_not&param_TeamType=our_forces"
+    )
+    assert cubes_resolved_parameters(configured) == {"TeamType": "our_forces"}
+    assert cubes_resolved_parameters(layer()) == {}
+
+
+def test_dynamic_role_parameter_ignores_placeholder_options(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "TeamType", "DisplayName": "סוג צוות",
+                    "IsRequired": False, "IsSingleValue": True,
+                    "Role": "dynamic", "Type": "String",
+                    "Options": [{"Description": "", "Name": "", "Value": ""}],
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    schema = provider.describe_schema(layer())
+    parameter = schema.parameters[0]
+    assert parameter.is_dynamic is True
+    assert parameter.options == []
+
+
+def test_dynamic_parameter_required_without_resolved_value_fails(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "TeamType", "IsRequired": True,
+                    "IsSingleValue": True, "Role": "dynamic", "Type": "String",
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    with pytest.raises(ProviderError, match="TeamType.*no configured value"):
+        provider.fetch_features(layer())
+
+
+def test_resolved_dynamic_parameter_value_is_injected_into_request_body(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "TeamType", "IsRequired": True,
+                    "IsSingleValue": True, "Role": "dynamic", "Type": "String",
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer("cubes://db/transport?param_TeamType=our_forces"))
+    body = json.loads(posted_request(handler).content)
+    assert body["TeamType"] == "our_forces"
+
+
+def test_fetch_autocomplete_options_posts_to_dedicated_route(tmp_path):
+    provider, handler = make_provider(
+        tmp_path, [{"Value": "system-a", "Name": "System A"},
+                   {"Value": "system-b", "Name": "System B"}])
+
+    def autocomplete_handler(request):
+        handler.requests.append(request)
+        return httpx.Response(200, json=[
+            {"Value": "system-a", "Name": "System A"},
+            {"Value": "system-b", "Name": "System B"},
+        ])
+
+    provider._transport = httpx.MockTransport(autocomplete_handler)
+    options = provider.fetch_autocomplete_options(layer(), "sourceSystems")
+
+    assert [(item.value, item.name) for item in options] == [
+        ("system-a", "System A"), ("system-b", "System B"),
+    ]
+    request = handler.requests[0]
+    assert request.method == "POST"
+    assert request.url.path == "/cube/v1/transport/autocomplete/sourceSystems"
