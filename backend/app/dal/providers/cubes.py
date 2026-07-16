@@ -36,7 +36,7 @@ _DEFAULT_PARAMETER_KEYS = (
 )
 _QUERY_MODES = {"auto", "match_not", "legacy"}
 DYNAMIC_PARAM_PREFIX = "param_"
-_CATALOG_DYNAMIC_PARAMETER = "fl:dynamic"
+_DYNAMIC_PARAMETER_SUFFIX = ":dynamic"
 _DEFAULT_RESULTS_LIMIT = 10000
 _MAX_CHUNK_DEPTH = 5
 _MAX_FETCHED_ROWS = 100000
@@ -192,18 +192,36 @@ def _resolve_dynamic_parameters(
 ) -> List[LayerParameter]:
     if not resolved:
         return parameters
-    return [
-        parameter.model_copy(update={"resolved_value": resolved[parameter.name]})
-        if parameter.is_dynamic and parameter.name in resolved else parameter
-        for parameter in parameters
-    ]
+    configured = []
+    configured_names = set()
+    for parameter in parameters:
+        configured_names.add(parameter.name)
+        if parameter.name in resolved:
+            parameter = parameter.model_copy(update={
+                "is_dynamic": True,
+                "resolved_value": resolved[parameter.name],
+            })
+        configured.append(parameter)
+    for name, value in resolved.items():
+        if name not in configured_names:
+            configured.append(LayerParameter(
+                name=name,
+                type="string",
+                is_dynamic=True,
+                resolved_value=value,
+            ))
+    return configured
 
 
 def _validate_required_parameters(parameters: List[LayerParameter], body: dict) -> None:
     for parameter in parameters:
         base, operator = _parameter_parts(parameter.name)
         key = _parameter_key(base, operator)
-        if parameter.required and key not in body:
+        base_is_configured = (
+            operator is None
+            and any(_parameter_parts(body_key)[0] == base for body_key in body)
+        )
+        if parameter.required and key not in body and not base_is_configured:
             raise ProviderError(
                 f"Cubes parameter '{parameter.name}' is required and has no configured value"
             )
@@ -332,16 +350,16 @@ def _metadata_parameters(payload: dict) -> List[LayerParameter]:
         item for item in payload.get("Parameters") or []
         if isinstance(item, dict) and item.get("Name")
     ]
-    has_catalog_dynamic_parameter = any(
-        str(item["Name"]).casefold() == _CATALOG_DYNAMIC_PARAMETER
+    has_named_dynamic_parameter = any(
+        str(item["Name"]).casefold().endswith(_DYNAMIC_PARAMETER_SUFFIX)
         for item in raw_parameters
     )
     parameters = []
     for item in raw_parameters:
         name = str(item["Name"])
         is_dynamic = (
-            name.casefold() == _CATALOG_DYNAMIC_PARAMETER
-            if has_catalog_dynamic_parameter
+            name.casefold().endswith(_DYNAMIC_PARAMETER_SUFFIX)
+            if has_named_dynamic_parameter
             else str(item.get("Role") or "").casefold() == "dynamic"
         )
         options = [] if is_dynamic else [

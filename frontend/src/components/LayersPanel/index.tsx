@@ -49,6 +49,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [sourceUrl, setSourceUrl] = useState("");
   const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
+  const [manualDynamicParameterNames, setManualDynamicParameterNames] = useState<string[]>([]);
+  const [dynamicParameterDraft, setDynamicParameterDraft] = useState("");
   const [dynamicParameterOptions, setDynamicParameterOptions] =
     useState<Record<string, CubesAutocompleteOption[]>>({});
   const [dynamicParameterValues, setDynamicParameterValues] =
@@ -173,6 +175,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setSourceUrl("");
       setCubesQueryMode("auto");
       setDynamicParameterNames([]);
+      setManualDynamicParameterNames([]);
+      setDynamicParameterDraft("");
       setDynamicParameterOptions({});
       setDynamicParameterValues({});
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
@@ -220,37 +224,42 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         setTags(generated.tags);
         setTagDraft("");
       }
-      setDynamicParameterNames(generated.dynamic_parameters);
+      const dynamicNames = [...generated.dynamic_parameters];
+      for (const manualName of manualDynamicParameterNames) {
+        if (!dynamicNames.some(
+          (parameterName) => parameterName.toLocaleLowerCase() === manualName.toLocaleLowerCase()
+        )) {
+          dynamicNames.push(manualName);
+        }
+      }
+      setDynamicParameterNames(dynamicNames);
       setDynamicParameterOptions((current) => Object.fromEntries(
-        generated.dynamic_parameters
+        dynamicNames
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
       setDynamicParameterValues((current) => Object.fromEntries(
-        generated.dynamic_parameters
+        dynamicNames
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
-      const catalogDynamicParameter = generated.dynamic_parameters.find(
-        (parameterName) => parameterName.toLocaleLowerCase() === "fl:dynamic"
-      );
       let dynamicOptionsError: string | null = null;
-      if (catalogDynamicParameter) {
-        setLoadingDynamicParameter(catalogDynamicParameter);
+      for (const dynamicName of dynamicNames) {
+        setLoadingDynamicParameter(dynamicName);
         try {
           const result = await fetchCubesAutocompleteOptions({
             source_url: target.source_url.trim(),
-            parameter_name: catalogDynamicParameter,
+            parameter_name: dynamicName,
           });
           setDynamicParameterOptions((current) => ({
             ...current,
-            [catalogDynamicParameter]: result.options,
+            [dynamicName]: result.options,
           }));
         } catch (err) {
-          console.error("Cubes fl:dynamic autocomplete fetch failed", err);
+          console.error(`Cubes ${dynamicName} autocomplete fetch failed`, err);
           dynamicOptionsError = err instanceof Error
             ? err.message
-            : "טעינת אפשרויות fl:dynamic נכשלה";
+            : `טעינת אפשרויות ${dynamicName} נכשלה`;
         } finally {
           setLoadingDynamicParameter(null);
         }
@@ -258,10 +267,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setFormMessage(
         dynamicOptionsError
           ? `${dynamicOptionsError} — אפשר לנסות לטעון שוב.`
-          : generated.dynamic_parameters.length > 0 && generated.sample_count === 0
-          ? "נמצא fl:dynamic — יש לבחור ערך. התוצאות ייטענו אוטומטית לאחר הבחירה."
-          : generated.dynamic_parameters.length > 0
-          ? `נטענו ${generated.sample_count} תוצאות עבור fl:dynamic ונוצרו הצעות ✓`
+          : dynamicNames.length > 0 && generated.sample_count === 0
+          ? "נמצאו פרמטרים דינמיים — יש לבחור ערכים. התוצאות ייטענו אוטומטית."
+          : dynamicNames.length > 0
+          ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שנבחרו ונוצרו הצעות ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
     } catch (err) {
@@ -295,8 +304,32 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       [parameterName]: value,
     };
     setDynamicParameterValues(selectedDynamicValues);
-    if (parameterName.toLocaleLowerCase() === "fl:dynamic") {
+    const allDynamicParametersSelected = dynamicParameterNames.every(
+      (name) => Boolean(selectedDynamicValues[name])
+    );
+    if (allDynamicParametersSelected) {
       void handleGenerateMetadata(undefined, selectedDynamicValues);
+    } else {
+      setFormMessage("יש לבחור ערך לכל הפרמטרים הדינמיים.");
+    }
+  };
+
+  const handleAddDynamicParameter = () => {
+    const parameterName = dynamicParameterDraft.trim();
+    if (!parameterName) return;
+    if (dynamicParameterNames.some(
+      (name) => name.toLocaleLowerCase() === parameterName.toLocaleLowerCase()
+    )) {
+      setFormMessage(`הפרמטר ${parameterName} כבר נוסף.`);
+      return;
+    }
+    setManualDynamicParameterNames((current) => [...current, parameterName]);
+    setDynamicParameterNames((current) => [...current, parameterName]);
+    setDynamicParameterDraft("");
+    if (sourceUrl.trim()) {
+      void handleFetchDynamicOptions(parameterName);
+    } else {
+      setFormMessage("יש להזין קודם שם Cube, ואז לטעון את אפשרויות הפרמטר.");
     }
   };
 
@@ -309,6 +342,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setSourceUrl(layer.source_url);
     setCubesQueryMode("auto");
     setDynamicParameterNames([]);
+    setManualDynamicParameterNames([]);
+    setDynamicParameterDraft("");
     setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setFormMessage(null);
@@ -321,6 +356,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setProvider("cubes");
     setSourceUrl("");
     setDynamicParameterNames([]);
+    setManualDynamicParameterNames([]);
+    setDynamicParameterDraft("");
     setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setName("");
@@ -502,9 +539,39 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
                 </div>
               </fieldset>
             )}
-            {dynamicParameterNames.length > 0 && (
+            {provider.trim().toLowerCase() === "cubes" && (
               <fieldset className="cubes-dynamic-parameters">
                 <legend>פרמטרים דינמיים <span className="optional">(מקורות המידע עשויים להשתנות — נטענים מחדש בכל פעם)</span></legend>
+                <div className="cubes-dynamic-parameter">
+                  <label className="field-label" htmlFor="dynamic-param-name">
+                    שם פרמטר דינמי <span className="optional">(לדוגמה vehicleType או fl:dynamic)</span>
+                  </label>
+                  <input
+                    id="dynamic-param-name"
+                    className="settings-input"
+                    value={dynamicParameterDraft}
+                    onChange={(event) => setDynamicParameterDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                        event.preventDefault();
+                        handleAddDynamicParameter();
+                      }
+                    }}
+                    placeholder="vehicleType"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    className="add-layer-toggle"
+                    onClick={handleAddDynamicParameter}
+                    disabled={
+                      !dynamicParameterDraft.trim() || generatingMetadata ||
+                      loadingDynamicParameter !== null
+                    }
+                  >
+                    + הוספת פרמטר דינמי
+                  </button>
+                </div>
                 {dynamicParameterNames.map((parameterName) => {
                   const options = dynamicParameterOptions[parameterName];
                   const isLoading = loadingDynamicParameter === parameterName;

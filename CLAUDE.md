@@ -48,9 +48,10 @@ and gives the official cube name/description, parameter options, and entity samp
 `LayerMetadataGenerator`. Suffixed parameter names are preserved exactly; a plain name
 keeps the legacy plain/`.not` pair. Never hardcode the response field list.
 
-**Cubes dynamic parameters:** when a cube declares the exact parameter `fl:dynamic`, it
-is the only catalog-configurable dynamic selector; ignore `Role=dynamic` on that cube's
-other parameters. Cubes without `fl:dynamic` retain the generic `Role=dynamic` behavior.
+**Cubes dynamic parameters:** dynamic parameter names are not fixed (`vehicleType`,
+`fl:dynamic`, etc.). Discover `Role=dynamic` metadata and names ending in `:dynamic`; when
+metadata omits or misclassifies a selector, the catalog lets the user add its exact name
+manually. Resolved manual parameters must still be injected even when absent from metadata.
 Dynamic selectors are backed by a child autocomplete cube. Their declared `Options` are
 unusable placeholders, and valid values must be fetched live via `POST /cube/v1/{cubeName}/autocomplete/
 {parameterName}`, which returns `[{"Value": ..., "Name": ...}]`. `LayerParameter.is_dynamic`

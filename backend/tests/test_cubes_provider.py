@@ -102,6 +102,29 @@ def test_explicit_match_not_mode_works_without_parameter_metadata(tmp_path):
     assert body["eventTime.not"]["Location"] == boundary.wkt
 
 
+def test_match_not_variants_satisfy_required_plain_event_time(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "eventTime", "IsRequired": True, "Type": "DateTime",
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+
+    provider.fetch_features(layer("cubes://db/transport?query_mode=match_not"))
+
+    body = json.loads(posted_request(handler).content)
+    assert "eventTime.match" in body
+    assert "eventTime.not" in body
+
+
 def test_posts_query_and_preserves_all_fields(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
     features = provider.fetch_features(layer())
@@ -482,7 +505,7 @@ def test_dynamic_suffix_parameter_is_discovered_without_role(tmp_path):
         assert request.method == "GET"
         return httpx.Response(200, json={
             "Parameters": [{
-                "Name": "fl:dynamic", "IsRequired": True, "Type": "String",
+                "Name": "sourceLayer:dynamic", "IsRequired": True, "Type": "String",
             }],
             "Fields": [],
         })
@@ -491,7 +514,7 @@ def test_dynamic_suffix_parameter_is_discovered_without_role(tmp_path):
 
     parameters = provider.list_dynamic_parameters(layer())
 
-    assert [item.name for item in parameters] == ["fl:dynamic"]
+    assert [item.name for item in parameters] == ["sourceLayer:dynamic"]
     assert parameters[0].is_dynamic is True
     assert [request.method for request in handler.requests] == ["GET"]
 
@@ -579,6 +602,29 @@ def test_dynamic_suffix_value_uses_exact_request_key(tmp_path):
 
     body = json.loads(posted_request(handler).content)
     assert body["fl:dynamic"] == "612"
+
+
+def test_manual_dynamic_value_works_when_metadata_omits_parameter(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={"Parameters": [], "Fields": []})
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    configured = layer(
+        "cubes://db/rastaMorialand?param_vehicleType=612"
+    )
+
+    parameters = provider.list_dynamic_parameters(configured)
+    provider.fetch_features(configured)
+
+    assert [item.name for item in parameters] == ["vehicleType"]
+    assert parameters[0].resolved_value == "612"
+    body = json.loads(posted_request(handler).content)
+    assert body["vehicleType"] == "612"
 
 
 def test_fetch_autocomplete_options_posts_to_dedicated_route(tmp_path):
