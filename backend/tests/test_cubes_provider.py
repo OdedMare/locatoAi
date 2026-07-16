@@ -474,6 +474,50 @@ def test_dynamic_parameters_are_discovered_without_fetching_cube_rows(tmp_path):
     assert [request.method for request in handler.requests] == ["GET"]
 
 
+def test_dynamic_suffix_parameter_is_discovered_without_role(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={
+            "Parameters": [{
+                "Name": "fl:dynamic", "IsRequired": True, "Type": "String",
+            }],
+            "Fields": [],
+        })
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+
+    parameters = provider.list_dynamic_parameters(layer())
+
+    assert [item.name for item in parameters] == ["fl:dynamic"]
+    assert parameters[0].is_dynamic is True
+    assert [request.method for request in handler.requests] == ["GET"]
+
+
+def test_fl_dynamic_is_the_only_catalog_selector_when_present(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={
+            "Parameters": [
+                {"Name": "fl:dynamic", "Type": "String"},
+                {"Name": "environment", "Role": "dynamic", "Type": "String"},
+                {"Name": "polygon", "Role": "dynamic", "Type": "String"},
+            ],
+            "Fields": [],
+        })
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+
+    parameters = provider.list_dynamic_parameters(layer())
+
+    assert [item.name for item in parameters] == ["fl:dynamic"]
+
+
 def test_dynamic_parameter_discovery_reads_resolved_source_value(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 
@@ -512,6 +556,29 @@ def test_resolved_dynamic_parameter_value_is_injected_into_request_body(tmp_path
     provider.fetch_features(layer("cubes://db/transport?param_TeamType=our_forces"))
     body = json.loads(posted_request(handler).content)
     assert body["TeamType"] == "our_forces"
+
+
+def test_dynamic_suffix_value_uses_exact_request_key(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "fl:dynamic", "IsRequired": True, "Type": "String",
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer(
+        "cubes://db/rastaMorialand?param_fl%3Adynamic=612"
+    ))
+
+    body = json.loads(posted_request(handler).content)
+    assert body["fl:dynamic"] == "612"
 
 
 def test_fetch_autocomplete_options_posts_to_dedicated_route(tmp_path):

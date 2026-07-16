@@ -46,16 +46,20 @@ and gives the official cube name/description, parameter options, and entity samp
 `LayerMetadataGenerator`. Suffixed parameter names are preserved exactly; a plain name
 keeps the legacy plain/`.not` pair. Never hardcode the response field list.
 
-**Cubes dynamic parameters:** a parameter whose metadata has `"Role": "dynamic"` is
-backed by a child autocomplete cube (its declared `Options` are unusable placeholders)
-and its valid values must be fetched live via `POST /cube/v1/{cubeName}/autocomplete/
+**Cubes dynamic parameters:** when a cube declares the exact parameter `fl:dynamic`, it
+is the only catalog-configurable dynamic selector; ignore `Role=dynamic` on that cube's
+other parameters. Cubes without `fl:dynamic` retain the generic `Role=dynamic` behavior.
+Dynamic selectors are backed by a child autocomplete cube. Their declared `Options` are
+unusable placeholders, and valid values must be fetched live via `POST /cube/v1/{cubeName}/autocomplete/
 {parameterName}`, which returns `[{"Value": ..., "Name": ...}]`. `LayerParameter.is_dynamic`
 marks these; `CubesProvider.fetch_autocomplete_options` calls the route on demand — never
 cached, since these cubes can change schema between calls. Resolution happens once at
 layer-add time in the catalog UI (`POST /api/layers/autocomplete-parameter`), not per query:
 metadata generation is two-phase and MUST NOT fetch cube rows until every dynamic value
 has been resolved; the resolved metadata request then samples the normal cube route.
-the chosen `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
+Preserve the complete parameter name in the autocomplete route, catalog source URL, and
+final Cubes request body. The chosen `{parameter_name: value}` map is folded into
+`source_url` as `param_<name>=<value>`
 query params (parsed back out by `cubes_resolved_parameters`), the same mechanism already
 used for `query_mode`. A required dynamic parameter with no resolved value fails loudly
 at fetch time rather than guessing.

@@ -36,6 +36,7 @@ _DEFAULT_PARAMETER_KEYS = (
 )
 _QUERY_MODES = {"auto", "match_not", "legacy"}
 DYNAMIC_PARAM_PREFIX = "param_"
+_CATALOG_DYNAMIC_PARAMETER = "fl:dynamic"
 _DEFAULT_RESULTS_LIMIT = 10000
 _MAX_CHUNK_DEPTH = 5
 _MAX_FETCHED_ROWS = 100000
@@ -327,17 +328,28 @@ def _metadata_fields(payload: dict) -> List[LayerField]:
 
 
 def _metadata_parameters(payload: dict) -> List[LayerParameter]:
+    raw_parameters = [
+        item for item in payload.get("Parameters") or []
+        if isinstance(item, dict) and item.get("Name")
+    ]
+    has_catalog_dynamic_parameter = any(
+        str(item["Name"]).casefold() == _CATALOG_DYNAMIC_PARAMETER
+        for item in raw_parameters
+    )
     parameters = []
-    for item in payload.get("Parameters") or []:
-        if not isinstance(item, dict) or not item.get("Name"):
-            continue
-        is_dynamic = str(item.get("Role") or "").lower() == "dynamic"
+    for item in raw_parameters:
+        name = str(item["Name"])
+        is_dynamic = (
+            name.casefold() == _CATALOG_DYNAMIC_PARAMETER
+            if has_catalog_dynamic_parameter
+            else str(item.get("Role") or "").casefold() == "dynamic"
+        )
         options = [] if is_dynamic else [
             str(option.get("Value")) for option in item.get("Options") or []
             if isinstance(option, dict) and option.get("Value")
         ]
         parameters.append(LayerParameter(
-            name=str(item["Name"]), type=str(item.get("Type") or "string").lower(),
+            name=name, type=str(item.get("Type") or "string").lower(),
             display_name=str(item.get("DisplayName") or ""),
             description=str(item.get("Description") or ""),
             required=bool(item.get("IsRequired")),

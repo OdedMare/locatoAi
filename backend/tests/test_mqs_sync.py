@@ -166,5 +166,8 @@ def test_cubes_database_name_normalizes_to_catalog_source_url():
         "cubes", "transport", "match_not"
     ) == "cubes://db/transport?query_mode=match_not"
     assert _normalized_source(
+        "cubes", "rastaMorialand", cubes_dynamic_parameters={"fl:dynamic": "612"}
+    ) == "cubes://db/rastaMorialand?param_fl%3Adynamic=612"
+    assert _normalized_source(
         "mqs", "mqs://layer/42", "match_not"
     ) == "mqs://layer/42"

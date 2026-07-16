@@ -348,9 +348,12 @@ layers remain, selection returns a clarification instead of failing during plann
   `cubes://db/<dbname>`, fetches a bounded sample, and feeds the cube's official
   name/description, fields, request parameters/options, and entity samples to editable
   description/tag generation.
-  A parameter with `"Role": "dynamic"` in its metadata is backed by a child autocomplete
-  cube — its declared `Options` are unusable placeholders (`LayerParameter.is_dynamic`
-  marks it and the placeholder options are dropped). Valid values come only from
+  When metadata includes the exact parameter `fl:dynamic`, it is the cube's only
+  catalog-configurable dynamic selector; other `Role=dynamic` parameters are not shown.
+  Cubes without `fl:dynamic` retain the generic `Role=dynamic` behavior. A dynamic
+  selector is backed by a child autocomplete cube — its declared `Options` are unusable
+  placeholders (`LayerParameter.is_dynamic` marks it and drops those options). The exact
+  name is preserved in the final request body. Valid values come only from
   `POST /cube/v1/<dbname>/autocomplete/<parameterName>`
   (`CubesProvider.fetch_autocomplete_options`, never cached — these cubes can change
   schema), exposed to the catalog UI via `POST /api/layers/autocomplete-parameter`.
