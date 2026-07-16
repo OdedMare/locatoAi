@@ -199,13 +199,16 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     }
   };
 
-  const handleGenerateMetadata = async (selected?: RemoteMqsLayer) => {
+  const handleGenerateMetadata = async (
+    selected?: RemoteMqsLayer,
+    selectedDynamicValues: Record<string, string> = dynamicParameterValues,
+  ) => {
     const target = {
       name: selected?.name ?? name,
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
       cubes_query_mode: cubesQueryMode,
-      cubes_dynamic_parameters: dynamicParameterValues,
+      cubes_dynamic_parameters: selectedDynamicValues,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
@@ -256,9 +259,9 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         dynamicOptionsError
           ? `${dynamicOptionsError} — אפשר לנסות לטעון שוב.`
           : generated.dynamic_parameters.length > 0 && generated.sample_count === 0
-          ? "נמצא fl:dynamic — יש לבחור ערך, ואז להפעיל שוב יצירת תיאור ותגיות."
+          ? "נמצא fl:dynamic — יש לבחור ערך. התוצאות ייטענו אוטומטית לאחר הבחירה."
           : generated.dynamic_parameters.length > 0
-          ? `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — יש לבחור ערך לכל פרמטר דינמי לפני ההוספה ✓`
+          ? `נטענו ${generated.sample_count} תוצאות עבור fl:dynamic ונוצרו הצעות ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
     } catch (err) {
@@ -283,6 +286,17 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setFormMessage(err instanceof Error ? err.message : "טעינת אפשרויות הפרמטר נכשלה");
     } finally {
       setLoadingDynamicParameter(null);
+    }
+  };
+
+  const handleSelectDynamicParameter = (parameterName: string, value: string) => {
+    const selectedDynamicValues = {
+      ...dynamicParameterValues,
+      [parameterName]: value,
+    };
+    setDynamicParameterValues(selectedDynamicValues);
+    if (parameterName.toLocaleLowerCase() === "fl:dynamic") {
+      void handleGenerateMetadata(undefined, selectedDynamicValues);
     }
   };
 
@@ -504,9 +518,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
                           id={`dynamic-param-${parameterName}`}
                           className="settings-input"
                           value={dynamicParameterValues[parameterName] ?? ""}
-                          onChange={(e) => setDynamicParameterValues(
-                            (current) => ({ ...current, [parameterName]: e.target.value })
+                          onChange={(e) => handleSelectDynamicParameter(
+                            parameterName, e.target.value
                           )}
+                          disabled={generatingMetadata || isLoading}
                           dir="auto"
                         >
                           <option value="" disabled>בחירת ערך…</option>
