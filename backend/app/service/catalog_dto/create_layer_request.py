@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -12,3 +12,6 @@ class CreateLayerRequest(BaseModel):
     provider: str = Field(default="mqs", min_length=1, max_length=50)
     source_url: str = Field(min_length=1, max_length=2000)
     cubes_query_mode: CubesQueryMode = "auto"
+    cubes_dynamic_parameters: Dict[str, str] = Field(default_factory=dict, max_length=20)
+    """Resolved {parameter_name: chosen_value} for dynamic Cubes parameters,
+    picked via the autocomplete endpoint before layer creation."""

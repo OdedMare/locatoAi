@@ -71,7 +71,8 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
         detail_concurrency=settings.mqs_detail_concurrency,
     )
     providers.register("mqs", mqs_provider)
-    providers.register("cubes", CubesProvider(settings_store))
+    cubes_provider = CubesProvider(settings_store)
+    providers.register("cubes", cubes_provider)
     tyche_provider = TycheProvider(settings_store)
     providers.register("tyche", tyche_provider)
 
@@ -93,6 +94,7 @@ def _wire_state(app: FastAPI, settings: Settings) -> None:
     app.state.feedback_repository = feedback_repository
     app.state.mqs_provider = mqs_provider  # catalog_router's sync endpoint
     app.state.tyche_provider = tyche_provider
+    app.state.cubes_provider = cubes_provider  # catalog_router's autocomplete endpoint
     app.state.catalog = catalog
     app.state.layer_selector = layer_selector
     app.state.llm_client = llm

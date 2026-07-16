@@ -15,6 +15,7 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_parameter import LayerParameter
+from app.bl.ports.layer_parameter_option import LayerParameterOption
 from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors.provider_error import ProviderError
 from app.common.geo import WGS84, empty_features_gdf
@@ -34,6 +35,7 @@ _DEFAULT_PARAMETER_KEYS = (
     "eventTime", "eventTime.not", "arriveTime", "arriveTime.not",
 )
 _QUERY_MODES = {"auto", "match_not", "legacy"}
+_DYNAMIC_PARAM_PREFIX = "param_"
 _DEFAULT_RESULTS_LIMIT = 10000
 _MAX_CHUNK_DEPTH = 5
 _MAX_FETCHED_ROWS = 100000
@@ -60,6 +62,17 @@ def cubes_query_mode(layer: LayerMeta) -> str:
     values = parse_qs(urlsplit(layer.source_url).query).get("query_mode", [])
     value = values[0] if values else "auto"
     return value if value in _QUERY_MODES else "auto"
+
+
+def cubes_resolved_parameters(layer: LayerMeta) -> Dict[str, str]:
+    """Values chosen at layer-add time for dynamic (autocomplete-backed)
+    parameters, folded into source_url as `param_<name>=<value>`."""
+    query = parse_qs(urlsplit(layer.source_url).query)
+    resolved = {}
+    for key, values in query.items():
+        if key.startswith(_DYNAMIC_PARAM_PREFIX) and values:
+            resolved[key[len(_DYNAMIC_PARAM_PREFIX):]] = values[0]
+    return resolved
 
 
 def _records(payload: object) -> List[dict]:
@@ -159,11 +172,30 @@ def _query_body(
                 else list(_DEFAULT_PARAMETER_KEYS))
     body = {key: _parameter_value(key, now, temporal_range) for key in keys
             if _parameter_parts(key)[0] in _TIME_FIELD_NAMES}
+    _apply_dynamic_parameters(parameters or [], body)
     _validate_required_parameters(parameters or [], body)
     location_key = _location_key(body)
     if geometry is not None and location_key is not None:
         body[location_key]["Location"] = geometry.wkt
     return body
+
+
+def _apply_dynamic_parameters(parameters: List[LayerParameter], body: dict) -> None:
+    for parameter in parameters:
+        if parameter.is_dynamic and parameter.resolved_value is not None:
+            body[parameter.name] = parameter.resolved_value
+
+
+def _resolve_dynamic_parameters(
+    parameters: List[LayerParameter], resolved: Dict[str, str],
+) -> List[LayerParameter]:
+    if not resolved:
+        return parameters
+    return [
+        parameter.model_copy(update={"resolved_value": resolved[parameter.name]})
+        if parameter.is_dynamic and parameter.name in resolved else parameter
+        for parameter in parameters
+    ]
 
 
 def _validate_required_parameters(parameters: List[LayerParameter], body: dict) -> None:
@@ -299,14 +331,18 @@ def _metadata_parameters(payload: dict) -> List[LayerParameter]:
     for item in payload.get("Parameters") or []:
         if not isinstance(item, dict) or not item.get("Name"):
             continue
-        options = [str(option.get("Value")) for option in item.get("Options") or []
-                   if isinstance(option, dict) and option.get("Value") is not None]
+        is_dynamic = str(item.get("Role") or "").lower() == "dynamic"
+        options = [] if is_dynamic else [
+            str(option.get("Value")) for option in item.get("Options") or []
+            if isinstance(option, dict) and option.get("Value")
+        ]
         parameters.append(LayerParameter(
             name=str(item["Name"]), type=str(item.get("Type") or "string").lower(),
             display_name=str(item.get("DisplayName") or ""),
             description=str(item.get("Description") or ""),
             required=bool(item.get("IsRequired")),
             single_value=bool(item.get("IsSingleValue", True)), options=options,
+            is_dynamic=is_dynamic,
         ))
     return parameters
 
@@ -363,7 +399,8 @@ class CubesProvider:
         database = quote(cubes_database_name(layer), safe="")
         path = f"/cube/v1/{database}"
         metadata = self._get_metadata(layer)
-        parameters = _metadata_parameters(metadata)
+        parameters = _resolve_dynamic_parameters(
+            _metadata_parameters(metadata), cubes_resolved_parameters(layer))
         query_mode = cubes_query_mode(layer)
         with self._client() as client:
             rows = self._fetch_rows(
@@ -570,3 +607,26 @@ class CubesProvider:
         if not isinstance(payload, list):
             raise ProviderError("Cubes parameters response must be a JSON array")
         return [item for item in payload if isinstance(item, dict)]
+
+    def fetch_autocomplete_options(
+        self, layer: LayerMeta, parameter_name: str
+    ) -> List[LayerParameterOption]:
+        """Values for a dynamic (Role="dynamic") parameter, fetched live —
+        these cubes can change their schema, so options are never cached."""
+        database = quote(cubes_database_name(layer), safe="")
+        parameter = quote(parameter_name, safe="")
+        path = f"/cube/v1/{database}/autocomplete/{parameter}"
+        try:
+            with self._client() as client:
+                response = client.post(path, json={})
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ProviderError(f"Cubes autocomplete request failed ({path}): {exc}")
+        if not isinstance(payload, list):
+            raise ProviderError("Cubes autocomplete response must be a JSON array")
+        return [
+            LayerParameterOption(value=str(item["Value"]), name=str(item.get("Name") or ""))
+            for item in payload
+            if isinstance(item, dict) and item.get("Value") not in (None, "")
+        ]

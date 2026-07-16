@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -12,3 +12,6 @@ class LayerParameter(BaseModel):
     single_value: bool = True
     options: List[str] = []
     is_dynamic: bool = False
+    resolved_value: Optional[str] = None
+    """Value chosen at layer-add time for a dynamic parameter (via the
+    Cubes autocomplete route); None means it was never resolved."""
