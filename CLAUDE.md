@@ -17,8 +17,14 @@ metric expansion. MQS responses are locally intersected with that geometry even 
 remote service ignores the POST filter. When `total_entities` exceeds the 10,000-row page,
 the provider recursively splits the region into quadrants—even for a physically small but
 dense polygon. Splitting stops when a child does not reduce load, recursion is bounded,
-cross-tile results are deduplicated, and the final interactive data result is capped at
-50,000 distinct entities.
+cross-tile results are deduplicated, a single layer load is capped at 10,000 distinct
+entities, and the final interactive data result across the whole query is capped at
+50,000 distinct entities. A plan's `eq`-operator `attribute_filter` steps are pushed down
+to MQS as `simple_operators.match` (merged into the same POST body as any geometry
+filter) — an optimization only; `attribute_filter` always re-applies client-side, so an
+MQS instance that ignores the match body stays correct, just slower. Single-entity detail
+is fetched from `GET /MoriaProject/{id}/EntityInfo/{entity_id}` — a distinct route from
+`/Entities`, not a sub-path of it; never conflate the two.
 
 **MQS business metadata:** `property_list` accepts object, name/value-array,
 camel/Pascal-case, nested-wrapper, and JSON-string variants. Fixed transport fields stay

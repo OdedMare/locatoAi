@@ -294,23 +294,31 @@ layers remain, selection returns a clarification instead of failing during plann
   unset means the provider errors with a clear message → HTTP 502). MQS layers are not
   mirrored into process memory. Query-time loading pushes the request boundary to
   `POST /MoriaProject/{id}/Entities`, follows only the bounded result pages,
-  and follows `GET /MoriaProject/{id}/Entities/{entity_id}` to flatten each entity's
-  `property_list` into normal feature columns. Those columns drive schema discovery,
-  value sampling, metadata/tag generation, attribute filters, displayed results, and
-  every spatial operation. Property parsing accepts objects, name/value arrays,
-  camel/Pascal-case names, nested wrappers, and JSON-encoded strings. Fixed transport
-  fields (`triangle`, `clearence_level`, `source_id`, `date`, `area`, `perimeter`) remain
-  queryable but have `metadata_relevant=false`; description/tag generation receives only
-  business `property_list` fields and fails if none are found rather than producing
-  polygon/clearance tags. Schema and planner logs expose discovered field names and
-  bounded sample counts for diagnosis. Viewport/polygon filters are pushed down with
-  POST for every query layer and are always rechecked locally before GeoDataFrame
-  construction, even if MQS ignores the filter. A response whose `total_entities`
-  exceeds one 10,000-row page is partitioned recursively into geographic quadrants,
-  including when the original polygon is physically small but dense. Results are
-  deduplicated by `entity_id`; partitioning stops if child regions do not reduce the
-  reported load, recursion is bounded, and one query may return at most 50,000 distinct
-  features.
+  and follows `GET /MoriaProject/{id}/EntityInfo/{entity_id}` (a distinct route from
+  `/Entities`, confirmed against a real MQS client — not a sub-path of it) to flatten
+  each entity's `property_list` into normal feature columns. Those columns drive schema
+  discovery, value sampling, metadata/tag generation, attribute filters, displayed
+  results, and every spatial operation. Property parsing accepts objects, name/value
+  arrays, camel/Pascal-case names, nested wrappers, and JSON-encoded strings. Fixed
+  transport fields (`triangle`, `clearence_level`, `source_id`, `date`, `area`,
+  `perimeter`) remain queryable but have `metadata_relevant=false`; description/tag
+  generation receives only business `property_list` fields and fails if none are found
+  rather than producing polygon/clearance tags. Schema and planner logs expose
+  discovered field names and bounded sample counts for diagnosis. Viewport/polygon
+  filters are pushed down with POST for every query layer and are always rechecked
+  locally before GeoDataFrame construction, even if MQS ignores the filter. A plan's
+  `eq`-operator `attribute_filter` steps are pushed down the same way, as
+  `simple_operators.match` in the same POST body (merged with any geometry filter);
+  this is also always an optimization — `attribute_filter` still re-filters
+  client-side, so an MQS instance that ignores the match body stays correct, just
+  slower fetching more entities than necessary. Only `eq` maps to pushdown; `neq`,
+  `gt`, `lt`, `contains`, and `fuzzy_contains` stay entirely client-side. A response
+  whose `total_entities` exceeds one 10,000-row page is partitioned recursively into
+  geographic quadrants, including when the original polygon is physically small but
+  dense. Results are deduplicated by `entity_id`; partitioning stops if child regions
+  do not reduce the reported load, recursion is bounded, a single layer load is capped
+  at 10,000 distinct features, and one query may return at most 50,000 distinct
+  features overall.
   `near`/`near_all` target loads use the request geometry expanded in a local metric CRS,
   avoiding a complete target-layer load without excluding any possible match. The
   `AILOCATOR_MQS_DETAIL_CONCURRENCY` setting bounds detail fan-out and is listed in

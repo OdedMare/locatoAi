@@ -1381,6 +1381,23 @@ body {
   font-size: 10px;
 }
 
+.cubes-dynamic-parameters {
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+}
+
+.cubes-dynamic-parameters legend {
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cubes-dynamic-parameter {
+  margin-bottom: 8px;
+}
+
 .tag-editor {
   min-height: 44px;
   margin-bottom: 12px;
