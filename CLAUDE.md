@@ -24,7 +24,9 @@ to MQS as `simple_operators.match` (merged into the same POST body as any geomet
 filter) — an optimization only; `attribute_filter` always re-applies client-side, so an
 MQS instance that ignores the match body stays correct, just slower. Single-entity detail
 is fetched from `GET /MoriaProject/{id}/EntityInfo/{entity_id}` — a distinct route from
-`/Entities`, not a sub-path of it; never conflate the two.
+`/Entities`, not a sub-path of it; never conflate the two. EntityInfo is best-effort
+enrichment: an unavailable or malformed detail response falls back to the entity already
+returned by `/Entities` instead of failing the complete layer request with HTTP 502.
 
 **MQS business metadata:** `property_list` accepts object, name/value-array,
 camel/Pascal-case, nested-wrapper, and JSON-string variants. Fixed transport fields stay

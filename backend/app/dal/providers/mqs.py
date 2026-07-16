@@ -864,8 +864,19 @@ class MqsProvider:
         if entity_id is None:
             logger.warning("MQS layer %s: entity has no entity_id", layer_id)
             return entity
-        path = f"/MoriaProject/{layer_id}/EntityInfo/{quote(entity_id, safe='')}"
-        payload = self._get_json(client, path)
+        path = f"/MoriaProject/{layer_id}/EntityInfo/{entity_id, )}"
+        try:
+            payload = self._get_json(client, path)
+        except ProviderError as exc:
+            # EntityInfo only enriches a row already returned by /Entities.
+            # One unavailable/malformed detail must not turn the complete
+            # layer request into an HTTP 502.
+            logger.warning(
+                "MQS entity detail failed layer=%s entity=%s; "
+                "using list-entity fields only: %s",
+                layer_id, entity_id, exc,
+            )
+            return entity
         detail = payload
         if isinstance(payload, dict):
             # Accept wrappers such as {"entity": {...}} as well as a bare object.

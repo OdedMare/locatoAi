@@ -297,7 +297,9 @@ layers remain, selection returns a clarification instead of failing during plann
   `POST /MoriaProject/{id}/Entities`, follows only the bounded result pages,
   and follows `GET /MoriaProject/{id}/EntityInfo/{entity_id}` (a distinct route from
   `/Entities`, confirmed against a real MQS client — not a sub-path of it) to flatten
-  each entity's `property_list` into normal feature columns. Those columns drive schema
+  each entity's `property_list` into normal feature columns. EntityInfo enrichment is
+  best-effort: a failed detail call is logged and falls back to the `/Entities` row
+  instead of failing the complete request with HTTP 502. Those columns drive schema
   discovery, value sampling, metadata/tag generation, attribute filters, displayed
   results, and every spatial operation. Property parsing accepts objects, name/value
   arrays, camel/Pascal-case names, nested wrappers, and JSON-encoded strings. Fixed

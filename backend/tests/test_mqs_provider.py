@@ -204,6 +204,25 @@ def test_entity_detail_calls_entityinfo_not_entities(tmp_path):
                for request in handler.requests)
 
 
+def test_entityinfo_502_falls_back_to_list_entity(tmp_path):
+    listed = entity("{G1}")
+
+    def responses(request):
+        if request.url.path.endswith("/EntityInfo/{G1}"):
+            return httpx.Response(502, json={"error": "upstream unavailable"})
+        return {"next_page": None, "entities_list": [listed]}
+
+    provider, handler = make_provider(tmp_path, responses)
+
+    gdf = provider.fetch_features(mqs_layer())
+
+    assert len(gdf) == 1
+    assert gdf.iloc[0]["id"] == "{G1}"
+    assert gdf.iloc[0].geometry is not None
+    assert any("/EntityInfo/%7BG1%7D" in request.url.raw_path.decode()
+               for request in handler.requests)
+
+
 def test_fetch_features_accepts_property_list_name_value_array(tmp_path):
     provider, _ = make_provider(tmp_path, lambda request: [entity(
         "{G1}", property_list=[
