@@ -386,6 +386,18 @@ class CubesProvider:
             sampled = self._schema_cache.get(layer.id)
         return _merge_schema(layer.id, metadata, sampled)
 
+    def list_dynamic_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
+        """Discover dynamic parameters from metadata without fetching rows."""
+        metadata = self._get_metadata(layer)
+        parameters = _metadata_parameters(metadata)
+        resolved = cubes_resolved_parameters(layer)
+        return [
+            parameter for parameter in _resolve_dynamic_parameters(
+                parameters, resolved
+            )
+            if parameter.is_dynamic
+        ]
+
     def fetch_features(
         self,
         layer: LayerMeta,
@@ -627,4 +639,6 @@ class CubesProvider:
             raise ProviderError(f"Cubes parameters request failed ({path}): {exc}")
         if isinstance(payload, dict):
             payload = payload.get("Parameters") or payload.get("parameters")
-                              
+        if not isinstance(payload, list):
+            raise ProviderError("Cubes parameters response must be a JSON array")
+        return [item for item in payload if isinstance(item, dict)]
