@@ -45,6 +45,29 @@ def test_autocomplete_endpoint_returns_live_options(tmp_path):
     }
 
 
+def test_autocomplete_endpoint_preserves_fl_dynamic_name(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/cube/v1/rastaMorialand/autocomplete/fl:dynamic"
+        return httpx.Response(200, json=[
+            {"Value": "612", "Name": "Layer 612"},
+            {"Value": "845", "Name": "Layer 845"},
+        ])
+
+    response = TestClient(make_app(handler, tmp_path)).post(
+        "/api/layers/autocomplete-parameter",
+        json={
+            "source_url": "cubes://db/rastaMorialand",
+            "parameter_name": "fl:dynamic",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["options"] == [
+        {"value": "612", "name": "Layer 612"},
+        {"value": "845", "name": "Layer 845"},
+    ]
+
+
 def test_autocomplete_endpoint_maps_provider_failure_to_502(tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"error": "cube unavailable"})

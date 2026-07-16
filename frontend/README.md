@@ -140,10 +140,9 @@ If metadata generation reports any dynamic (autocomplete-backed) parameters — 
 own source-selector fields, whose valid values come from a child cube rather than static
 metadata — a "פרמטרים דינמיים" section appears with one control per parameter.
 When the exact parameter `fl:dynamic` exists, the UI displays only that dynamic selector
-and submits its complete name unchanged. Cubes without it retain their `Role=dynamic`
-selectors.
-Each control starts
-as a button that calls `POST /api/layers/autocomplete-parameter` to fetch live options
+and automatically calls `POST /api/layers/autocomplete-parameter` to populate its
+dropdown. The UI submits the complete parameter name unchanged. Cubes without it retain
+their `Role=dynamic` selectors. Those generic controls start as a button that fetches live options
 (never cached, since these cubes can change schema between calls) and becomes a dropdown
 once loaded. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
 chosen value; the choices are sent as `cubes_dynamic_parameters` and the backend folds

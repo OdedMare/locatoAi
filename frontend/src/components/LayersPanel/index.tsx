@@ -228,9 +228,35 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
+      const catalogDynamicParameter = generated.dynamic_parameters.find(
+        (parameterName) => parameterName.toLocaleLowerCase() === "fl:dynamic"
+      );
+      let dynamicOptionsError: string | null = null;
+      if (catalogDynamicParameter) {
+        setLoadingDynamicParameter(catalogDynamicParameter);
+        try {
+          const result = await fetchCubesAutocompleteOptions({
+            source_url: target.source_url.trim(),
+            parameter_name: catalogDynamicParameter,
+          });
+          setDynamicParameterOptions((current) => ({
+            ...current,
+            [catalogDynamicParameter]: result.options,
+          }));
+        } catch (err) {
+          console.error("Cubes fl:dynamic autocomplete fetch failed", err);
+          dynamicOptionsError = err instanceof Error
+            ? err.message
+            : "טעינת אפשרויות fl:dynamic נכשלה";
+        } finally {
+          setLoadingDynamicParameter(null);
+        }
+      }
       setFormMessage(
-        generated.dynamic_parameters.length > 0 && generated.sample_count === 0
-          ? "נמצאו פרמטרים דינמיים — יש לטעון ולבחור ערכים, ואז להפעיל שוב יצירת תיאור ותגיות."
+        dynamicOptionsError
+          ? `${dynamicOptionsError} — אפשר לנסות לטעון שוב.`
+          : generated.dynamic_parameters.length > 0 && generated.sample_count === 0
+          ? "נמצא fl:dynamic — יש לבחור ערך, ואז להפעיל שוב יצירת תיאור ותגיות."
           : generated.dynamic_parameters.length > 0
           ? `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — יש לבחור ערך לכל פרמטר דינמי לפני ההוספה ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
