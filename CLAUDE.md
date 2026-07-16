@@ -46,6 +46,18 @@ and gives the official cube name/description, parameter options, and entity samp
 `LayerMetadataGenerator`. Suffixed parameter names are preserved exactly; a plain name
 keeps the legacy plain/`.not` pair. Never hardcode the response field list.
 
+**Cubes dynamic parameters:** a parameter whose metadata has `"Role": "dynamic"` is
+backed by a child autocomplete cube (its declared `Options` are unusable placeholders)
+and its valid values must be fetched live via `POST /cube/v1/{cubeName}/autocomplete/
+{parameterName}`, which returns `[{"Value": ..., "Name": ...}]`. `LayerParameter.is_dynamic`
+marks these; `CubesProvider.fetch_autocomplete_options` calls the route on demand — never
+cached, since these cubes can change schema between calls. Resolution happens once at
+layer-add time in the catalog UI (`POST /api/layers/autocomplete-parameter`), not per query:
+the chosen `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
+query params (parsed back out by `cubes_resolved_parameters`), the same mechanism already
+used for `query_mode`. A required dynamic parameter with no resolved value fails loudly
+at fetch time rather than guessing.
+
 **Cubes result cap:** metadata `ResultsLimit` defaults to 10,000 when absent. A bounded
 query that hits the cap uses adaptive quadtree subdivision of only saturated tiles and
 deduplicates complete observation JSON. Keep recursion bounded and preserve the 100,000

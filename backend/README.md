@@ -97,7 +97,8 @@ The service tier exposes these routes:
 | `GET /api/layers` | Return local catalog metadata. |
 | `POST /api/layers` | Create one catalog record. |
 | `PUT /api/layers/{id}` | Edit layer name, description, and tags without changing its provider/source. |
-| `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
+| `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities; also reports any Cubes dynamic (autocomplete-backed) parameter names. |
+| `POST /api/layers/autocomplete-parameter` | Fetch live values for a Cubes dynamic parameter (never cached — the source cube can change schema). |
 | `POST /api/layers/activate-tyche` | Probe Tyche and idempotently activate the Our Forces layer. |
 | `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
 | `POST /api/layers/sync-mqs` | Upsert remote MQS inventory into PostgreSQL. |
@@ -347,6 +348,16 @@ layers remain, selection returns a clarification instead of failing during plann
   `cubes://db/<dbname>`, fetches a bounded sample, and feeds the cube's official
   name/description, fields, request parameters/options, and entity samples to editable
   description/tag generation.
+  A parameter with `"Role": "dynamic"` in its metadata is backed by a child autocomplete
+  cube — its declared `Options` are unusable placeholders (`LayerParameter.is_dynamic`
+  marks it and the placeholder options are dropped). Valid values come only from
+  `POST /cube/v1/<dbname>/autocomplete/<parameterName>`
+  (`CubesProvider.fetch_autocomplete_options`, never cached — these cubes can change
+  schema), exposed to the catalog UI via `POST /api/layers/autocomplete-parameter`.
+  Resolution happens once at layer-add time, not per query: the user's chosen
+  `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
+  query params (`cubes_resolved_parameters`), the same mechanism `query_mode` already
+  uses. A required dynamic parameter with no resolved value fails loudly at fetch time.
 
 - **`tyche`** — [`tyche.py`](app/dal/providers/tyche.py): the Our Forces API at
   `POST /coordinate/v1/ourforces`. Catalog rows use

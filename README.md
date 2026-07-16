@@ -167,12 +167,13 @@ The catalog stores metadata, not feature bodies: ID, name, description, tags, pr
 
 ### MQS
 
-MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. Entity layers are not mirrored into backend memory. Every query sends its request boundary to MQS using the documented `geo_bounding_box` or `geo_polygon` body, follows only that bounded result's pages, and rechecks exact intersection locally.
+MQS is the production feature provider. Catalog entries use `provider="mqs"` and normally store a stable source such as `mqs://layer/<id>`. Entity layers are not mirrored into backend memory. Every query sends its request boundary to MQS using the documented `geo_bounding_box` or `geo_polygon` body, follows only that bounded result's pages, and rechecks exact intersection locally. A plan's `eq`-operator `attribute_filter` steps are pushed down the same way, as `simple_operators.match` merged into the same POST body — always an optimization, since `attribute_filter` still re-applies client-side. Single-entity detail (to read `property_list` business fields) comes from `GET /MoriaProject/{id}/EntityInfo/{entity_id}`, a distinct route from `/Entities`.
 
 Dense boundaries are split adaptively into geographic quadrants when `total_entities`
 exceeds one page. Small polygons are split too when their result is dense; sparse large
 polygons remain one request. Cross-tile entities are deduplicated by `entity_id`, splitting
-stops when MQS does not narrow child tiles, and a 50,000-result safety limit prevents one
+stops when MQS does not narrow child tiles, a single layer load is capped at 10,000
+distinct entities, and a 50,000-result safety limit across the whole query prevents one
 interactive data query from exhausting server memory. Bounded proximity operations use
 the request boundary expanded by their requested distance.
 
@@ -304,7 +305,7 @@ Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. P
 
 - Every query is geographically scoped; unbounded/global queries are not exposed by the current UI/API contract.
 - Clarification follow-ups include the immediately preceding request as textual context; this is bounded UI context, not a persistent server-side conversation or general conversational memory.
-- MQS uses fetch-all-then-filter-locally with a 50,000-feature safety cap.
+- MQS pushes geometry and `eq`-operator attribute filters down server-side, but always re-filters locally too; other operators (`neq`/`gt`/`lt`/`contains`/`fuzzy_contains`) are fetch-then-filter only. Safety caps: 10,000 features per layer load, 50,000 per query overall.
 - Runtime settings persist to a local JSON file and are not multi-user settings.
 - There is no streaming progress channel; the UI shows a single loading phase.
 - The production provider registry registers MQS and Cubes only. Test providers and fixtures live outside `backend/app` and are excluded from the image.

@@ -136,6 +136,15 @@ cube/database name; the backend normalizes it, executes the known request, dynam
 discovers cube fields and parameters, samples entities, and returns editable AI-generated
 description/tags before save.
 
+If metadata generation reports any dynamic (autocomplete-backed) parameters — a cube's
+own source-selector fields, whose valid values come from a child cube rather than static
+metadata — a "פרמטרים דינמיים" section appears with one control per parameter. Each starts
+as a button that calls `POST /api/layers/autocomplete-parameter` to fetch live options
+(never cached, since these cubes can change schema between calls) and becomes a dropdown
+once loaded. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
+chosen value; the choices are sent as `cubes_dynamic_parameters` and the backend folds
+them into `source_url` alongside `cubes_query_mode`.
+
 ### `SettingsPanel`
 
 Loads runtime settings, populates editable LLM/MQS/Cubes/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, Cubes token, and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.
