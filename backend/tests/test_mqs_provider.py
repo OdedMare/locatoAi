@@ -327,17 +327,21 @@ def test_fetch_features_per_layer_hard_cap(tmp_path):
 
 def test_fetch_features_within_geometry_hard_cap(tmp_path):
     """A bounded (geometry-split) layer load is also capped at the
-    per-layer 10,000 limit, not the looser whole-request 50,000 ceiling."""
+    per-layer 10,000 limit, not the looser whole-request 50,000 ceiling.
+    Uses next_page pagination (small pages) rather than one giant
+    entities_list, so the fixture stays cheap to build."""
     boundary = box(34.78, 32.08, 34.80, 32.10)
+    overflow = _MAX_FEATURES_PER_LAYER + 1
 
     def responses(request):
-        return {
-            "next_page": None,
-            "total_entities": _MAX_FEATURES_PER_LAYER + 1,
-            "entities_list": [
-                entity(str(i)) for i in range(_MAX_FEATURES_PER_LAYER + 1)
-            ],
-        }
+        params = dict(request.url.params)
+        offset = int(params.get("from", 0))
+        page = [entity(str(i)) for i in range(offset, min(offset + 500, overflow))]
+        next_page = (
+            f"https://mqs.test/MoriaProject/42/Entities?from={offset + 500}&to={offset + 1000}"
+            if offset + 500 < overflow else None
+        )
+        return {"next_page": next_page, "total_entities": overflow, "entities_list": page}
 
     provider, _ = make_provider(tmp_path, responses)
     with pytest.raises(ProviderError, match=str(_MAX_FEATURES_PER_LAYER)):

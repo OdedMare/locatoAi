@@ -56,6 +56,7 @@ export interface GeneratedLayerMetadataResponse {
   description: string;
   tags: string[];
   sample_count: number;
+  dynamic_parameters: string[];
 }
 
 export interface MqsSyncResponse {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   activateTycheLayer,
   createLayer,
+  fetchCubesAutocompleteOptions,
   generateLayerMetadata,
   getLayers,
   getMqsLayers,
@@ -11,6 +12,7 @@ import {
 } from "@/services/catalogService";
 import type {
   CatalogLayer,
+  CubesAutocompleteOption,
   CubesQueryMode,
   RemoteMqsLayer,
 } from "@/types/catalog";
@@ -46,6 +48,12 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [provider, setProvider] = useState("mqs");
   const [sourceUrl, setSourceUrl] = useState("");
   const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
+  const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
+  const [dynamicParameterOptions, setDynamicParameterOptions] =
+    useState<Record<string, CubesAutocompleteOption[]>>({});
+  const [dynamicParameterValues, setDynamicParameterValues] =
+    useState<Record<string, string>>({});
+  const [loadingDynamicParameter, setLoadingDynamicParameter] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [generatingMetadata, setGeneratingMetadata] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -155,6 +163,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
         cubes_query_mode: cubesQueryMode,
+        cubes_dynamic_parameters: dynamicParameterValues,
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -163,6 +172,9 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setTagDraft("");
       setSourceUrl("");
       setCubesQueryMode("auto");
+      setDynamicParameterNames([]);
+      setDynamicParameterOptions({});
+      setDynamicParameterValues({});
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
     } catch (err) {
       console.error("Layer creation failed", err);
@@ -202,8 +214,13 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setDescription(generated.description);
       setTags(generated.tags);
       setTagDraft("");
+      setDynamicParameterNames(generated.dynamic_parameters);
+      setDynamicParameterOptions({});
+      setDynamicParameterValues({});
       setFormMessage(
-        `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
+        generated.dynamic_parameters.length > 0
+          ? `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — יש לבחור ערך לכל פרמטר דינמי לפני ההוספה ✓`
+          : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
     } catch (err) {
       console.error("Layer metadata generation failed", err);
