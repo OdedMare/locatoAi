@@ -62,7 +62,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import geopandas as gpd
 import httpx
@@ -864,7 +864,7 @@ class MqsProvider:
         if entity_id is None:
             logger.warning("MQS layer %s: entity has no entity_id", layer_id)
             return entity
-        path = f"/MoriaProject/{layer_id}/EntityInfo/{entity_id, )}"
+        path = f"/MoriaProject/{layer_id}/EntityInfo/{entity_id}"
         try:
             payload = self._get_json(client, path)
         except ProviderError as exc:
