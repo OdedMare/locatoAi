@@ -35,7 +35,7 @@ _DEFAULT_PARAMETER_KEYS = (
     "eventTime", "eventTime.not", "arriveTime", "arriveTime.not",
 )
 _QUERY_MODES = {"auto", "match_not", "legacy"}
-_DYNAMIC_PARAM_PREFIX = "param_"
+DYNAMIC_PARAM_PREFIX = "param_"
 _DEFAULT_RESULTS_LIMIT = 10000
 _MAX_CHUNK_DEPTH = 5
 _MAX_FETCHED_ROWS = 100000
@@ -70,8 +70,8 @@ def cubes_resolved_parameters(layer: LayerMeta) -> Dict[str, str]:
     query = parse_qs(urlsplit(layer.source_url).query)
     resolved = {}
     for key, values in query.items():
-        if key.startswith(_DYNAMIC_PARAM_PREFIX) and values:
-            resolved[key[len(_DYNAMIC_PARAM_PREFIX):]] = values[0]
+        if key.startswith(DYNAMIC_PARAM_PREFIX) and values:
+            resolved[key[len(DYNAMIC_PARAM_PREFIX):]] = values[0]
     return resolved
 
 

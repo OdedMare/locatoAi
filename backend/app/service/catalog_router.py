@@ -18,7 +18,7 @@ from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
 from app.bl.catalog.tyche_activation import TYCHE_SOURCE, activate_tyche_layer
 from app.bl.ports.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
-from app.dal.providers.cubes import _DYNAMIC_PARAM_PREFIX
+from app.dal.providers.cubes import DYNAMIC_PARAM_PREFIX
 from app.service.catalog_dto.catalog_layer import CatalogLayer
 from app.service.catalog_dto.create_layer_request import CreateLayerRequest
 from app.service.catalog_dto.cubes_autocomplete_option_response import (
@@ -58,11 +58,11 @@ def _with_cubes_mode(source: str, mode: str) -> str:
 def _with_cubes_dynamic_parameters(source: str, parameters: Dict[str, str]) -> str:
     parsed = urlsplit(source)
     query = parse_qs(parsed.query, keep_blank_values=True)
-    for key in [key for key in query if key.startswith(_DYNAMIC_PARAM_PREFIX)]:
+    for key in [key for key in query if key.startswith(DYNAMIC_PARAM_PREFIX)]:
         query.pop(key)
     for name, value in parameters.items():
         if name and value:
-            query[f"{_DYNAMIC_PARAM_PREFIX}{name}"] = [value]
+            query[f"{DYNAMIC_PARAM_PREFIX}{name}"] = [value]
     return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
 
@@ -164,7 +164,8 @@ def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
         tags=tags,
         provider=body.provider.strip(),
         source_url=_normalized_source(
-            body.provider, body.source_url, body.cubes_query_mode),
+            body.provider, body.source_url, body.cubes_query_mode,
+            body.cubes_dynamic_parameters),
     )
     try:
         created = request.app.state.catalog.add_layer(layer)
@@ -199,10 +200,41 @@ def generate_layer_metadata(
     result = generator.generate(
         name=body.name, provider_name=body.provider,
         source_url=_normalized_source(
-            body.provider, body.source_url, body.cubes_query_mode),
+            body.provider, body.source_url, body.cubes_query_mode,
+            body.cubes_dynamic_parameters),
     )
     return GeneratedLayerMetadataResponse(
         description=result.description,
         tags=result.tags,
         sample_count=result.sample_count,
+    )
+
+
+@router.post(
+    "/api/layers/autocomplete-parameter", response_model=CubesAutocompleteResponse
+)
+def autocomplete_cubes_parameter(
+    body: CubesAutocompleteRequest, request: Request
+) -> CubesAutocompleteResponse:
+    """Live values for a Cubes dynamic parameter — these cubes can change
+    their schema, so options are fetched fresh, never cached, and the
+    user picks one before the layer is created."""
+    provider = request.app.state.cubes_provider
+    layer = LayerMeta(
+        id="autocomplete-preview", name="", provider="cubes",
+        source_url=_normalized_source("cubes", body.source_url),
+    )
+    try:
+        options = provider.fetch_autocomplete_options(layer, body.parameter_name)
+    except ProviderError:
+        raise
+    except Exception as exc:
+        raise ProviderError(
+            f"Could not fetch autocomplete options for '{body.parameter_name}'"
+        ) from exc
+    return CubesAutocompleteResponse(
+        options=[
+            CubesAutocompleteOptionResponse(value=item.value, name=item.name)
+            for item in options
+        ]
     )

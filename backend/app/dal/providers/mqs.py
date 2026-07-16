@@ -81,6 +81,7 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 30
 _MAX_FEATURES = 50000
+_MAX_FEATURES_PER_LAYER = 10000
 _PAGE_SIZE = 10000  # matches the doc's default `to` value
 _GEO_CHUNK_TARGET = _PAGE_SIZE
 _GEO_MAX_SPLIT_DEPTH = 4
