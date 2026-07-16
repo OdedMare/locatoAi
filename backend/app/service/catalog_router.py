@@ -4,7 +4,7 @@ Lets users browse which data layers exist (name/description/tags) so
 they know what they can ask about. Metadata only — never features.
 """
 
-from typing import List
+from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from uuid import uuid4
 
@@ -17,8 +17,17 @@ from app.bl.catalog.mqs_sync.browse_mqs_layers import browse_mqs_layers
 from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
 from app.bl.catalog.tyche_activation import TYCHE_SOURCE, activate_tyche_layer
 from app.bl.ports.layer_meta import LayerMeta
+from app.common.errors.provider_error import ProviderError
+from app.dal.providers.cubes import _DYNAMIC_PARAM_PREFIX
 from app.service.catalog_dto.catalog_layer import CatalogLayer
 from app.service.catalog_dto.create_layer_request import CreateLayerRequest
+from app.service.catalog_dto.cubes_autocomplete_option_response import (
+    CubesAutocompleteOptionResponse,
+)
+from app.service.catalog_dto.cubes_autocomplete_request import CubesAutocompleteRequest
+from app.service.catalog_dto.cubes_autocomplete_response import (
+    CubesAutocompleteResponse,
+)
 from app.service.catalog_dto.generate_layer_metadata_request import (
     GenerateLayerMetadataRequest,
 )
@@ -46,14 +55,27 @@ def _with_cubes_mode(source: str, mode: str) -> str:
     return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
 
+def _with_cubes_dynamic_parameters(source: str, parameters: Dict[str, str]) -> str:
+    parsed = urlsplit(source)
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    for key in [key for key in query if key.startswith(_DYNAMIC_PARAM_PREFIX)]:
+        query.pop(key)
+    for name, value in parameters.items():
+        if name and value:
+            query[f"{_DYNAMIC_PARAM_PREFIX}{name}"] = [value]
+    return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
+
+
 def _normalized_source(
     provider: str, source_url: str, cubes_query_mode: str = "auto",
+    cubes_dynamic_parameters: Optional[Dict[str, str]] = None,
 ) -> str:
     source = source_url.strip()
     if provider.strip().lower() == "cubes":
         if "://" not in source:
             source = f"cubes://db/{source.strip('/')}"
-        return _with_cubes_mode(source, cubes_query_mode)
+        source = _with_cubes_mode(source, cubes_query_mode)
+        return _with_cubes_dynamic_parameters(source, cubes_dynamic_parameters or {})
     if provider.strip().lower() == "tyche" and "://" not in source:
         return f"tyche://{source.strip('/')}"
     return source
