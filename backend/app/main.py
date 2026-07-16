@@ -123,7 +123,7 @@ def _register_error_handlers(app: FastAPI) -> None:
                 request_logger.error("request_failed", **context, exc_info=True)
             else:
                 _LOGGER.exception("request_failed %s", context)
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=status_code,
                 content={
                     "status": "error",
@@ -133,6 +133,9 @@ def _register_error_handlers(app: FastAPI) -> None:
                     "pipeline_trace": pipeline_trace,
                 },
             )
+            if request_id:
+                response.headers["X-Request-ID"] = request_id
+            return response
 
         return handler
 

@@ -4,8 +4,10 @@ Current stage: layer selection is live; plan building is next, so a
 successful selection returns a clarify naming the chosen layers.
 """
 
-from fastapi import APIRouter, Depends, Request
+import re
 from uuid import uuid4
+
+from fastapi import APIRouter, Depends, Request
 
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.service.deps import get_orchestrator
@@ -13,6 +15,12 @@ from app.service.dto.query_request import QueryRequest
 from app.service.dto.query_response import QueryResponse
 
 router = APIRouter()
+_REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _request_id(request: Request) -> str:
+    supplied = request.headers.get("X-Request-ID", "")
+    return supplied if _REQUEST_ID.fullmatch(supplied) else uuid4().hex
 
 
 def _boundary_context(boundaries) -> dict:
@@ -53,7 +61,7 @@ def run_query(
     orchestrator: QueryOrchestrator = Depends(get_orchestrator),
 ) -> QueryResponse:
     boundaries = body.boundaries.to_shapely()
-    request_id = uuid4().hex
+    request_id = _request_id(request)
     request.state.request_id = request_id
     request.state.pipeline_trace = []
     log = request.app.state.request_log.bind(request_id=request_id)

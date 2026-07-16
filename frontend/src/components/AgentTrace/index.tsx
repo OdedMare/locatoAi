@@ -50,6 +50,7 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
 }
 
 const STAGE_HE: Record<string, string> = {
+  transport: "תקשורת עם השרת",
   layer_selection: "בחירת שכבות",
   plan_building: "בניית תוכנית",
   plan_validation: "אימות תוכנית",
@@ -85,7 +86,7 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
       )}
       <ol className="plan-steps">
         {trace.map((entry, index) => (
-          <li key={`${entry.stage}-${entry.step_id ?? index}`} className="plan-step">
+          <li key={`${index}-${entry.stage}-${entry.step_id ?? ""}`} className="plan-step">
             <div>
               <strong>{STATUS_MARK[entry.status] ?? "•"} {STAGE_HE[entry.stage] ?? entry.stage}</strong>
               <span dir="ltr"> · {entry.status}</span>

@@ -1,4 +1,28 @@
-import type { GeoQueryRequest, GeoQueryResponse } from "@/types/geo-query";
+import type {
+  GeoQueryRequest,
+  GeoQueryResponse,
+  PipelineTraceEntry,
+} from "@/types/geo-query";
+
+function failedResponse(
+  message: string, requestId: string, trace: PipelineTraceEntry[]
+): GeoQueryResponse {
+  return {
+    status: "error", request_id: requestId, clarify: message,
+    plan: null, features: null, scalar_result: null, timing_ms: null,
+    token_usage: null, selected_layers: [], reasoning: "", tool_calls: [],
+    pipeline_trace: trace,
+  };
+}
+
+function transportFailure(
+  message: string, errorType: string, parameters?: Record<string, unknown>
+): PipelineTraceEntry {
+  return {
+    stage: "transport", status: "failed", error_type: errorType,
+    error: message, parameters,
+  };
+}
 
 function errorDetail(body: unknown): string {
   if (!body || typeof body !== "object" || !("detail" in body)) return "";
@@ -31,28 +55,27 @@ export async function submitQuery(
   request: GeoQueryRequest
 ): Promise<GeoQueryResponse> {
   let res: Response;
-  console.info("Query pipeline started", request);
+  const clientRequestId = crypto.randomUUID();
+  console.info("Query pipeline started", { requestId: clientRequestId, request });
   try {
     res = await fetch("/api/query", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-ID": clientRequestId,
+      },
       body: JSON.stringify(request),
     });
   } catch (error) {
-    console.warn("Query request could not reach the backend", error);
-    return {
-      status: "error",
-      clarify: "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.",
-      plan: null,
-      features: null,
-      scalar_result: null,
-      timing_ms: null,
-      token_usage: null,
-      selected_layers: [],
-      reasoning: "",
-      tool_calls: [],
-      pipeline_trace: [],
-    };
+    const message = "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.";
+    const trace = [transportFailure(message, "NetworkError", {
+      cause: error instanceof Error ? error.message : String(error),
+    })];
+    console.error("Query pipeline failed", {
+      status: 0, detail: message, errorType: "NetworkError",
+      pipelineTrace: trace, requestId: clientRequestId,
+    });
+    return failedResponse(message, clientRequestId, trace);
   }
 
   if (!res.ok) {
@@ -66,29 +89,26 @@ export async function submitQuery(
       detail = raw;
     }
     const message = detail || `השרת החזיר שגיאה ${res.status}`;
+    const requestId = typeof body.request_id === "string"
+      ? body.request_id
+      : res.headers.get("X-Request-ID") ?? clientRequestId;
+    const errorType = typeof body.error_type === "string"
+      ? body.error_type
+      : "UnstructuredHttpError";
+    const trace = Array.isArray(body.pipeline_trace)
+      ? body.pipeline_trace as GeoQueryResponse["pipeline_trace"]
+      : [transportFailure(message, errorType, {
+          http_status: res.status,
+          raw_response: raw.slice(0, 1000),
+        })];
     console.error("Query pipeline failed", {
       status: res.status,
-      requestId: body.request_id,
-      pipelineTrace: body.pipeline_trace,
-      errorType: body.error_type,
+      requestId,
+      pipelineTrace: trace,
+      errorType,
       detail: message,
     });
-    return {
-      status: "error",
-      request_id: typeof body.request_id === "string" ? body.request_id : null,
-      clarify: message,
-      plan: null,
-      features: null,
-      scalar_result: null,
-      timing_ms: null,
-      token_usage: null,
-      selected_layers: [],
-      reasoning: "",
-      tool_calls: [],
-      pipeline_trace: Array.isArray(body.pipeline_trace)
-        ? body.pipeline_trace as GeoQueryResponse["pipeline_trace"]
-        : [],
-    };
+    return failedResponse(message, requestId, trace);
   }
   const response = await res.json() as GeoQueryResponse;
   console.info("Query pipeline completed", response);
