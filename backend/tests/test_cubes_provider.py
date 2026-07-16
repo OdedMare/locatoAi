@@ -519,7 +519,7 @@ def test_dynamic_suffix_parameter_is_discovered_without_role(tmp_path):
     assert [request.method for request in handler.requests] == ["GET"]
 
 
-def test_fl_dynamic_is_the_only_catalog_selector_when_present(tmp_path):
+def test_suffix_and_role_dynamic_parameters_are_both_discovered(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 
     def metadata_handler(request):
@@ -528,8 +528,8 @@ def test_fl_dynamic_is_the_only_catalog_selector_when_present(tmp_path):
         return httpx.Response(200, json={
             "Parameters": [
                 {"Name": "fl:dynamic", "Type": "String"},
-                {"Name": "environment", "Role": "dynamic", "Type": "String"},
-                {"Name": "polygon", "Role": "dynamic", "Type": "String"},
+                {"Name": "vehicleType", "Role": "dynamic", "Type": "String"},
+                {"Name": "environment", "Type": "String"},
             ],
             "Fields": [],
         })
@@ -538,7 +538,7 @@ def test_fl_dynamic_is_the_only_catalog_selector_when_present(tmp_path):
 
     parameters = provider.list_dynamic_parameters(layer())
 
-    assert [item.name for item in parameters] == ["fl:dynamic"]
+    assert [item.name for item in parameters] == ["fl:dynamic", "vehicleType"]
 
 
 def test_dynamic_parameter_discovery_reads_resolved_source_value(tmp_path):

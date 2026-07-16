@@ -350,17 +350,12 @@ def _metadata_parameters(payload: dict) -> List[LayerParameter]:
         item for item in payload.get("Parameters") or []
         if isinstance(item, dict) and item.get("Name")
     ]
-    has_named_dynamic_parameter = any(
-        str(item["Name"]).casefold().endswith(_DYNAMIC_PARAMETER_SUFFIX)
-        for item in raw_parameters
-    )
     parameters = []
     for item in raw_parameters:
         name = str(item["Name"])
         is_dynamic = (
             name.casefold().endswith(_DYNAMIC_PARAMETER_SUFFIX)
-            if has_named_dynamic_parameter
-            else str(item.get("Role") or "").casefold() == "dynamic"
+            or str(item.get("Role") or "").casefold() == "dynamic"
         )
         options = [] if is_dynamic else [
             str(option.get("Value")) for option in item.get("Options") or []
