@@ -4,8 +4,9 @@ Lets users browse which data layers exist (name/description/tags) so
 they know what they can ask about. Metadata only — never features.
 """
 
-from uuid import uuid4
+from typing import List
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -30,6 +31,7 @@ from app.service.catalog_dto.remote_mqs_layer_response import RemoteMqsLayerResp
 from app.service.catalog_dto.remote_mqs_layers_response import (
     RemoteMqsLayersResponse,
 )
+from app.service.catalog_dto.update_layer_request import UpdateLayerRequest
 
 router = APIRouter()
 
@@ -57,17 +59,24 @@ def _normalized_source(
     return source
 
 
+def _clean_tags(tags: List[str], limit: int) -> List[str]:
+    cleaned = (str(tag).strip()[:60] for tag in tags)
+    return list(dict.fromkeys(tag for tag in cleaned if tag))[:limit]
+
+
+def _catalog_layer(layer: LayerMeta) -> CatalogLayer:
+    return CatalogLayer(
+        id=layer.id, name=layer.name,
+        description=layer.description, tags=layer.tags,
+    )
+
+
 @router.get("/api/layers", response_model=LayersResponse)
 def list_layers(request: Request) -> LayersResponse:
     layers = request.app.state.catalog.list_layers()
     return LayersResponse(
         layers=[
-            CatalogLayer(
-                id=layer.id,
-                name=layer.name,
-                description=layer.description,
-                tags=layer.tags,
-            )
+            _catalog_layer(layer)
             for layer in layers
         ],
         count=len(layers),
@@ -120,15 +129,12 @@ def activate_tyche(request: Request) -> CatalogLayer:
         "tyche_layer_activated", layer_id=activated.id, created=created,
         sample_count=sample_count, source_url=TYCHE_SOURCE,
     )
-    return CatalogLayer(
-        id=activated.id, name=activated.name,
-        description=activated.description, tags=activated.tags,
-    )
+    return _catalog_layer(activated)
 
 
 @router.post("/api/layers", response_model=CatalogLayer, status_code=201)
 def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
-    tags = list(dict.fromkeys(tag.strip() for tag in body.tags if tag.strip()))[:20]
+    tags = _clean_tags(body.tags, 20)
     layer = LayerMeta(
         id=str(uuid4()),
         name=body.name.strip(),
@@ -142,12 +148,22 @@ def create_layer(body: CreateLayerRequest, request: Request) -> CatalogLayer:
         created = request.app.state.catalog.add_layer(layer)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    return CatalogLayer(
-        id=created.id,
-        name=created.name,
-        description=created.description,
-        tags=created.tags,
+    return _catalog_layer(created)
+
+
+@router.put("/api/layers/{layer_id}", response_model=CatalogLayer)
+def update_layer(
+    layer_id: str, body: UpdateLayerRequest, request: Request,
+) -> CatalogLayer:
+    updated = request.app.state.catalog.update_layer_metadata(
+        layer_id, body.name.strip(), body.description.strip(),
+        _clean_tags(body.tags, 40),
     )
+    request.app.state.request_log.info(
+        "catalog_layer_updated", layer_id=updated.id,
+        name=updated.name, tag_count=len(updated.tags),
+    )
+    return _catalog_layer(updated)
 
 
 @router.post(

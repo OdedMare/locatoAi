@@ -96,6 +96,7 @@ The service tier exposes these routes:
 | `POST /api/select-layers` | Run only agent call one for debugging/evaluation. |
 | `GET /api/layers` | Return local catalog metadata. |
 | `POST /api/layers` | Create one catalog record. |
+| `PUT /api/layers/{id}` | Edit layer name, description, and tags without changing its provider/source. |
 | `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
 | `POST /api/layers/activate-tyche` | Probe Tyche and idempotently activate the Our Forces layer. |
 | `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
@@ -283,6 +284,9 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 The catalog's `provider` column routes each layer to a registered adapter
 ([`registry.py`](app/dal/providers/registry.py), wired in `main.py`). **Production
 registers `mqs`, `cubes`, and `tyche`** — `arcgis` is not a real provider anymore.
+Layer selection and explicit-plan validation ignore catalog rows whose provider is not
+registered, while the catalog UI still lists them for repair/editing. If no queryable
+layers remain, selection returns a clarification instead of failing during planning.
 
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-

@@ -269,7 +269,7 @@ class QueryOrchestrator:
 
     def _validate_explicit_plan(self, plan: GeoQueryPlan,
                                 boundaries: Optional[BaseGeometry]) -> None:
-        known_ids = {layer.id for layer in self._catalog.list_layers()}
+        known_ids = {layer.id for layer in self._catalog.list_queryable_layers()}
         validate_plan(plan, known_ids, has_user_geometry=boundaries is not None)
 
     @staticmethod

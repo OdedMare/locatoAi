@@ -32,6 +32,13 @@ class CatalogService:
         """All layers the agent may choose from (metadata only)."""
         return self._repository.list_layers()
 
+    def list_queryable_layers(self) -> List[LayerMeta]:
+        """Catalog layers whose provider adapter is active in this process."""
+        return [
+            layer for layer in self._repository.list_layers()
+            if self._providers.has(layer.provider)
+        ]
+
     def get_layer(self, layer_id: str) -> LayerMeta:
         layer = self._repository.get_layer(layer_id)
         if layer is None:
@@ -41,6 +48,15 @@ class CatalogService:
     def add_layer(self, layer: LayerMeta) -> LayerMeta:
         """Persist a new catalog layer through the repository port."""
         return self._repository.add_layer(layer)
+
+    def update_layer_metadata(
+        self, layer_id: str, name: str, description: str, tags: List[str],
+    ) -> LayerMeta:
+        """Edit discovery metadata without changing provider/source identity."""
+        self.get_layer(layer_id)
+        return self._repository.update_layer_metadata(
+            layer_id, name, description, tags
+        )
 
     def sample_field(self, layer_id: str, field: str, limit: int = 20) -> List[str]:
         """Distinct example values of one field, straight from the provider

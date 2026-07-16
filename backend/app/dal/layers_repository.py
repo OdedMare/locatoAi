@@ -64,14 +64,14 @@ class PostgresLayersRepository:
         return layer.model_copy(update={"id": str(row["id"])})
 
     def update_layer_metadata(
-        self, layer_id: str, description: str, tags: List[str],
+        self, layer_id: str, name: str, description: str, tags: List[str],
     ) -> LayerMeta:
         table = self._store.get().quoted_layers_table()
         with connect(self._store) as conn:
             row = conn.execute(
-                f"UPDATE {table} SET description = %s, tags = %s "
+                f"UPDATE {table} SET name = %s, description = %s, tags = %s "
                 f"WHERE id = %s RETURNING {_COLUMNS}",
-                (description, tags, layer_id),
+                (name, description, tags, layer_id),
             ).fetchone()
         if row is None:
             raise ValueError(f"Layer '{layer_id}' does not exist")

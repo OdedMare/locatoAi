@@ -13,7 +13,7 @@ class LayersRepository(Protocol):
     def add_layer(self, layer: LayerMeta) -> LayerMeta: ...
 
     def update_layer_metadata(
-        self, layer_id: str, description: str, tags: List[str],
+        self, layer_id: str, name: str, description: str, tags: List[str],
     ) -> LayerMeta: ...
 
     def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:

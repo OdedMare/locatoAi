@@ -1215,6 +1215,13 @@ body {
   padding: 10px 12px;
 }
 
+.layers-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .layers-item-name {
   font-size: 14px;
   font-weight: 600;
@@ -1230,6 +1237,35 @@ body {
   margin-top: 4px;
   font-size: 11px;
   color: var(--accent);
+}
+
+.catalog-edit-button {
+  padding: 5px 9px;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.catalog-edit-form {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.catalog-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.catalog-edit-actions .run-query-button {
+  width: auto;
+  min-width: 90px;
+  padding: 8px 14px;
 }
 
 .add-layer-toggle {

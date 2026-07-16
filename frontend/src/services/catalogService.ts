@@ -6,6 +6,7 @@ import type {
   LayersResponse,
   MqsSyncResponse,
   RemoteMqsLayersResponse,
+  UpdateLayerRequest,
 } from "@/types/catalog";
 
 /** Fetch the layer catalog (metadata only — what users can ask about). */
@@ -34,6 +35,22 @@ export async function createLayer(layer: CreateLayerRequest): Promise<CatalogLay
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `הוספת השכבה נכשלה (${res.status})`);
+  }
+  return res.json();
+}
+
+/** Edit catalog discovery metadata without changing provider/source identity. */
+export async function updateLayer(
+  layerId: string, update: UpdateLayerRequest
+): Promise<CatalogLayer> {
+  const res = await fetch(`/api/layers/${encodeURIComponent(layerId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(update),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `עדכון השכבה נכשל (${res.status})`);
   }
   return res.json();
 }

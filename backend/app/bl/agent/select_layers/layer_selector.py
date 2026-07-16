@@ -46,7 +46,12 @@ class LayerSelector:
         self._diet_mode = diet_mode
 
     def select(self, query: str) -> LayerSelection:
-        layers = self._catalog.list_layers()
+        layers = self._catalog.list_queryable_layers()
+        if not layers:
+            return LayerSelection(
+                clarify="אין כרגע שכבות מידע פעילות — יש להפעיל ספק בקטלוג.",
+                reasoning="כל שכבות הקטלוג משויכות לספקים שאינם פעילים.",
+            )
         diet = self._diet_mode()
         template = self._diet_template if diet else self._template
         system = template.replace(

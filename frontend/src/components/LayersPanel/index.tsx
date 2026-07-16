@@ -7,6 +7,7 @@ import {
   generateLayerMetadata,
   getLayers,
   getMqsLayers,
+  updateLayer,
 } from "@/services/catalogService";
 import type {
   CatalogLayer,
@@ -16,6 +17,17 @@ import type {
 
 interface LayersPanelProps {
   onClose: () => void;
+}
+
+function mergeTags(current: string[], value: string, limit: number): string[] {
+  const additions = value.split(",").map((tag) => tag.trim()).filter(Boolean);
+  const seen = new Set(current.map((tag) => tag.toLocaleLowerCase()));
+  return [...current, ...additions.filter((tag) => {
+    const key = tag.toLocaleLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  })].slice(0, limit);
 }
 
 /**
@@ -43,6 +55,13 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [mqsLayers, setMqsLayers] = useState<RemoteMqsLayer[] | null>(null);
   const [mqsSearch, setMqsSearch] = useState("");
   const [mqsMessage, setMqsMessage] = useState<string | null>(null);
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editTagDraft, setEditTagDraft] = useState("");
+  const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     getLayers()
@@ -75,26 +94,53 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   }, [mqsLayers, mqsSearch]);
 
   const commitTags = (value: string) => {
-    const additions = value
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-    if (additions.length === 0) return;
-    setTags((current) => {
-      const seen = new Set(current.map((tag) => tag.toLocaleLowerCase()));
-      const unique = additions.filter((tag) => {
-        const key = tag.toLocaleLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      return [...current, ...unique].slice(0, 20);
-    });
+    setTags((current) => mergeTags(current, value, 20));
     setTagDraft("");
   };
 
   const removeTag = (tagToRemove: string) => {
     setTags((current) => current.filter((tag) => tag !== tagToRemove));
+  };
+
+  const startEditing = (layer: CatalogLayer) => {
+    setEditingLayerId(layer.id);
+    setEditName(layer.name);
+    setEditDescription(layer.description);
+    setEditTags(layer.tags);
+    setEditTagDraft("");
+    setEditMessage(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingLayerId(null);
+    setEditMessage(null);
+    setEditTagDraft("");
+  };
+
+  const commitEditTags = (value: string) => {
+    setEditTags((current) => mergeTags(current, value, 40));
+    setEditTagDraft("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLayerId || !editName.trim() || editSaving) return;
+    const finalTags = mergeTags(editTags, editTagDraft, 40);
+    setEditSaving(true);
+    setEditMessage(null);
+    try {
+      const updated = await updateLayer(editingLayerId, {
+        name: editName.trim(), description: editDescription.trim(), tags: finalTags,
+      });
+      setLayers((current) => (current ?? []).map(
+        (layer) => layer.id === updated.id ? updated : layer
+      ));
+      setEditingLayerId(null);
+    } catch (err) {
+      console.error("Catalog layer update failed", err);
+      setEditMessage(err instanceof Error ? err.message : "עדכון השכבה נכשל");
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleAddLayer = async () => {
@@ -388,11 +434,96 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
             <li key={layer.id} className="layers-item" dir="auto">
               <div className="layers-item-head">
                 <span className="layers-item-name">{layer.name}</span>
+                {editingLayerId !== layer.id && (
+                  <button
+                    type="button"
+                    className="catalog-edit-button"
+                    onClick={() => startEditing(layer)}
+                  >
+                    עריכה
+                  </button>
+                )}
               </div>
-              {layer.description && (
-                <p className="layers-item-description">{layer.description}</p>
+              {editingLayerId === layer.id ? (
+                <div className="catalog-edit-form">
+                  <label className="field-label" htmlFor={`edit-name-${layer.id}`}>שם</label>
+                  <input
+                    id={`edit-name-${layer.id}`}
+                    className="settings-input"
+                    value={editName}
+                    onChange={(event) => setEditName(event.target.value)}
+                    dir="auto"
+                  />
+                  <label className="field-label" htmlFor={`edit-description-${layer.id}`}>תיאור</label>
+                  <textarea
+                    id={`edit-description-${layer.id}`}
+                    className="settings-input layer-description-input"
+                    value={editDescription}
+                    onChange={(event) => setEditDescription(event.target.value)}
+                    dir="auto"
+                  />
+                  <label className="field-label" htmlFor={`edit-tags-${layer.id}`}>תגיות</label>
+                  <div className="tag-editor">
+                    {editTags.map((tag) => (
+                      <span key={tag} className="tag-editor-chip" dir="auto">
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => setEditTags((current) => current.filter((item) => item !== tag))}
+                          aria-label={`הסרת התגית ${tag}`}
+                        >×</button>
+                      </span>
+                    ))}
+                    <input
+                      id={`edit-tags-${layer.id}`}
+                      className="tag-editor-input"
+                      value={editTagDraft}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value.includes(",")) commitEditTags(value);
+                        else setEditTagDraft(value);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                          event.preventDefault();
+                          commitEditTags(editTagDraft);
+                        } else if (event.key === "Backspace" && !editTagDraft && editTags.length > 0) {
+                          setEditTags((current) => current.slice(0, -1));
+                        }
+                      }}
+                      onBlur={() => commitEditTags(editTagDraft)}
+                      placeholder="תגית נוספת…"
+                      dir="auto"
+                    />
+                  </div>
+                  {editMessage && <p className="settings-message" dir="auto">{editMessage}</p>}
+                  <div className="catalog-edit-actions">
+                    <button
+                      type="button"
+                      className="run-query-button"
+                      onClick={() => void handleSaveEdit()}
+                      disabled={!editName.trim() || editSaving}
+                    >
+                      {editSaving ? "שומר…" : "שמירה"}
+                    </button>
+                    <button
+                      type="button"
+                      className="catalog-edit-button"
+                      onClick={cancelEditing}
+                      disabled={editSaving}
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {layer.description && (
+                    <p className="layers-item-description">{layer.description}</p>
+                  )}
+                  <p className="layers-item-tags">{layer.tags.join(" · ")}</p>
+                </>
               )}
-              <p className="layers-item-tags">{layer.tags.join(" · ")}</p>
             </li>
           ))}
           {layers !== null && filtered.length === 0 && (

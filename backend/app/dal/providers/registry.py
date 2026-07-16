@@ -21,3 +21,6 @@ class InMemoryProviderRegistry:
         if provider is None:
             raise ProviderError(f"No provider registered for '{provider_name}'")
         return provider
+
+    def has(self, provider_name: str) -> bool:
+        return provider_name in self._providers

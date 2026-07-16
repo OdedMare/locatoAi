@@ -59,6 +59,6 @@ def activate_tyche_layer(
     sample = provider.fetch_features(candidate, limit=1)
     activated, created = repository.upsert_layer(candidate)
     persisted = repository.update_layer_metadata(
-        activated.id, _description(existing), _merged_tags(existing)
+        activated.id, _NAME, _description(existing), _merged_tags(existing)
     )
     return persisted, created, len(sample)

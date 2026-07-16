@@ -23,6 +23,12 @@ export interface CreateLayerRequest {
   cubes_query_mode?: CubesQueryMode;
 }
 
+export interface UpdateLayerRequest {
+  name: string;
+  description: string;
+  tags: string[];
+}
+
 export interface GenerateLayerMetadataRequest {
   name: string;
   provider: string;
