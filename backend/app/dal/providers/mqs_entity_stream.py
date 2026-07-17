@@ -108,23 +108,20 @@ class MqsEntityStream:
 
     def _geometry_region(
         self, client, layer_id, geometry, depth,
-        parent_total, parent_observed, attribute_filters,
-    ) -> Iterable[dict]:
+        parent_total, parent_observed, attribute_filters) -> Iterable[dict]:
         buffered, next_page, total, visited = self._probe_region(
             client, layer_id, geometry, attribute_filters
         )
-        if self._should_split(
-            depth, total, next_page, len(buffered), parent_total, parent_observed
-        ):
-            chunks = self._filters.split(geometry)
-            if len(chunks) > 1:
-                self._log_split(layer_id, depth, total, len(buffered))
-                for chunk in chunks:
-                    yield from self._geometry_region(
-                        client, layer_id, chunk, depth + 1,
-                        total, len(buffered), attribute_filters,
-                    )
-                return
+        chunks = self._split_chunks(
+            geometry, depth, total, next_page, len(buffered), parent_total, parent_observed)
+        if chunks:
+            self._log_split(layer_id, depth, total, len(buffered))
+            for chunk in chunks:
+                yield from self._geometry_region(
+                    client, layer_id, chunk, depth + 1,
+                    total, len(buffered), attribute_filters,
+                )
+            return
         yield from buffered
         yield from self._remaining_pages(
             client, layer_id, geometry, attribute_filters, next_page, visited
@@ -173,6 +170,17 @@ class MqsEntityStream:
             or (total is None and next_page is not None)
         )
         return depth < self._MAX_SPLIT_DEPTH and overloaded and region_shrank
+
+    def _split_chunks(
+        self, geometry, depth, total, next_page, observed,
+        parent_total, parent_observed,
+    ):
+        if not self._should_split(
+            depth, total, next_page, observed, parent_total, parent_observed
+        ):
+            return []
+        chunks = self._filters.split(geometry)
+        return chunks if len(chunks) > 1 else []
 
     @staticmethod
     def _remember_page(layer_id: str, next_page: str, visited: set) -> None:

@@ -12,6 +12,8 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 from app.dal.providers.mqs_entity_mapper import MqsEntityMapper
 from app.dal.providers.mqs_filter_builder import MqsFilterBuilder
 
+_AttributeFilters = Optional[Sequence[Tuple[str, str]]]
+
 
 class MqsGateway:
     PAGE_SIZE = 10000
@@ -92,21 +94,20 @@ class MqsGateway:
     def iter_all_entities(
         self, client: httpx.Client, layer_id: str,
         geometry: Optional[BaseGeometry] = None, limit: Optional[int] = None,
-        max_features: Optional[int] = MAX_FEATURES,
-        attribute_filters: Optional[Sequence[Tuple[str, str]]] = None,
+        max_features: Optional[int] = MAX_FEATURES, attribute_filters: _AttributeFilters = None,
     ) -> Iterable[dict]:
-        page_size = min(self.PAGE_SIZE, limit) if limit is not None else self.PAGE_SIZE
-        params = {"from": 0, "to": page_size}
+        params = self._first_page_params(limit)
         fetched = 0
         while True:
             entities, next_page = self.entities_page(
                 client, layer_id, params, geometry, attribute_filters
             )
             fetched += len(entities)
-            yield from self._limited_page(entities, fetched, limit)
             if limit is not None and fetched >= limit:
+                yield from self._limited_page(entities, fetched, limit)
                 return
             self._validate_feature_count(layer_id, fetched, max_features)
+            yield from entities
             if next_page is None:
                 return
             params = self.next_page_params(next_page)
@@ -159,6 +160,10 @@ class MqsGateway:
     def next_page_params(next_page_url: str) -> dict:
         query = parse_qs(urlparse(next_page_url).query)
         return {key: values[0] for key, values in query.items() if values}
+
+    def _first_page_params(self, limit: Optional[int]) -> dict:
+        size = min(self.PAGE_SIZE, limit) if limit is not None else self.PAGE_SIZE
+        return {"from": 0, "to": size}
 
     def _entities_payload(
         self, client, path, params, geometry, attribute_filters,

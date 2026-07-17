@@ -289,6 +289,13 @@ Layer selection and explicit-plan validation ignore catalog rows whose provider 
 registered, while the catalog UI still lists them for repair/editing. If no queryable
 layers remain, selection returns a clarification instead of failing during planning.
 
+Provider modules follow one-class-per-file composition. The public provider classes are
+thin use-case coordinators; source parsing, request building, HTTP/pagination, response
+mapping, schema inference, and dense-result splitting live in named collaborators such as
+`MqsGateway`, `MqsEntityStream`, `CubesQueryBuilder`, `CubesSchemaMapper`,
+`TycheGateway`, and `TycheFeatureMapper`. Provider files stay below 250 lines, and new
+provider behavior belongs in the collaborator that owns that single responsibility.
+
 - **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
@@ -380,7 +387,7 @@ layers remain, selection returns a clarification instead of failing during plann
   `location` object with polygon WKT and is rechecked locally for correctness.
   The supplied ReDoc extract omitted the inner `location` schema, so its inferred
   `{ "match": "<WKT>" }` encoding is intentionally isolated in
-  `_location_filter` for a one-line adjustment against the full OpenAPI schema.
+  `TycheQueryBuilder` for a local adjustment against the full OpenAPI schema.
   Responses accept WKT, GeoJSON objects/strings, nested geometry values, and
   longitude/latitude objects, preserving the parsed value as the GeoDataFrame
   geometry. The provider follows `hasMoreResults`/`pageTracker`, requests only
