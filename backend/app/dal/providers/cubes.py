@@ -1,427 +1,58 @@
-"""Cubes provider for metadata and time-varying entity locations."""
+"""Cubes provider orchestration."""
 
-import json
-import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, quote, urlsplit
 
 import geopandas as gpd
 import httpx
-from shapely import wkt
-from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
-from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_parameter_option import LayerParameterOption
 from app.bl.ports.layer_schema import LayerSchema
-from app.common.errors.provider_error import ProviderError
-from app.common.geo import WGS84, empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-
-_TIMEOUT_SECONDS = 30
-_RESPONSE_LIST_KEYS = (
-    "data", "Data", "results", "Results", "items", "Items",
-    "entities", "Entities",
-)
-_SCHEMA_SAMPLE_LIMIT = 100
-_MAX_FIELD_SAMPLES = 5
-_MAX_SAMPLE_CHARS = 80
-_TIME_FIELD_NAMES = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
-_PARAMETER_OPERATORS = ("match", "not")
-_DEFAULT_PARAMETER_KEYS = (
-    "eventTime", "eventTime.not", "arriveTime", "arriveTime.not",
-)
-_QUERY_MODES = {"auto", "match_not", "legacy"}
-DYNAMIC_PARAM_PREFIX = "param_"
-_DYNAMIC_PARAMETER_SUFFIX = ":dynamic"
-_DEFAULT_RESULTS_LIMIT = 10000
-_MAX_CHUNK_DEPTH = 5
-_MAX_FETCHED_ROWS = 100000
-logger = logging.getLogger(__name__)
-
-
-def cubes_database_name(layer: LayerMeta) -> str:
-    """Extract <dbname> from cubes://db/<dbname>, a bare name, or URL."""
-    ignored = {"cube", "v1", "db"}
-    path = urlsplit(layer.source_url.strip()).path
-    segments = [
-        part for part in path.split("/")
-        if part and part.lower() not in ignored
-    ]
-    if not segments:
-        raise ProviderError(
-            f"Layer {layer.id} has no Cubes database name in source_url; "
-            "expected cubes://db/<dbname>"
-        )
-    return segments[-1]
-
-
-def cubes_query_mode(layer: LayerMeta) -> str:
-    values = parse_qs(urlsplit(layer.source_url).query).get("query_mode", [])
-    value = values[0] if values else "auto"
-    return value if value in _QUERY_MODES else "auto"
-
-
-def cubes_resolved_parameters(layer: LayerMeta) -> Dict[str, str]:
-    """Values chosen at layer-add time for dynamic (autocomplete-backed)
-    parameters, folded into source_url as `param_<name>=<value>`."""
-    query = parse_qs(urlsplit(layer.source_url).query)
-    resolved = {}
-    for key, values in query.items():
-        if key.startswith(DYNAMIC_PARAM_PREFIX) and values:
-            resolved[key[len(DYNAMIC_PARAM_PREFIX):]] = values[0]
-    return resolved
-
-
-def _records(payload: object) -> List[dict]:
-    if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
-    if isinstance(payload, dict):
-        if "geometry" in payload:
-            return [payload]
-        for key in _RESPONSE_LIST_KEYS:
-            value = payload.get(key)
-            if isinstance(value, list):
-                return [item for item in value if isinstance(item, dict)]
-    raise ProviderError("Cubes returned an unrecognized response shape")
-
-
-def _parameter_parts(name: str) -> Tuple[str, Optional[str]]:
-    base, separator, operator = name.rpartition(".")
-    if separator and operator.lower() in _PARAMETER_OPERATORS:
-        return base, operator.lower()
-    return name, None
-
-
-def _parameter_key(base: str, operator: Optional[str]) -> str:
-    return base if operator is None else f"{base}.{operator}"
-
-
-def _declared_parameter_keys(parameters: List[LayerParameter]) -> List[str]:
-    keys: List[str] = []
-    for parameter in parameters or []:
-        base, operator = _parameter_parts(parameter.name)
-        declared = (operator,) if operator else (None, "not")
-        for item in declared:
-            key = _parameter_key(base, item)
-            if key not in keys:
-                keys.append(key)
-    return keys
-
-
-def _iso_milliseconds(value: datetime) -> str:
-    normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
-    return normalized.astimezone(timezone.utc).isoformat(
-        timespec="milliseconds").replace("+00:00", "Z")
-
-
-def _absolute_window(now: Optional[datetime], temporal_range):
-    if temporal_range is not None:
-        return {"From": temporal_range[0], "To": temporal_range[1]}
-    end = now or datetime.now(timezone.utc)
-    return {"From": _iso_milliseconds(end - timedelta(hours=1)),
-            "To": _iso_milliseconds(end)}
-
-
-def _parameter_value(key: str, now: Optional[datetime], temporal_range) -> dict:
-    base, operator = _parameter_parts(key)
-    if operator == "match":
-        return _absolute_window(now, temporal_range)
-    unit = "no_time" if base == "arriveTime" and operator is None else "hour"
-    return {"TimeBackValue": "1", "TimeBackUnit": unit}
-
-
-def _location_key(body: dict) -> Optional[str]:
-    for key in ("arriveTime.not", "eventTime.not"):
-        if key in body:
-            return key
-    return next((key for key in body if _parameter_parts(key)[0] in _TIME_FIELD_NAMES),
-                None)
-
-
-def _match_window_key(body: dict) -> Optional[str]:
-    """The body key (if any) carrying an absolute {From, To} match window —
-    the axis time-chunking splits when there's no geometry to chunk by."""
-    return next(
-        (key for key in body if _parameter_parts(key)[1] == "match"), None
-    )
-
-
-def _split_temporal_range(from_iso: str, to_iso: str) -> List[Tuple[str, str]]:
-    start = datetime.fromisoformat(from_iso.replace("Z", "+00:00"))
-    end = datetime.fromisoformat(to_iso.replace("Z", "+00:00"))
-    middle = start + (end - start) / 2
-    return [
-        (from_iso, _iso_milliseconds(middle)),
-        (_iso_milliseconds(middle), to_iso),
-    ]
-
-
-def _query_body(
-    geometry: Optional[BaseGeometry], parameters: Optional[List[LayerParameter]] = None,
-    now: Optional[datetime] = None, temporal_range=None, query_mode: str = "auto",
-) -> dict:
-    if query_mode == "match_not":
-        keys = ["eventTime.match", "eventTime.not"]
-    elif query_mode == "legacy":
-        keys = list(_DEFAULT_PARAMETER_KEYS)
-    else:
-        keys = (_declared_parameter_keys(parameters) if parameters
-                else list(_DEFAULT_PARAMETER_KEYS))
-    body = {key: _parameter_value(key, now, temporal_range) for key in keys
-            if _parameter_parts(key)[0] in _TIME_FIELD_NAMES}
-    _apply_dynamic_parameters(parameters or [], body)
-    _validate_required_parameters(parameters or [], body)
-    location_key = _location_key(body)
-    if geometry is not None and location_key is not None:
-        body[location_key]["Location"] = geometry.wkt
-    return body
-
-
-def _apply_dynamic_parameters(parameters: List[LayerParameter], body: dict) -> None:
-    for parameter in parameters:
-        if parameter.is_dynamic and parameter.resolved_value is not None:
-            body[parameter.name] = parameter.resolved_value
-
-
-def _resolve_dynamic_parameters(
-    parameters: List[LayerParameter], resolved: Dict[str, str],
-) -> List[LayerParameter]:
-    if not resolved:
-        return parameters
-    configured = []
-    configured_names = set()
-    for parameter in parameters:
-        configured_names.add(parameter.name)
-        if parameter.name in resolved:
-            parameter = parameter.model_copy(update={
-                "is_dynamic": True,
-                "resolved_value": resolved[parameter.name],
-            })
-        configured.append(parameter)
-    for name, value in resolved.items():
-        if name not in configured_names:
-            configured.append(LayerParameter(
-                name=name,
-                type="string",
-                is_dynamic=True,
-                resolved_value=value,
-            ))
-    return configured
-
-
-def _validate_required_parameters(parameters: List[LayerParameter], body: dict) -> None:
-    for parameter in parameters:
-        base, operator = _parameter_parts(parameter.name)
-        key = _parameter_key(base, operator)
-        base_is_configured = (
-            operator is None
-            and any(_parameter_parts(body_key)[0] == base for body_key in body)
-        )
-        if parameter.required and key not in body and not base_is_configured:
-            raise ProviderError(
-                f"Cubes parameter '{parameter.name}' is required and has no configured value"
-            )
-
-
-def _results_limit(metadata: dict) -> int:
-    value = metadata.get("ResultsLimit")
-    return value if isinstance(value, int) and value > 0 else _DEFAULT_RESULTS_LIMIT
-
-
-def _spatial_chunks(geometry: BaseGeometry) -> List[BaseGeometry]:
-    min_x, min_y, max_x, max_y = geometry.bounds
-    middle_x = (min_x + max_x) / 2
-    middle_y = (min_y + max_y) / 2
-    tiles = (
-        box(min_x, min_y, middle_x, middle_y),
-        box(middle_x, min_y, max_x, middle_y),
-        box(min_x, middle_y, middle_x, max_y),
-        box(middle_x, middle_y, max_x, max_y),
-    )
-    return [part for tile in tiles
-            for part in [geometry.intersection(tile)]
-            if not part.is_empty and part.area > 0]
-
-
-def _deduplicate_rows(rows: List[dict]) -> List[dict]:
-    unique: Dict[str, dict] = {}
-    for row in rows:
-        key = json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
-        unique.setdefault(key, row)
-    return list(unique.values())
-
-
-def _looks_like_iso_datetime(value: object) -> bool:
-    if not isinstance(value, str) or "T" not in value:
-        return False
-    try:
-        datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-        return True
-    except ValueError:
-        return False
-
-
-def _field_type(name: str, values: List[object]) -> str:
-    present = [value for value in values if value is not None]
-    if name in _TIME_FIELD_NAMES or any(_looks_like_iso_datetime(v) for v in present):
-        return "date"
-    if present and all(isinstance(v, bool) for v in present):
-        return "boolean"
-    if present and all(
-        isinstance(v, (int, float)) and not isinstance(v, bool) for v in present
-    ):
-        return "number"
-    return "string"
-
-
-def _field_names(rows: List[dict]) -> List[str]:
-    names: List[str] = []
-    for row in rows:
-        for raw_name in row:
-            name = str(raw_name)
-            if name != "geometry" and name not in names:
-                names.append(name)
-    return names
-
-
-def _samples(values: List[object]) -> List[str]:
-    present = [str(value)[:_MAX_SAMPLE_CHARS]
-               for value in values if value is not None]
-    return list(dict.fromkeys(present))[:_MAX_FIELD_SAMPLES]
-
-
-def _inferred_field(name: str, rows: List[dict]) -> LayerField:
-    values = [row.get(name) for row in rows]
-    return LayerField(name=name, type=_field_type(name, values),
-                      samples=_samples(values))
-
-
-def _infer_schema(layer_id: str, rows: List[dict]) -> LayerSchema:
-    fields = [_inferred_field(name, rows) for name in _field_names(rows)]
-    field_names = {field.name for field in fields}
-    temporal = next((name for name in _TIME_FIELD_NAMES if name in field_names), None)
-    temporal = temporal or next((field.name for field in fields
-                                 if field.type == "date"), None)
-    return LayerSchema(layer_id=layer_id, geometry_type="Point", fields=fields,
-                       temporal_field=temporal)
-
-
-def _parse_point(row: dict) -> Optional[BaseGeometry]:
-    raw = row.get("geometry")
-    if not isinstance(raw, str):
-        return None
-    try:
-        geometry = wkt.loads(raw)
-        return geometry if geometry.geom_type == "Point" else None
-    except Exception:
-        return None
-
-
-def _rows_to_gdf(rows: List[dict]) -> gpd.GeoDataFrame:
-    parsed = [(row, _parse_point(row)) for row in rows]
-    parsed = [(row, geometry) for row, geometry in parsed if geometry is not None]
-    if not parsed:
-        return empty_features_gdf()
-    attributes = [{key: value for key, value in row.items() if key != "geometry"}
-                  for row, _ in parsed]
-    return gpd.GeoDataFrame(attributes, geometry=[item[1] for item in parsed], crs=WGS84)
-
-
-def _metadata_fields(payload: dict) -> List[LayerField]:
-    fields = []
-    for item in payload.get("Fields") or []:
-        if not isinstance(item, dict) or not item.get("Name"):
-            continue
-        description = str(item.get("DisplayName") or "")
-        details = str(item.get("Description") or "")
-        fields.append(LayerField(
-            name=str(item["Name"]), type=str(item.get("Type") or "string").lower(),
-            description=" — ".join(value for value in (description, details) if value),
-        ))
-    return fields
-
-
-def _metadata_parameters(payload: dict) -> List[LayerParameter]:
-    raw_parameters = [
-        item for item in payload.get("Parameters") or []
-        if isinstance(item, dict) and item.get("Name")
-    ]
-    parameters = []
-    for item in raw_parameters:
-        name = str(item["Name"])
-        is_dynamic = (
-            name.casefold().endswith(_DYNAMIC_PARAMETER_SUFFIX)
-            or str(item.get("Role") or "").casefold() == "dynamic"
-        )
-        options = [] if is_dynamic else [
-            str(option.get("Value")) for option in item.get("Options") or []
-            if isinstance(option, dict) and option.get("Value")
-        ]
-        parameters.append(LayerParameter(
-            name=name, type=str(item.get("Type") or "string").lower(),
-            display_name=str(item.get("DisplayName") or ""),
-            description=str(item.get("Description") or ""),
-            required=bool(item.get("IsRequired")),
-            single_value=bool(item.get("IsSingleValue", True)), options=options,
-            is_dynamic=is_dynamic,
-        ))
-    return parameters
-
-
-def _merge_schema(layer_id: str, metadata: dict,
-                  sampled: Optional[LayerSchema]) -> LayerSchema:
-    declared = _metadata_fields(metadata)
-    samples = {field.name: field for field in (sampled.fields if sampled else [])}
-    merged = []
-    for field in declared:
-        sample = samples.pop(field.name, None)
-        if sample is not None:
-            field.samples = sample.samples
-        merged.append(field)
-    merged.extend(samples.values())
-    names = {field.name for field in merged}
-    temporal = next((name for name in _TIME_FIELD_NAMES if name in names), None)
-    return LayerSchema(layer_id=layer_id, geometry_type="Point", fields=merged,
-                       parameters=_metadata_parameters(metadata),
-                       source_name=str(metadata.get("Name") or ""),
-                       source_description=str(metadata.get("Description") or ""),
-                       temporal_field=temporal or (sampled.temporal_field if sampled else None))
+from app.dal.providers.cubes_gateway import CubesGateway
+from app.dal.providers.cubes_query_builder import CubesQueryBuilder
+from app.dal.providers.cubes_schema_mapper import CubesSchemaMapper
+from app.dal.providers.cubes_source import CubesSource
 
 
 class CubesProvider:
+    _SCHEMA_SAMPLE_LIMIT = 100
+
     def __init__(
         self,
         settings_store: RuntimeSettingsStore,
         transport: Optional[httpx.BaseTransport] = None,
-    ):
-        self._store = settings_store
-        self._transport = transport
+    ) -> None:
+        self._source = CubesSource()
+        self._query = CubesQueryBuilder()
+        self._mapper = CubesSchemaMapper()
+        self._gateway = CubesGateway(
+            settings_store, self._source, self._query, self._mapper, transport
+        )
         self._schema_cache: Dict[str, LayerSchema] = {}
-        self._metadata_cache: Dict[str, dict] = {}
+
+    @property
+    def _transport(self) -> Optional[httpx.BaseTransport]:
+        return self._gateway._transport
+
+    @_transport.setter
+    def _transport(self, transport: Optional[httpx.BaseTransport]) -> None:
+        self._gateway.set_transport(transport)
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
-        metadata = self._get_metadata(layer)
+        metadata = self._gateway.metadata(layer)
         sampled = self._schema_cache.get(layer.id)
         if sampled is None:
-            self.fetch_features(layer, limit=_SCHEMA_SAMPLE_LIMIT)
+            self.fetch_features(layer, limit=self._SCHEMA_SAMPLE_LIMIT)
             sampled = self._schema_cache.get(layer.id)
-        return _merge_schema(layer.id, metadata, sampled)
+        return self._mapper.merge_schema(layer.id, metadata, sampled)
 
     def list_dynamic_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
-        """Discover dynamic parameters from metadata without fetching rows."""
-        metadata = self._get_metadata(layer)
-        parameters = _metadata_parameters(metadata)
-        resolved = cubes_resolved_parameters(layer)
-        return [
-            parameter for parameter in _resolve_dynamic_parameters(
-                parameters, resolved
-            )
-            if parameter.is_dynamic
-        ]
+        parameters = self._configured_parameters(layer)
+        return [parameter for parameter in parameters if parameter.is_dynamic]
 
     def fetch_features(
         self,
@@ -431,24 +62,14 @@ class CubesProvider:
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
-        # `now` anchors a default absolute match window when the cube declares
-        # one; an explicit downstream temporal_filter takes precedence.
-        database = quote(cubes_database_name(layer), safe="")
-        path = f"/cube/v1/{database}"
-        metadata = self._get_metadata(layer)
-        parameters = _resolve_dynamic_parameters(
-            _metadata_parameters(metadata), cubes_resolved_parameters(layer))
-        query_mode = cubes_query_mode(layer)
-        with self._client() as client:
-            rows = self._fetch_rows(
-                client, path, parameters, geometry, _results_limit(metadata), limit,
-                now, temporal_range, query_mode,
-            )
-        self._schema_cache[layer.id] = _infer_schema(layer.id, rows)
-        features = _rows_to_gdf(rows)
-        if geometry is not None:
-            features = features[features.geometry.intersects(geometry)]
-        return features.iloc[:limit] if limit is not None else features
+        metadata = self._gateway.metadata(layer)
+        rows = self._gateway.fetch_rows(
+            layer, self._configured_parameters(layer), geometry,
+            self._mapper.results_limit(metadata), limit, now, temporal_range,
+            self._source.query_mode(layer),
+        )
+        self._schema_cache[layer.id] = self._mapper.infer_schema(layer.id, rows)
+        return self._features(rows, geometry, limit)
 
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20
@@ -456,214 +77,32 @@ class CubesProvider:
         features = self.fetch_features(layer, limit=max(limit * 5, 20))
         if field not in features.columns:
             return []
-        values: List[str] = []
-        for value in features[field].dropna():
-            text = str(value)[:80]
-            if text not in values:
-                values.append(text)
-            if len(values) >= limit:
-                break
-        return values
+        values = [str(value)[:80] for value in features[field].dropna()]
+        return list(dict.fromkeys(values))[:limit]
 
     def fetch_autocomplete_options(
         self, layer: LayerMeta, parameter_name: str
     ) -> List[LayerParameterOption]:
-        """Values for a dynamic (Role="dynamic") parameter, fetched live —
-        these cubes can change their schema, so options are never cached."""
-        database = quote(cubes_database_name(layer), safe="")
-        parameter = quote(parameter_name, safe="")
-        path = f"/cube/v1/{database}/autocomplete/{parameter}"
-        try:
-            with self._client() as client:
-                response = client.post(path, json={})
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"Cubes autocomplete request failed ({path}): {exc}")
-        if not isinstance(payload, list):
-            raise ProviderError("Cubes autocomplete response must be a JSON array")
-        return [
-            LayerParameterOption(value=str(item["Value"]), name=str(item.get("Name") or ""))
-            for item in payload
-            if isinstance(item, dict) and item.get("Value") not in (None, "")
-        ]
+        return self._gateway.autocomplete(layer, parameter_name)
 
-    def _fetch_rows(
-        self,
-        client: httpx.Client,
-        path: str,
-        parameters: List[LayerParameter],
-        geometry: Optional[BaseGeometry],
-        results_limit: int,
-        requested_limit: Optional[int],
-        now: Optional[datetime],
-        temporal_range: Optional[Tuple[str, str]],
-        query_mode: str,
-    ) -> List[dict]:
-        body = _query_body(geometry, parameters, now, temporal_range, query_mode)
-        rows = self._post_rows(client, path, body)
-        if requested_limit is not None or len(rows) < results_limit:
-            return rows
-        if geometry is not None:
-            logger.info("Cubes result cap reached; splitting boundary into chunks")
-            return self._fetch_spatial_chunks(
-                client, path, parameters, geometry, results_limit, now,
-                temporal_range, query_mode, depth=0,
-            )
-        window_key = _match_window_key(body)
-        if window_key is None:
-            # No boundary and no absolute time window to split by (e.g. a
-            # relative-only "no_time"/TimeBack cube) — nothing left to
-            # chunk by; Cubes has no pagination to fetch the remainder.
-            return rows
-        logger.info("Cubes result cap reached; splitting time window into chunks")
-        return self._fetch_temporal_chunks(
-            client, path, parameters, results_limit,
-            (body[window_key]["From"], body[window_key]["To"]),
-            query_mode, depth=0,
+    def _configured_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
+        metadata = self._gateway.metadata(layer)
+        parameters = self._mapper.metadata_parameters(metadata)
+        return self._query.resolve_dynamic(
+            parameters, self._source.resolved_parameters(layer)
         )
 
-    def _fetch_spatial_chunks(
-        self,
-        client: httpx.Client,
-        path: str,
-        parameters: List[LayerParameter],
-        geometry: BaseGeometry,
-        results_limit: int,
-        now: Optional[datetime],
-        temporal_range: Optional[Tuple[str, str]],
-        query_mode: str,
-        depth: int,
-    ) -> List[dict]:
-        rows: List[dict] = []
-        for chunk in _spatial_chunks(geometry):
-            chunk_rows = self._fetch_chunk(
-                client, path, parameters, chunk, results_limit, now,
-                temporal_range, query_mode, depth)
-            rows.extend(chunk_rows)
-            self._validate_row_count(rows)
-        return _deduplicate_rows(rows)
+    def _features(
+        self, rows: List[dict], geometry: Optional[BaseGeometry], limit: Optional[int]
+    ) -> gpd.GeoDataFrame:
+        features = self._mapper.to_gdf(rows)
+        if geometry is not None:
+            features = features[features.geometry.intersects(geometry)]
+        return features.iloc[:limit] if limit is not None else features
 
-    def _fetch_chunk(self, client: httpx.Client, path: str,
-                     parameters: List[LayerParameter], geometry: BaseGeometry,
-                     results_limit: int, now: Optional[datetime],
-                     temporal_range: Optional[Tuple[str, str]],
-                     query_mode: str,
-                     depth: int) -> List[dict]:
-        rows = self._post_rows(
-            client, path, _query_body(
-                geometry, parameters, now, temporal_range, query_mode))
-        if len(rows) < results_limit:
-            return rows
-        if depth >= _MAX_CHUNK_DEPTH:
-            raise ProviderError("Cubes result chunks remain capped; narrow the map boundary")
-        return self._fetch_spatial_chunks(
-            client, path, parameters, geometry, results_limit, now,
-            temporal_range, query_mode, depth + 1)
 
-    def _fetch_temporal_chunks(
-        self, client: httpx.Client, path: str, parameters: List[LayerParameter],
-        results_limit: int, window: Tuple[str, str], query_mode: str, depth: int,
-    ) -> List[dict]:
-        """Same cap-recovery idea as spatial chunking, but bisects the
-        absolute time window instead of the boundary — used only when no
-        geometry was given (that path chunks spatially first)."""
-        rows: List[dict] = []
-        for half in _split_temporal_range(*window):
-            chunk_rows = self._fetch_temporal_chunk(
-                client, path, parameters, results_limit, half, query_mode, depth)
-            rows.extend(chunk_rows)
-            self._validate_row_count(rows)
-        return _deduplicate_rows(rows)
-
-    def _fetch_temporal_chunk(
-        self, client: httpx.Client, path: str, parameters: List[LayerParameter],
-        results_limit: int, window: Tuple[str, str], query_mode: str, depth: int,
-    ) -> List[dict]:
-        rows = self._post_rows(
-            client, path, _query_body(
-                None, parameters, None, window, query_mode))
-        if len(rows) < results_limit:
-            return rows
-        if depth >= _MAX_CHUNK_DEPTH:
-            raise ProviderError("Cubes result chunks remain capped; narrow the time window")
-        return self._fetch_temporal_chunks(
-            client, path, parameters, results_limit, window, query_mode, depth + 1)
-
-    @staticmethod
-    def _validate_row_count(rows: List[dict]) -> None:
-        if len(rows) > _MAX_FETCHED_ROWS:
-            raise ProviderError(
-                f"Cubes returned more than the {_MAX_FETCHED_ROWS} row safety limit")
-
-    @staticmethod
-    def _post_rows(client: httpx.Client, path: str, body: dict) -> List[dict]:
-        try:
-            response = client.post(path, json=body)
-            response.raise_for_status()
-            return _records(response.json())
-        except httpx.HTTPError as exc:
-            raise ProviderError(f"Cubes request failed ({path}): {exc}")
-        except ValueError as exc:
-            raise ProviderError(f"Cubes returned invalid JSON ({path}): {exc}")
-
-    def _base_url(self) -> str:
-        value = self._store.get().cubes_base_url
-        if not value:
-            raise ProviderError(
-                "Cubes base URL is not configured — set cubes_base_url"
-            )
-        return value
-
-    def _headers(self) -> Dict[str, str]:
-        token = self._store.get().cubes_token
-        if not token:
-            raise ProviderError(
-                "Cubes authorization token is not configured — set cubes_token"
-            )
-        return {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": token,
-        }
-
-    def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self._base_url(), headers=self._headers(),
-                            timeout=_TIMEOUT_SECONDS,
-                            verify=self._store.get().cubes_verify_tls,
-                            transport=self._transport)
-
-    def _get_metadata(self, layer: LayerMeta) -> dict:
-        cached = self._metadata_cache.get(layer.id)
-        if cached is not None:
-            return cached
-        database = quote(cubes_database_name(layer), safe="")
-        path = f"/cube/v1/{database}"
-        try:
-            with self._client() as client:
-                response = client.get(path)
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"Cubes metadata request failed ({path}): {exc}")
-        if not isinstance(payload, dict):
-            raise ProviderError("Cubes metadata response must be a JSON object")
-        if "Parameters" not in payload:
-            payload["Parameters"] = self._get_parameters(database)
-        self._metadata_cache[layer.id] = payload
-        return payload
-
-    def _get_parameters(self, database: str) -> List[dict]:
-        path = f"/cube/v1/{database}/parameters"
-        try:
-            with self._client() as client:
-                response = client.get(path)
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError(f"Cubes parameters request failed ({path}): {exc}")
-        if isinstance(payload, dict):
-            payload = payload.get("Parameters") or payload.get("parameters")
-        if not isinstance(payload, list):
-            raise ProviderError("Cubes parameters response must be a JSON array")
-        return [item for item in payload if isinstance(item, dict)]
+_source_compat = CubesSource()
+cubes_database_name = _source_compat.database_name
+cubes_query_mode = _source_compat.query_mode
+cubes_resolved_parameters = _source_compat.resolved_parameters
+DYNAMIC_PARAM_PREFIX = CubesSource.DYNAMIC_PARAM_PREFIX
