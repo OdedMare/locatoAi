@@ -14,58 +14,64 @@ _MAX_DESCRIPTION = 2000
 _MAX_TAGS = 20
 
 
-def browse_mqs_layers(mqs_provider) -> Tuple[List[RemoteMqsLayer], int]:
-    """Read and normalize the remote inventory without changing the catalog."""
-    layers: List[RemoteMqsLayer] = []
-    skipped = 0
-    seen = set()
-    for entry in mqs_provider.list_remote_layers():
+class MqsLayerBrowser:
+    def browse(self, mqs_provider) -> Tuple[List[RemoteMqsLayer], int]:
+        layers: List[RemoteMqsLayer] = []
+        skipped = 0
+        seen = set()
+        for entry in mqs_provider.list_remote_layers():
+            layer = self._normalize(entry, seen)
+            if layer is None:
+                skipped += 1
+            else:
+                layers.append(layer)
+        return layers, skipped
+
+    def _normalize(self, entry: object, seen: set) -> Optional[RemoteMqsLayer]:
         if not isinstance(entry, dict):
-            skipped += 1
-            continue
-        raw_id = _layer_id(entry)
-        if raw_id is None:
-            skipped += 1
-            continue
-        layer_id = str(raw_id).strip()
+            return None
+        layer_id = self._normalized_id(entry)
         if not layer_id or layer_id in seen:
-            skipped += 1
-            continue
+            return None
         seen.add(layer_id)
-        name = _first(entry, _NAME_KEYS)
-        description = _first(entry, _DESCRIPTION_KEYS)
-        layers.append(RemoteMqsLayer(
+        return self._remote_layer(entry, layer_id)
+
+    def _remote_layer(self, entry: dict, layer_id: str) -> RemoteMqsLayer:
+        name = self._first(entry, _NAME_KEYS)
+        description = self._first(entry, _DESCRIPTION_KEYS)
+        return RemoteMqsLayer(
             id=layer_id,
             name=(str(name).strip() if name else f"MQS layer {layer_id}")[:_MAX_NAME],
             description=(str(description).strip() if description else "")[:_MAX_DESCRIPTION],
-            tags=_tags(entry),
-        ))
-    return layers, skipped
+            tags=self._tags(entry),
+        )
+
+    def _normalized_id(self, entry: dict) -> Optional[str]:
+        value = self._layer_id(entry)
+        return str(value).strip() if value is not None else None
+
+    def _layer_id(self, entry: dict) -> Optional[object]:
+        direct = self._first(entry, _ID_KEYS)
+        if direct is not None:
+            return direct
+        exclusive_id = entry.get("exclusive_id")
+        return self._first(exclusive_id, _ID_KEYS) if isinstance(exclusive_id, dict) else None
+
+    def _tags(self, entry: dict) -> List[str]:
+        raw = self._first(entry, _TAG_KEYS)
+        if isinstance(raw, str):
+            raw = [raw]
+        if not isinstance(raw, list):
+            return []
+        cleaned = [tag.strip() for tag in raw if isinstance(tag, str) and tag.strip()]
+        return list(dict.fromkeys(cleaned))[:_MAX_TAGS]
+
+    @staticmethod
+    def _first(entry: dict, keys) -> Optional[object]:
+        return next(
+            (entry[key] for key in keys if key in entry and entry[key] not in (None, "")),
+            None,
+        )
 
 
-def _first(entry: dict, keys) -> Optional[object]:
-    for key in keys:
-        if key in entry and entry[key] not in (None, ""):
-            return entry[key]
-    return None
-
-
-def _tags(entry: dict) -> List[str]:
-    raw = _first(entry, _TAG_KEYS)
-    if isinstance(raw, str):
-        raw = [raw]
-    if not isinstance(raw, list):
-        return []
-    cleaned = [tag.strip() for tag in raw if isinstance(tag, str) and tag.strip()]
-    return list(dict.fromkeys(cleaned))[:_MAX_TAGS]
-
-
-def _layer_id(entry: dict) -> Optional[object]:
-    """MQS layer ids are nested under exclusive_id in the live response."""
-    direct = _first(entry, _ID_KEYS)
-    if direct is not None:
-        return direct
-    exclusive_id = entry.get("exclusive_id")
-    if isinstance(exclusive_id, dict):
-        return _first(exclusive_id, _ID_KEYS)
-    return None
+browse_mqs_layers = MqsLayerBrowser().browse

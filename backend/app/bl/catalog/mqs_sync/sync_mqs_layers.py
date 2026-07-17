@@ -6,11 +6,22 @@ from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layers_repository import LayersRepository
 
 
-def sync_mqs_layers(repository: LayersRepository, mqs_provider) -> MqsSyncResult:
-    """`mqs_provider` is duck-typed: anything with list_remote_layers()."""
-    result = MqsSyncResult()
-    remote_layers, result.skipped = browse_mqs_layers(mqs_provider)
-    for remote in remote_layers:
+class MqsLayerSynchronizer:
+    def sync(
+        self, repository: LayersRepository, mqs_provider
+    ) -> MqsSyncResult:
+        result = MqsSyncResult()
+        remote_layers, result.skipped = browse_mqs_layers(mqs_provider)
+        for remote in remote_layers:
+            created = self._upsert(repository, remote)
+            if created:
+                result.added += 1
+            else:
+                result.updated += 1
+        return result
+
+    @staticmethod
+    def _upsert(repository: LayersRepository, remote) -> bool:
         layer = LayerMeta(
             id=str(uuid4()),  # replaced by the repository on insert
             name=remote.name,
@@ -20,8 +31,7 @@ def sync_mqs_layers(repository: LayersRepository, mqs_provider) -> MqsSyncResult
             source_url=remote.source_url,
         )
         _, created = repository.upsert_layer(layer)
-        if created:
-            result.added += 1
-        else:
-            result.updated += 1
-    return result
+        return created
+
+
+sync_mqs_layers = MqsLayerSynchronizer().sync

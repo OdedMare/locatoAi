@@ -16,8 +16,16 @@ _CONSTRAINT_FIELDS = {
 }
 
 
-def preserves_constraints(original: GeoQueryPlan, revised: GeoQueryPlan) -> bool:
-    def signatures(plan: GeoQueryPlan):
+class ConstraintPreserver:
+    @classmethod
+    def preserves(cls, original: GeoQueryPlan, revised: GeoQueryPlan) -> bool:
+        revised_signatures = cls._signatures(revised)
+        return all(
+            signature in revised_signatures for signature in cls._signatures(original)
+        )
+
+    @staticmethod
+    def _signatures(plan: GeoQueryPlan):
         result = []
         for step in plan.steps:
             fields = _CONSTRAINT_FIELDS.get(step.op)
@@ -27,5 +35,6 @@ def preserves_constraints(original: GeoQueryPlan, revised: GeoQueryPlan) -> bool
                                                          ensure_ascii=False)
                                               for name in fields)))
         return result
-    revised_signatures = signatures(revised)
-    return all(signature in revised_signatures for signature in signatures(original))
+
+
+preserves_constraints = ConstraintPreserver.preserves

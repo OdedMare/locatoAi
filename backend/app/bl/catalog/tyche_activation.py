@@ -27,38 +27,45 @@ _TAGS = [
 ]
 
 
-def _existing_layer(repository: LayersRepository) -> Optional[LayerMeta]:
-    return next((
-        layer for layer in repository.list_layers()
-        if layer.provider == "tyche" and layer.source_url == TYCHE_SOURCE
-    ), None)
+class TycheLayerActivator:
+    def activate(
+        self, repository: LayersRepository, provider: Provider,
+    ) -> Tuple[LayerMeta, bool, int]:
+        existing = self._existing(repository)
+        candidate = self._candidate()
+        sample = provider.fetch_features(candidate, limit=1)
+        activated, created = repository.upsert_layer(candidate)
+        persisted = repository.update_layer_metadata(
+            activated.id, _NAME, self._description(existing), self._tags(existing)
+        )
+        return persisted, created, len(sample)
+
+    @staticmethod
+    def _candidate() -> LayerMeta:
+        return LayerMeta(
+            id=str(uuid4()), name=_NAME, description=_DESCRIPTION, tags=_TAGS,
+            provider="tyche", source_url=TYCHE_SOURCE,
+        )
+
+    @staticmethod
+    def _existing(repository: LayersRepository) -> Optional[LayerMeta]:
+        return next((
+            layer for layer in repository.list_layers()
+            if layer.provider == "tyche" and layer.source_url == TYCHE_SOURCE
+        ), None)
+
+    @staticmethod
+    def _tags(existing: Optional[LayerMeta]) -> List[str]:
+        tags = existing.tags if existing is not None else []
+        return list(dict.fromkeys([*_TAGS, *tags]))
+
+    @staticmethod
+    def _description(existing: Optional[LayerMeta]) -> str:
+        if existing is None or not existing.description.strip():
+            return _DESCRIPTION
+        if existing.description.strip() in _LEGACY_DESCRIPTIONS:
+            return _DESCRIPTION
+        return existing.description
 
 
-def _merged_tags(existing: Optional[LayerMeta]) -> List[str]:
-    tags = existing.tags if existing is not None else []
-    return list(dict.fromkeys([*_TAGS, *tags]))
-
-
-def _description(existing: Optional[LayerMeta]) -> str:
-    if existing is None or not existing.description.strip():
-        return _DESCRIPTION
-    if existing.description.strip() in _LEGACY_DESCRIPTIONS:
-        return _DESCRIPTION
-    return existing.description
-
-
-def activate_tyche_layer(
-    repository: LayersRepository, provider: Provider,
-) -> Tuple[LayerMeta, bool, int]:
-    """Probe one row, then upsert; a failed probe never changes the catalog."""
-    existing = _existing_layer(repository)
-    candidate = LayerMeta(
-        id=str(uuid4()), name=_NAME, description=_DESCRIPTION, tags=_TAGS,
-        provider="tyche", source_url=TYCHE_SOURCE,
-    )
-    sample = provider.fetch_features(candidate, limit=1)
-    activated, created = repository.upsert_layer(candidate)
-    persisted = repository.update_layer_metadata(
-        activated.id, _NAME, _description(existing), _merged_tags(existing)
-    )
-    return persisted, created, len(sample)
+activate_tyche_layer = TycheLayerActivator().activate

@@ -6,18 +6,28 @@ from psycopg.rows import dict_row
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 
-def connect(store: RuntimeSettingsStore) -> psycopg.Connection:
-    """Connect using the same URL and optional overrides used by all DALs."""
-    settings = store.get()
-    credentials = {}
-    if settings.database_user:
-        credentials["user"] = settings.database_user
-    if settings.database_password:
-        credentials["password"] = settings.database_password
-    if settings.database_host:
-        credentials["host"] = settings.database_host
-    if settings.database_port is not None:
-        credentials["port"] = settings.database_port
-    if settings.database_name:
-        credentials["dbname"] = settings.database_name
-    return psycopg.connect(settings.database_url, row_factory=dict_row, **credentials)
+class PostgresConnection:
+    @classmethod
+    def connect(cls, store: RuntimeSettingsStore) -> psycopg.Connection:
+        settings = store.get()
+        return psycopg.connect(
+            settings.database_url,
+            row_factory=dict_row,
+            **cls._credentials(settings),
+        )
+
+    @staticmethod
+    def _credentials(settings) -> dict:
+        optional = {
+            "user": settings.database_user,
+            "password": settings.database_password,
+            "host": settings.database_host,
+            "dbname": settings.database_name,
+        }
+        credentials = {key: value for key, value in optional.items() if value}
+        if settings.database_port is not None:
+            credentials["port"] = settings.database_port
+        return credentials
+
+
+connect = PostgresConnection.connect

@@ -30,16 +30,17 @@ _FINAL_LETTERS = str.maketrans({
 _WHITESPACE_RE = re.compile(r"[\s\-_.]+")
 
 
-def normalize_text(value: str) -> str:
-    """Casefold, strip niqqud/punctuation, fold final letters, collapse
-    whitespace/hyphens/dots to single spaces. Safe on non-Hebrew text —
-    everything outside the Hebrew-specific ranges passes through
-    unchanged apart from casefolding/whitespace collapsing."""
-    if not value:
-        return ""
-    text = unicodedata.normalize("NFKC", value)
-    text = _NIQQUD_RE.sub("", text)
-    text = _HEBREW_PUNCTUATION_RE.sub("", text)
-    text = text.translate(_FINAL_LETTERS)
-    text = _WHITESPACE_RE.sub(" ", text)
-    return text.strip().casefold()
+class TextNormalizer:
+    @staticmethod
+    def normalize(value: str) -> str:
+        if not value:
+            return ""
+        text = unicodedata.normalize("NFKC", value)
+        text = _NIQQUD_RE.sub("", text)
+        text = _HEBREW_PUNCTUATION_RE.sub("", text)
+        text = text.translate(_FINAL_LETTERS)
+        text = _WHITESPACE_RE.sub(" ", text)
+        return text.strip().casefold()
+
+
+normalize_text = TextNormalizer.normalize
