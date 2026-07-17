@@ -14,18 +14,26 @@ from app.service.models_dto.models_response import ModelsResponse
 router = APIRouter()
 
 
-@router.get("/api/models", response_model=ModelsResponse)
-def list_models(request: Request) -> ModelsResponse:
-    client: LLMClient = request.app.state.llm_client
-    return ModelsResponse(models=client.list_models())
+class ModelsRouter:
+    @staticmethod
+    def list_models(request: Request) -> ModelsResponse:
+        client: LLMClient = request.app.state.llm_client
+        return ModelsResponse(models=client.list_models())
 
-
-@router.post("/api/models", response_model=ModelsResponse)
-def probe_models(body: ModelsProbeRequest, request: Request) -> ModelsResponse:
-    client: LLMClient = request.app.state.llm_client
-    return ModelsResponse(
-        models=client.list_models(
-            base_url_override=(body.llm_base_url or "").strip() or None,
-            api_key_override=(body.openai_api_key or "").strip() or None,
+    @staticmethod
+    def probe_models(
+        body: ModelsProbeRequest, request: Request
+    ) -> ModelsResponse:
+        client: LLMClient = request.app.state.llm_client
+        return ModelsResponse(
+            models=client.list_models(
+                base_url_override=(body.llm_base_url or "").strip() or None,
+                api_key_override=(body.openai_api_key or "").strip() or None,
+            )
         )
-    )
+
+
+list_models = ModelsRouter.list_models
+probe_models = ModelsRouter.probe_models
+router.add_api_route("/api/models", list_models, methods=["GET"], response_model=ModelsResponse)
+router.add_api_route("/api/models", probe_models, methods=["POST"], response_model=ModelsResponse)

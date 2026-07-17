@@ -10,16 +10,6 @@ from app.common.errors.execution_error import ExecutionError
 from app.common.geo import metric_crs_for, to_metric
 
 
-def _matches(direction: str, dx: float, dy: float) -> bool:
-    vertical = direction in ("north", "south")
-    if vertical and abs(dy) < abs(dx):
-        return False
-    if not vertical and abs(dx) < abs(dy):
-        return False
-    axis = dy if vertical else dx
-    return axis > 0 if direction in ("north", "east") else axis < 0
-
-
 @register_op("movement_direction")
 class MovementDirectionOp(OpHandler):
     def run(self, step: MovementDirectionStep,
@@ -51,10 +41,20 @@ class MovementDirectionOp(OpHandler):
             first, last = group.iloc[0], group.iloc[-1]
             dx, dy = last.geometry.x - first.geometry.x, last.geometry.y - first.geometry.y
             distance = float((dx * dx + dy * dy) ** 0.5)
-            if distance >= step.min_distance_m and _matches(step.direction, dx, dy):
+            if distance >= step.min_distance_m and self._matches(step.direction, dx, dy):
                 positions.append(data.index.get_loc(group.index[-1]))
                 distances.append(round(distance, 2))
                 paths.append(mapping(LineString(
                     [(point.x, point.y) for point in source.loc[group.index].geometry]
                 )))
         return positions, distances, paths
+
+    @staticmethod
+    def _matches(direction: str, dx: float, dy: float) -> bool:
+        vertical = direction in ("north", "south")
+        if vertical and abs(dy) < abs(dx):
+            return False
+        if not vertical and abs(dx) < abs(dy):
+            return False
+        axis = dy if vertical else dx
+        return axis > 0 if direction in ("north", "east") else axis < 0

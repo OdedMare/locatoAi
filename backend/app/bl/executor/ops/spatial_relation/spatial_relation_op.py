@@ -5,12 +5,6 @@ from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.near import filter_reference_entities
 
 
-def _empty_like(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    result = gdf.iloc[0:0].copy()
-    result["match_reason"] = []
-    return result
-
-
 class SpatialRelationOp(OpHandler):
     predicate = ""
     reason = ""
@@ -24,7 +18,7 @@ class SpatialRelationOp(OpHandler):
             step.target_value,
         )
         if gdf.empty or target.empty:
-            return _empty_like(gdf)
+            return self._empty_like(gdf)
 
         # GeoPandas requires both sides in the same CRS for topological tests.
         if gdf.crs is None or target.crs is None:
@@ -34,4 +28,10 @@ class SpatialRelationOp(OpHandler):
         indexes = joined.index[~joined.index.duplicated(keep="first")]
         result = gdf.loc[indexes].copy()
         result["match_reason"] = self.reason
+        return result
+
+    @staticmethod
+    def _empty_like(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        result = gdf.iloc[0:0].copy()
+        result["match_reason"] = []
         return result

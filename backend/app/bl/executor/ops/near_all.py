@@ -20,18 +20,6 @@ MATCHED_TARGETS_COLUMN = "matched_reference_features"
 TARGET_DISTANCES_COLUMN = "distance_to_targets_m"
 
 
-def _empty_result(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    result = gdf.iloc[0:0].copy()
-    for column in (
-        DISTANCE_COLUMN,
-        MATCH_REASON_COLUMN,
-        MATCHED_TARGETS_COLUMN,
-        TARGET_DISTANCES_COLUMN,
-    ):
-        result[column] = []
-    return result
-
-
 @register_op("near_all")
 class NearAllOp(OpHandler):
     """Require proximity to ALL targets, then optionally rank and limit.
@@ -44,6 +32,18 @@ class NearAllOp(OpHandler):
 
     def run(self, step: NearAllStep, ctx: ExecutionContext) -> gpd.GeoDataFrame:
         gdf = ctx.results[step.input]
+        targets = self._load_targets(step, ctx)
+        if gdf.empty or targets is None:
+            return self._empty_result(gdf)
+        distances, references, eligible = self._match_all(gdf, targets, step)
+        if not eligible:
+            return self._empty_result(gdf)
+        return self._build_result(
+            gdf, step, distances, references, eligible
+        )
+
+    @staticmethod
+    def _load_targets(step: NearAllStep, ctx: ExecutionContext):
         targets = []
         for spec in step.targets:
             target = filter_reference_entities(
@@ -56,42 +56,49 @@ class NearAllOp(OpHandler):
                 spec.value,
             )
             if target.empty:
-                return _empty_result(gdf)
+                return None
             targets.append((spec, target))
-        if gdf.empty:
-            return _empty_result(gdf)
+        return targets
 
+    def _match_all(self, gdf, targets, step):
         metric_crs = metric_crs_for(gdf, *(target for _, target in targets))
         left = to_metric(gdf, metric_crs)
         distances: Dict[object, List[dict]] = {index: [] for index in gdf.index}
         references: Dict[object, List[dict]] = {index: [] for index in gdf.index}
         eligible = set(gdf.index)
-
         for spec, target in targets:
-            right = to_metric(target[["geometry"]], metric_crs)
-            joined = gpd.sjoin_nearest(
-                left.loc[[index for index in gdf.index if index in eligible]],
-                right,
-                max_distance=step.distance_m,
-                how="inner",
-                distance_col="_distance_m",
-            )
-            nearest = joined.sort_values("_distance_m").loc[
-                lambda frame: ~frame.index.duplicated(keep="first")
-            ]
+            nearest = self._nearest(left, target, eligible, metric_crs, step.distance_m)
             eligible &= set(nearest.index)
             if not eligible:
-                return _empty_result(gdf)
-            remaining = [index for index in gdf.index if index in eligible]
-            for index, row in nearest.loc[remaining].iterrows():
-                distance = float(row["_distance_m"])
-                distances[index].append(
-                    {"layer_id": spec.layer, "distance_m": distance}
-                )
-                references[index].append(
-                    _feature_from_row(target.loc[row["index_right"]])
-                )
+                break
+            self._record_matches(
+                gdf, spec, target, nearest, eligible, distances, references
+            )
+        return distances, references, eligible
 
+    @staticmethod
+    def _nearest(left, target, eligible, metric_crs, distance_m):
+        right = to_metric(target[["geometry"]], metric_crs)
+        joined = gpd.sjoin_nearest(
+            left.loc[[index for index in left.index if index in eligible]],
+            right, max_distance=distance_m, how="inner",
+            distance_col="_distance_m",
+        )
+        return joined.sort_values("_distance_m").loc[
+            lambda frame: ~frame.index.duplicated(keep="first")
+        ]
+
+    @staticmethod
+    def _record_matches(
+        gdf, spec, target, nearest, eligible, distances, references,
+    ) -> None:
+        remaining = [index for index in gdf.index if index in eligible]
+        for index, row in nearest.loc[remaining].iterrows():
+            distance = float(row["_distance_m"])
+            distances[index].append({"layer_id": spec.layer, "distance_m": distance})
+            references[index].append(_feature_from_row(target.loc[row["index_right"]]))
+
+    def _build_result(self, gdf, step, distances, references, eligible):
         result = gdf.loc[
             [index for index in gdf.index if index in eligible]
         ].copy()
@@ -102,13 +109,25 @@ class NearAllOp(OpHandler):
             / len(distances[index])
             for index in result.index
         ]
+        self._add_reasons(result, step)
+        result = result.sort_values(DISTANCE_COLUMN, kind="stable")
+        return result.head(step.count) if step.count is not None else result
+
+    @staticmethod
+    def _add_reasons(result, step) -> None:
         result[MATCH_REASON_COLUMN] = [
             f"נמצא בטווח {round(float(step.distance_m))} מ׳ מכל "
             f"{len(step.targets)} ישויות הייחוס; מרחק ממוצע "
             f"{round(float(score))} מ׳."
             for score in result[DISTANCE_COLUMN]
         ]
-        result = result.sort_values(DISTANCE_COLUMN, kind="stable")
-        if step.count is not None:
-            result = result.head(step.count)
+
+    @staticmethod
+    def _empty_result(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        result = gdf.iloc[0:0].copy()
+        for column in (
+            DISTANCE_COLUMN, MATCH_REASON_COLUMN,
+            MATCHED_TARGETS_COLUMN, TARGET_DISTANCES_COLUMN,
+        ):
+            result[column] = []
         return result
