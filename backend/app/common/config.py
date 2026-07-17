@@ -1,10 +1,10 @@
 """Application configuration (env-driven)."""
 
-from functools import lru_cache
 from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from app.common.settings_provider import SettingsProvider
 
 
 class Settings(BaseSettings):
@@ -92,6 +92,4 @@ class Settings(BaseSettings):
 
     request_log_path: str = "logs/requests.jsonl"
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
+get_settings = SettingsProvider.get

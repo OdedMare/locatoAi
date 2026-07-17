@@ -16,20 +16,20 @@ Robustness (ported policy from the MVP guide):
 """
 
 import json
-import re
-import time
+import time  # compatibility seam for tests patching transient retry sleeps
 
 import httpx
 from openai import (
-    APIConnectionError,
-    APITimeoutError,
     BadRequestError,
     OpenAI,
-    RateLimitError,
 )
 
 from app.common.errors.agent_error import AgentError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
+from app.dal.llm.completion_retry import CompletionRetry
+from app.dal.llm.json_response_parser import JsonResponseParser
+from app.dal.llm.message_merger import MessageMerger
+from app.dal.llm.model_id_extractor import ModelIdExtractor
 
 
 # One initial attempt + one retry with the parse error appended.
@@ -45,76 +45,10 @@ _LOCAL_SERVER_KEY_PLACEHOLDER = "null"
 # select/build/tool-round pipeline outright. Short fixed delay, not
 # exponential backoff — this sits in the interactive request path, so
 # total added worst-case latency must stay well under a second.
-_TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError)
-_MAX_TRANSIENT_ATTEMPTS = 2
-_TRANSIENT_RETRY_DELAY_SECONDS = 0.3
-
-
-def extract_json(text: str) -> dict:
-    """Parse a JSON object out of an LLM reply (tolerates ``` fences and prose)."""
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```[A-Za-z]*\s*", "", cleaned)
-        cleaned = re.sub(r"```\s*$", "", cleaned).strip()
-    try:
-        parsed = json.loads(cleaned)
-    except json.JSONDecodeError:
-        start, end = cleaned.find("{"), cleaned.rfind("}")
-        if start != -1 and end > start:
-            parsed = json.loads(cleaned[start : end + 1])
-        else:
-            raise
-    if not isinstance(parsed, dict):
-        raise json.JSONDecodeError("Expected a JSON object", cleaned, 0)
-    return parsed
-
-
-def extract_model_ids(payload) -> list:
-    """Model ids from any common /models response shape."""
-    items = payload
-    if isinstance(payload, dict):
-        items = payload.get("data")
-        if items is None:
-            items = payload.get("models")
-    if not isinstance(items, list):
-        return []
-    ids = set()
-    for item in items:
-        if isinstance(item, str):
-            ids.add(item)
-        elif isinstance(item, dict):
-            model_id = item.get("id") or item.get("name") or item.get("model")
-            if model_id:
-                ids.add(str(model_id))
-    return sorted(ids)
-
-
-def _create_with_retry(client: "OpenAI", model: str, kwargs: dict):
-    """One bounded retry for transient rate-limit/connection/timeout
-    errors — BadRequestError (the degradation ladder's own signal) is
-    never retried here, it propagates straight to the caller's ladder."""
-    last_error = None
-    for attempt in range(_MAX_TRANSIENT_ATTEMPTS):
-        try:
-            return client.chat.completions.create(
-                model=model, temperature=_TEMPERATURE, **kwargs
-            )
-        except _TRANSIENT_ERRORS as exc:
-            last_error = exc
-            if attempt + 1 < _MAX_TRANSIENT_ATTEMPTS:
-                time.sleep(_TRANSIENT_RETRY_DELAY_SECONDS)
-    raise last_error
-
-
-def _merge_system_into_user(messages: list) -> list:
-    """Fold system content into the first user message, keep other turns."""
-    system_parts = [m["content"] for m in messages if m["role"] == "system"]
-    rest = [m for m in messages if m["role"] != "system"]
-    if not system_parts or not rest:
-        return rest or messages
-    merged = dict(rest[0])
-    merged["content"] = "\n\n".join(system_parts + [merged["content"]])
-    return [merged] + rest[1:]
+extract_json = JsonResponseParser.parse
+extract_model_ids = ModelIdExtractor.extract
+_create_with_retry = CompletionRetry.create
+_merge_system_into_user = MessageMerger.merge_system_into_user
 
 
 class OpenAIJsonClient:
@@ -125,48 +59,22 @@ class OpenAIJsonClient:
 
     def complete_json(self, system: str, user: str) -> dict:
         settings = self._store.get()
-        if not settings.openai_api_key and not settings.llm_base_url:
-            raise AgentError(
-                "No API key configured — open Settings and add an API key, "
-                "or set a base URL for a local server (e.g. Ollama)"
-            )
+        self._validate_configuration(settings)
         client = self._client_for(settings.openai_api_key, settings.llm_base_url)
-
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
         last_error = "unknown"
-        total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        total_usage = self._empty_usage()
         for _attempt in range(_MAX_JSON_ATTEMPTS):
-            content, usage = self._complete(
-                client,
-                settings.llm_model,
-                messages,
-                max_tokens=(
-                    _DIET_MAX_COMPLETION_TOKENS
-                    if settings.llm_diet_mode else None
-                ),
-            )
-            for key in total_usage:
-                total_usage[key] += usage.get(key, 0)
+            content, usage = self._complete_for_settings(client, settings, messages)
+            self._add_usage(total_usage, usage)
             try:
-                data = extract_json(content)
-                if total_usage["total_tokens"] > 0:
-                    data["_usage"] = total_usage
-                return data
+                return self._parse_with_usage(content, total_usage)
             except json.JSONDecodeError as exc:
                 last_error = str(exc)
-                messages = messages + [
-                    {"role": "assistant", "content": content},
-                    {
-                        "role": "user",
-                        "content": (
-                            "That was not valid JSON (" + last_error + "). "
-                            "Reply again with ONLY the JSON object."
-                        ),
-                    },
-                ]
+                messages = self._retry_messages(messages, content, last_error)
         raise AgentError("LLM returned unparseable JSON twice: " + last_error)
 
     def list_models(self, base_url_override=None, api_key_override=None):
@@ -178,20 +86,18 @@ class OpenAIJsonClient:
         gateways' {"models": [...]}, bare lists, and items keyed by
         id/name/model or plain strings.
         """
-        settings = self._store.get()
-        effective_base = base_url_override or settings.llm_base_url
-        effective_key = api_key_override or settings.openai_api_key
+        effective_base, effective_key = self._model_credentials(
+            base_url_override, api_key_override
+        )
         if not effective_key and not effective_base:
             raise AgentError(
                 "No API key configured — add an API key or a compatible base URL"
             )
-        base_url = (effective_base or "https://api.openai.com/v1").rstrip("/")
-        headers = {
-            "Authorization": "Bearer "
-            + (effective_key or _LOCAL_SERVER_KEY_PLACEHOLDER)
-        }
         try:
-            response = httpx.get(base_url + "/models", headers=headers, timeout=30)
+            response = httpx.get(
+                (effective_base or "https://api.openai.com/v1").rstrip("/") + "/models",
+                headers=self._authorization(effective_key), timeout=30,
+            )
             response.raise_for_status()
             return extract_model_ids(response.json())
         except Exception as exc:
@@ -213,6 +119,57 @@ class OpenAIJsonClient:
             self._cached_key = cache_key
         return self._cached_client
 
+    def _complete_for_settings(self, client, settings, messages):
+        max_tokens = _DIET_MAX_COMPLETION_TOKENS if settings.llm_diet_mode else None
+        return self._complete(client, settings.llm_model, messages, max_tokens=max_tokens)
+
+    @staticmethod
+    def _validate_configuration(settings) -> None:
+        if not settings.openai_api_key and not settings.llm_base_url:
+            raise AgentError(
+                "No API key configured — open Settings and add an API key, "
+                "or set a base URL for a local server (e.g. Ollama)"
+            )
+
+    @staticmethod
+    def _empty_usage() -> dict:
+        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    @staticmethod
+    def _add_usage(total: dict, usage: dict) -> None:
+        for key in total:
+            total[key] += usage.get(key, 0)
+
+    @staticmethod
+    def _parse_with_usage(content: str, usage: dict) -> dict:
+        data = extract_json(content)
+        if usage["total_tokens"] > 0:
+            data["_usage"] = usage
+        return data
+
+    @staticmethod
+    def _retry_messages(messages: list, content: str, error: str) -> list:
+        return messages + [
+            {"role": "assistant", "content": content},
+            {"role": "user", "content": (
+                "That was not valid JSON (" + error + "). "
+                "Reply again with ONLY the JSON object."
+            )},
+        ]
+
+    def _model_credentials(self, base_override, key_override):
+        settings = self._store.get()
+        return (
+            base_override or settings.llm_base_url,
+            key_override or settings.openai_api_key,
+        )
+
+    @staticmethod
+    def _authorization(api_key) -> dict:
+        return {"Authorization": "Bearer " + (
+            api_key or _LOCAL_SERVER_KEY_PLACEHOLDER
+        )}
+
     @staticmethod
     def _complete(
         client: "OpenAI", model: str, messages: list,
@@ -221,15 +178,7 @@ class OpenAIJsonClient:
         # Degradation ladder for OpenAI-compatible servers:
         # 1. JSON mode → 2. plain → 3. plain with the system prompt merged
         # into the user turn (some Gemma deployments reject a system role).
-        attempts = [
-            {"messages": messages, "response_format": {"type": "json_object"}},
-            {"messages": messages},
-            {"messages": _merge_system_into_user(messages)},
-        ]
-        if max_tokens is not None:
-            attempts = [
-                {**kwargs, "max_tokens": max_tokens} for kwargs in attempts
-            ]
+        attempts = OpenAIJsonClient._attempts(messages, max_tokens)
         last_bad_request = None
         for kwargs in attempts:
             try:
@@ -242,6 +191,21 @@ class OpenAIJsonClient:
         else:
             raise AgentError("LLM request failed: " + str(last_bad_request))
 
+        return OpenAIJsonClient._response_data(response)
+
+    @staticmethod
+    def _attempts(messages: list, max_tokens=None) -> list:
+        attempts = [
+            {"messages": messages, "response_format": {"type": "json_object"}},
+            {"messages": messages},
+            {"messages": _merge_system_into_user(messages)},
+        ]
+        if max_tokens is None:
+            return attempts
+        return [{**kwargs, "max_tokens": max_tokens} for kwargs in attempts]
+
+    @staticmethod
+    def _response_data(response):
         content = response.choices[0].message.content
         if not content:
             raise AgentError("LLM returned an empty reply")
