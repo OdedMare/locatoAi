@@ -26,31 +26,34 @@ class NearestNOp(OpHandler):
 
     def run(self, step: NearestNStep, ctx: ExecutionContext) -> gpd.GeoDataFrame:
         gdf = ctx.results[step.input]
-        # Deliberately unbuffered (unlike near/near_all/between): nearest_n
-        # has no distance threshold to buffer by — the whole point is a
-        # global top-N search, so an arbitrary cap here would silently
-        # exclude a legitimately-nearest target sitting just outside it.
+        target = self._target(step, ctx)
+        if gdf.empty or target.empty:
+            return self._empty(gdf)
+        nearest_rows = self._nearest_rows(gdf, target)
+        top_n = nearest_rows.nsmallest(step.count, DISTANCE_COLUMN)
+        return enrich_proximity_results(gdf, target, top_n)
+
+    @staticmethod
+    def _target(step: NearestNStep, ctx: ExecutionContext):
         target = ctx.load_layer_features(step.target_layer)
-        target = filter_reference_entities(
+        return filter_reference_entities(
             target, step.target_field, step.target_operator, step.target_value
         )
-        if gdf.empty or target.empty:
-            result = gdf.iloc[0:0].copy()
-            result[DISTANCE_COLUMN] = []
-            result[MATCH_REASON_COLUMN] = []
-            result[NEAREST_TARGET_COLUMN] = []
-            return result
 
+    @staticmethod
+    def _nearest_rows(gdf, target):
         metric_crs = metric_crs_for(gdf, target)
         left = to_metric(gdf, metric_crs)
         right = to_metric(target[["geometry"]], metric_crs)
-        # No max_distance — nearest_n ranks globally, it isn't a threshold.
         joined = gpd.sjoin_nearest(left, right, distance_col=DISTANCE_COLUMN)
-        nearest_rows = joined.sort_values(DISTANCE_COLUMN).loc[
+        return joined.sort_values(DISTANCE_COLUMN).loc[
             lambda frame: ~frame.index.duplicated(keep="first")
         ]
 
-        # count > available rows degrades gracefully (nsmallest returns
-        # everything), same precedent as DirectionalStep's index slice.
-        top_n = nearest_rows.nsmallest(step.count, DISTANCE_COLUMN)
-        return enrich_proximity_results(gdf, target, top_n)
+    @staticmethod
+    def _empty(gdf):
+        result = gdf.iloc[0:0].copy()
+        result[DISTANCE_COLUMN] = []
+        result[MATCH_REASON_COLUMN] = []
+        result[NEAREST_TARGET_COLUMN] = []
+        return result

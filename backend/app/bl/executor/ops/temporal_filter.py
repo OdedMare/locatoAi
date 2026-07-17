@@ -14,18 +14,22 @@ class TemporalFilterOp(OpHandler):
         gdf = ctx.results[step.input]
         if gdf.empty:
             return gdf
+        field = self._temporal_field(gdf)
+        timestamps = pd.to_datetime(gdf[field], utc=True, errors="coerce")
+        start, end = self._range(step)
+        return gdf[(timestamps >= start) & (timestamps <= end)]
 
-        # Set by ExecutionContext.load_layer_features from the layer's
-        # provider-reported schema — not a hardcoded column name, since
-        # different providers name their event-time field differently
-        # (mock: "timestamp"; MQS: "date" or a per-layer tag override).
+    @staticmethod
+    def _temporal_field(gdf) -> str:
         field = gdf.attrs.get("temporal_field")
         if field is None:
             raise ExecutionError("temporal_filter: layer has no temporal field")
         if field not in gdf.columns:
             raise ExecutionError(f"temporal_filter: layer has no '{field}' field")
+        return field
 
-        timestamps = pd.to_datetime(gdf[field], utc=True, errors="coerce")
+    @staticmethod
+    def _range(step):
         try:
             start = pd.to_datetime(step.from_, utc=True)
             end = pd.to_datetime(step.to, utc=True)
@@ -33,4 +37,4 @@ class TemporalFilterOp(OpHandler):
             raise ExecutionError(f"temporal_filter: invalid date range: {exc}") from exc
         if start > end:
             raise ExecutionError("temporal_filter: 'from' must not be after 'to'")
-        return gdf[(timestamps >= start) & (timestamps <= end)]
+        return start, end

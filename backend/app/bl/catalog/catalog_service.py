@@ -67,26 +67,29 @@ class CatalogService:
         return provider.sample_field_values(layer, field, limit=limit)
 
     def get_schema(self, layer_id: str) -> LayerSchema:
-        """Fetch a layer schema from its provider, cached with TTL.
-
-        Providers may be slow or down — a stale cached schema is returned
-        rather than failing, per the MVP guide.
-        """
         cached = self._schema_cache.get(layer_id)
-        if cached is not None and time.monotonic() - cached[1] < self._schema_ttl:
+        if self._is_fresh(cached):
             return cached[0]
-
         layer = self.get_layer(layer_id)
         provider = self._providers.get(layer.provider)
         try:
             schema = provider.describe_schema(layer)
         except Exception as exc:
-            if cached is not None:  # stale beats failed
-                return cached[0]
-            raise ProviderError(
-                f"Provider '{layer.provider}' failed to describe layer "
-                f"{layer_id}: {exc}"
-            ) from exc
-
+            return self._stale_or_error(cached, layer, layer_id, exc)
         self._schema_cache[layer_id] = (schema, time.monotonic())
         return schema
+
+    def _is_fresh(self, cached) -> bool:
+        return (
+            cached is not None
+            and time.monotonic() - cached[1] < self._schema_ttl
+        )
+
+    @staticmethod
+    def _stale_or_error(cached, layer, layer_id, error):
+        if cached is not None:
+            return cached[0]
+        raise ProviderError(
+            f"Provider '{layer.provider}' failed to describe layer "
+            f"{layer_id}: {error}"
+        ) from error

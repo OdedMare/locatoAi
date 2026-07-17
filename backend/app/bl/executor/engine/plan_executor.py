@@ -57,13 +57,20 @@ class PlanExecutor:
         now: Optional[datetime] = None,
         trace_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> ExecutionOutput:
-        """Return matching geometries or a scalar count.
+        ctx = self._context(plan, user_geometry, now)
+        step_traces: List[Dict[str, Any]] = []
+        for step in plan.steps:
+            result, trace = self._execute_step(step, ctx, trace_sink)
+            step_traces.append(trace)
+            if isinstance(step, CountStep):
+                return ExecutionOutput(
+                    features=None, scalar_result=result, step_traces=step_traces
+                )
+            ctx.results[step.id] = result
+        return ExecutionOutput(features=ctx.results[plan.output], step_traces=step_traces)
 
-        The legacy ``execute`` method remains backward-compatible for internal
-        callers. Terminal count queries release their feature rows before HTTP
-        serialization, avoiding a large and redundant GeoJSON response.
-        """
-        ctx = ExecutionContext(
+    def _context(self, plan, user_geometry, now) -> ExecutionContext:
+        return ExecutionContext(
             catalog=self._catalog,
             providers=self._providers,
             user_geometry=user_geometry,
@@ -71,47 +78,37 @@ class PlanExecutor:
             load_temporal_ranges=self._load_temporal_ranges(plan),
             load_attribute_filters=self._load_attribute_filters(plan),
         )
-        step_traces: List[Dict[str, Any]] = []
-        for step in plan.steps:
-            handler = get_op_handler(step.op)
-            input_ref = getattr(step, "input", None)
-            input_count = (
-                len(ctx.results[input_ref])
-                if input_ref is not None and input_ref in ctx.results
-                else None
-            )
-            self._emit(trace_sink, self._started_trace(step, input_count))
-            started = time.perf_counter()
-            try:
-                result = handler.run(step, ctx)
-            except Exception as exc:
-                self._emit(trace_sink, self._failed_trace(step, input_count, exc))
-                raise
-            duration_ms = int((time.perf_counter() - started) * 1000)
-            output_count = result if isinstance(result, int) else len(result)
-            trace = {
-                "stage": "execute_step",
-                "step_id": step.id,
-                "operation": step.op,
-                "input_count": input_count,
-                "output_count": output_count,
-                "duration_ms": duration_ms,
-                "parameters": step.model_dump(
-                    by_alias=True, exclude={"id", "op", "input"}
-                ),
-                "status": "completed",
-            }
-            step_traces.append(trace)
-            self._emit(trace_sink, trace)
-            if isinstance(step, CountStep):
-                return ExecutionOutput(
-                    features=None, scalar_result=result,
-                    step_traces=step_traces,
-                )
-            ctx.results[step.id] = result
-        return ExecutionOutput(
-            features=ctx.results[plan.output], step_traces=step_traces
+
+    def _execute_step(self, step, ctx, trace_sink):
+        input_count = self._input_count(step, ctx)
+        self._emit(trace_sink, self._started_trace(step, input_count))
+        started = time.perf_counter()
+        try:
+            result = get_op_handler(step.op).run(step, ctx)
+        except Exception as exc:
+            self._emit(trace_sink, self._failed_trace(step, input_count, exc))
+            raise
+        trace = self._completed_trace(
+            step, input_count, result, int((time.perf_counter() - started) * 1000)
         )
+        self._emit(trace_sink, trace)
+        return result, trace
+
+    @staticmethod
+    def _input_count(step, ctx):
+        input_ref = getattr(step, "input", None)
+        return len(ctx.results[input_ref]) if input_ref in ctx.results else None
+
+    @staticmethod
+    def _completed_trace(step, input_count, result, duration_ms) -> dict:
+        return {
+            "stage": "execute_step", "step_id": step.id, "operation": step.op,
+            "input_count": input_count,
+            "output_count": result if isinstance(result, int) else len(result),
+            "duration_ms": duration_ms,
+            "parameters": step.model_dump(by_alias=True, exclude={"id", "op", "input"}),
+            "status": "completed",
+        }
 
     @staticmethod
     def _emit(trace_sink, trace: Dict[str, Any]) -> None:

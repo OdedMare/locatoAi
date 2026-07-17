@@ -29,42 +29,37 @@ class ExecutionContext:
         temporal_range: Optional[Tuple[str, str]] = None,
         attribute_filters: Optional[List[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
-        """Shared by `load` and `near` (which loads its target layer).
-
-        Every layer is scoped to the request's user_geometry by default. A
-        caller may instead provide geometry_hint; bounded proximity operations
-        use the request geometry expanded by their maximum distance. Explicitly
-        disabling pushdown is reserved for non-query/internal callers.
-
-        Stashes the layer's temporal_field (from its provider-reported
-        schema) on the GeoDataFrame's .attrs — pandas/GeoPandas .attrs
-        survive boolean-mask filtering, so any op downstream in the same
-        chain (e.g. temporal_filter) can read it without a hardcoded
-        column name. See ops/temporal_filter.py.
-        """
-        geometry = geometry_hint
-        if geometry is None and push_down_geometry:
-            geometry = self.user_geometry
+        geometry = self._geometry(push_down_geometry, geometry_hint)
         layer = self.catalog.get_layer(layer_id)
-        provider_range = (
-            temporal_range if layer.provider in ("cubes", "tyche") else None
-        )
-        provider_filters = (
-            attribute_filters if layer.provider == "mqs" else None
+        provider_range, provider_filters = self._pushdowns(
+            layer.provider, temporal_range, attribute_filters
         )
         cache_key = self._cache_key(layer_id, geometry, provider_range, provider_filters)
         if cache_key in self.feature_cache:
             return self.feature_cache[cache_key]
         provider = self.providers.get(layer.provider)
-        options = {"now": self.now, "geometry": geometry}
-        if provider_range is not None:
-            options["temporal_range"] = provider_range
-        if provider_filters is not None:
-            options["attribute_filters"] = provider_filters
+        options = self._provider_options(geometry, provider_range, provider_filters)
         gdf = provider.fetch_features(layer, **options)
         gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
         self.feature_cache[cache_key] = gdf
         return gdf
+
+    def _geometry(self, push_down: bool, hint):
+        return self.user_geometry if hint is None and push_down else hint
+
+    @staticmethod
+    def _pushdowns(provider: str, temporal_range, attribute_filters):
+        provider_range = temporal_range if provider in ("cubes", "tyche") else None
+        provider_filters = attribute_filters if provider == "mqs" else None
+        return provider_range, provider_filters
+
+    def _provider_options(self, geometry, temporal_range, attribute_filters):
+        options = {"now": self.now, "geometry": geometry}
+        if temporal_range is not None:
+            options["temporal_range"] = temporal_range
+        if attribute_filters is not None:
+            options["attribute_filters"] = attribute_filters
+        return options
 
     def proximity_geometry(self, distance_m: float) -> Optional[BaseGeometry]:
         if self.user_geometry is None:

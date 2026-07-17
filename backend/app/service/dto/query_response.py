@@ -29,7 +29,6 @@ class QueryResponse(BaseModel):
 
     @classmethod
     def from_outcome(cls, outcome: QueryOutcome) -> "QueryResponse":
-        """The single BL-outcome → HTTP-response translation."""
         return cls(
             status=outcome.status,
             clarify=outcome.clarify,
@@ -38,16 +37,18 @@ class QueryResponse(BaseModel):
             scalar_result=outcome.scalar_result,
             timing_ms=outcome.timing_ms,
             token_usage=outcome.token_usage,
-            selected_layers=[
-                SelectedLayerDto(
-                    id=layer.id,
-                    name=layer.name,
-                    tags=layer.tags,
-                    description=layer.description,
-                )
-                for layer in outcome.selected_layers
-            ],
+            selected_layers=cls._selected_layers(outcome),
             reasoning=outcome.reasoning,
             tool_calls=outcome.tool_calls,
             pipeline_trace=outcome.pipeline_trace,
         )
+
+    @staticmethod
+    def _selected_layers(outcome: QueryOutcome) -> List[SelectedLayerDto]:
+        return [
+            SelectedLayerDto(
+                id=layer.id, name=layer.name, tags=layer.tags,
+                description=layer.description,
+            )
+            for layer in outcome.selected_layers
+        ]

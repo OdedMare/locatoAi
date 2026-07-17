@@ -43,14 +43,12 @@ class QueryOrchestrator:
     ) -> QueryOutcome:
         if self._selector is None or self._builder is None:
             return self._disconnected_outcome()
-        now = datetime.now(timezone.utc)
-        timer = StageTimer()
+        now, timer = datetime.now(timezone.utc), StageTimer()
         selection, selection_trace = self._select(query, timer, event_sink)
         if selection.clarify:
             return self._selection_clarify(selection, selection_trace, timer)
-        build, planning_trace = self._build(
-            query, boundaries, now, selection, timer, event_sink
-        )
+        build, planning_trace = self._build(query, boundaries, now, selection,
+                                            timer, event_sink)
         usage = sum_usage(selection.token_usage, build.token_usage)
         if build.plan is None:
             return self._planning_clarify(
@@ -142,12 +140,8 @@ class QueryOrchestrator:
                       build: PlanBuildResult, result: ExecutionOutput,
                       trace: List[Dict[str, Any]], timer: StageTimer,
                       usage: Optional[Dict[str, int]], event_sink) -> QueryOutcome:
-        revised = self._run_stage(
-            "zero_result_diagnosis",
-            lambda: self._builder.replan_after_empty(
-                query, selection.layers, build.plan, boundaries is not None, now
-            ),
-            event_sink,
+        revised = self._diagnose_empty(
+            query, boundaries, now, selection, build, event_sink
         )
         build.tool_calls.extend(revised.tool_calls)
         usage = sum_usage(usage, revised.token_usage)
@@ -157,17 +151,29 @@ class QueryOrchestrator:
         if revised.plan is None:
             return self._empty_clarify(selection, build, result, trace, timer, usage,
                                        revised.clarify)
-        result = self._run_stage(
-            "re_execution",
-            lambda: self._executor.execute_detailed(
-                revised.plan, boundaries, now, trace_sink=event_sink
-            ),
-            event_sink,
-        )
+        result = self._reexecute(revised.plan, boundaries, now, event_sink)
         timer.mark("re_execute")
         trace.extend(result.step_traces)
         return self._success(selection, build, revised.plan, result,
                              trace, timer, usage, event_sink)
+
+    def _diagnose_empty(self, query, boundaries, now, selection, build, event_sink):
+        return self._run_stage(
+            "zero_result_diagnosis",
+            lambda: self._builder.replan_after_empty(
+                query, selection.layers, build.plan, boundaries is not None, now
+            ),
+            event_sink,
+        )
+
+    def _reexecute(self, plan, boundaries, now, event_sink):
+        return self._run_stage(
+            "re_execution",
+            lambda: self._executor.execute_detailed(
+                plan, boundaries, now, trace_sink=event_sink
+            ),
+            event_sink,
+        )
 
     @staticmethod
     def _has_results(result: ExecutionOutput) -> bool:
@@ -280,4 +286,3 @@ class QueryOrchestrator:
         }
         return [validation, *result.step_traces,
                 QueryOrchestrator._response_trace(result)]
-

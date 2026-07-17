@@ -23,30 +23,34 @@ class AttributeFilterOp(OpHandler):
         gdf = ctx.results[step.input]
         if gdf.empty:
             return gdf
-        if step.field not in gdf.columns:
+        self._validate_field(gdf, step.field)
+        return gdf[self._mask(gdf[step.field], step)]
+
+    @staticmethod
+    def _validate_field(gdf, field: str) -> None:
+        if field not in gdf.columns:
             raise ExecutionError(
-                f"attribute_filter: field '{step.field}' not in layer "
+                f"attribute_filter: field '{field}' not in layer "
                 f"(available: {sorted(c for c in gdf.columns if c != 'geometry')})"
             )
 
-        column = gdf[step.field]
+    def _mask(self, column, step):
         if step.operator == "eq":
-            mask = column == step.value
-        elif step.operator == "neq":
-            mask = column != step.value
-        elif step.operator == "gt":
-            mask = pd.to_numeric(column, errors="coerce") > float(step.value)
-        elif step.operator == "lt":
-            mask = pd.to_numeric(column, errors="coerce") < float(step.value)
-        elif step.operator == "fuzzy_contains":
-            target = normalize_text(str(step.value))
-            mask = column.astype(str).map(
-                lambda cell: fuzz.partial_ratio(normalize_text(cell), target)
-                >= _FUZZY_CONTAINS_THRESHOLD
-            )
-        else:  # "contains" — operators are closed by the Literal type
-            target = normalize_text(str(step.value))
-            mask = column.astype(str).map(
-                lambda cell: target in normalize_text(cell)
-            )
-        return gdf[mask]
+            return column == step.value
+        if step.operator == "neq":
+            return column != step.value
+        if step.operator in ("gt", "lt"):
+            numeric = pd.to_numeric(column, errors="coerce")
+            value = float(step.value)
+            return numeric > value if step.operator == "gt" else numeric < value
+        target = normalize_text(str(step.value))
+        values = [self._text_match(cell, target, step.operator)
+                  for cell in column.astype(str)]
+        return pd.Series(values, index=column.index)
+
+    @staticmethod
+    def _text_match(cell: str, target: str, operator: str) -> bool:
+        normalized = normalize_text(cell)
+        if operator == "fuzzy_contains":
+            return fuzz.partial_ratio(normalized, target) >= _FUZZY_CONTAINS_THRESHOLD
+        return target in normalized
