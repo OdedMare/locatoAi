@@ -83,7 +83,7 @@ export interface GeoPlanStep {
     operator?: "eq" | "contains";
     value?: string | number;
   }[];
-  direction?: "north" | "south" | "east" | "west";
+  direction?: "any" | "north" | "south" | "east" | "west";
   count?: number;
   from?: string;
   to?: string;

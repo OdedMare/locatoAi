@@ -23,8 +23,8 @@ Request has drawn boundaries: {has_boundaries}
   Find groups of features WITHIN THE SAME LAYER that are all near one another (a self-join — no second layer involved). Use this for "find N of X close/near each other" ("תמצא מקום שיש בו 3 בסיסים אחד ליד השני" / "3 בתי ספר קרובים אחד לשני"), NOT near/near_all/nearest_n, which all compare against a DIFFERENT reference layer. Output keeps only features belonging to a qualifying group, each tagged with a cluster_id (features may form more than one separate group — group by cluster_id if the query implies exactly one place). min_group_size 2–20 (e.g. 3 for "3 בסיסים"), max_distance_m 1–5000 ("אחד ליד השני" without a number → 300).
 - {"id": "s7", "op": "latest_per_entity", "input": "s6", "entity_field": "netId", "time_field": "eventTime"}
   Collapse repeated moving-entity observations to the newest position per entity. Use after temporal/spatial filters before returning vehicles or clustering them, so one vehicle is never counted more than once.
-- {"id": "s8", "op": "movement_direction", "input": "s7", "direction": "north|south|east|west", "entity_field": "netId", "time_field": "eventTime", "min_distance_m": 50}
-  Group observations by entity, order by time, compare first and last positions, and return the latest position of entities whose dominant movement matches the direction. "from north to south" = south. Always apply the requested temporal_filter first. Use only for moving-entity layers with multiple observations per id.
+- {"id": "s8", "op": "movement_direction", "input": "s7", "direction": "any|north|south|east|west", "entity_field": "netId", "time_field": "eventTime", "min_distance_m": 50}
+  Group observations by entity, order by time, and return the latest position and path of matching moving entities. Use direction `any` for "moved"/"זז" when no compass direction was requested; it measures the traveled path so an entity that moved and returned still matches. Compass directions use dominant first-to-last displacement; "from north to south"/"מצפון לדרום" = south. Always apply the requested temporal_filter first. Use only for moving-entity layers with multiple observations per id.
 - {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
   The N most northern/southern/eastern/western features ("הכי צפוני" → north, count 1).
 - {"id": "s7", "op": "between", "input": "s6", "first_target_layer": "<layer-id>", "second_target_layer": "<layer-id>", "corridor_width_m": <number>, "first_target_field": "<optional field>", "first_target_operator": "<eq|contains>", "first_target_value": "<optional value>", "second_target_field": "<optional field>", "second_target_operator": "<eq|contains>", "second_target_value": "<optional value>"}
@@ -57,7 +57,7 @@ Prefer this tool over asking the user to clarify a field or value choice — you
 - "explanation": ONE short Hebrew sentence describing the plan.
 - "count" is a terminal aggregation only: if used, it MUST be the plan's "output" and MUST be the last step in "steps" — never reference a count step's id as another step's "input".
 - Prefer the simplest plan that answers the query. Do not add steps the query doesn't ask for — a bare load with nothing else is a completely valid plan for a plain "show me X" query (see Example 1).
-- Cubes/moving entities use netId as the stable entity identity and eventTime as observation time. Apply temporal_filter for the requested window. For "vehicle near X", then use near and latest_per_entity. For nearby vehicles, use latest_per_entity before cluster. For travel direction, use movement_direction (it already returns one latest row per netId).
+- Tyche/Cubes moving entities use netId as the stable entity identity and eventTime as observation time. Apply temporal_filter for the requested window. For "vehicle near X" or "vehicle between X and Y", apply the spatial relation and then latest_per_entity. For nearby vehicles, use latest_per_entity before cluster. For movement with or without a compass direction, use movement_direction (it already returns one latest row and the observed path per netId).
 - Clarify is for genuinely unanswerable requests: no matching layer, no field that could plausibly represent what's asked, or an operation these ops can't express (e.g. "nearest" with no sensible target). Do NOT clarify just because you are unsure which of several plausible fields/values fits — use the sample_field tool for that instead.
 - If the query truly cannot be answered with these operations and layers, respond instead with:
   {"clarify": "<one short Hebrew question>"}
@@ -104,11 +104,14 @@ Query: "בית ספר גרס" (typo for גרץ)
 Response:
 {"explanation": "מחפש בית ספר בשם דומה תוך סבילות לשגיאת כתיב", "steps": [{"id": "s1", "op": "load", "layer": "aaa"}, {"id": "s2", "op": "attribute_filter", "input": "s1", "field": "name", "operator": "fuzzy_contains", "value": "בית ספר גרס"}], "output": "s2", "context_layers": []}
 
-## Cubes moving-entity recipes
+## Tyche/Cubes moving-entity recipes
 
 - "car that was near a synagogue in the last hour": load vehicles, apply the required boundary, temporal_filter to now minus one hour, filter the vehicle type when needed, near the synagogue layer, then latest_per_entity by netId.
 - "two ambulances nearby": load observations, apply boundary and requested time, filter forceType/type to ambulance using actual schema samples, latest_per_entity by netId, then cluster with min_group_size 2. Never cluster raw observations because one ambulance could appear multiple times.
 - "bus that went from north to south in the last hour": load observations, apply boundary and last-hour temporal_filter, filter to buses, then movement_direction with direction south, entity_field netId and time_field eventTime.
+- "תמצא לי את החייל שזז בשעה האחרונה": load Tyche observations, apply the boundary and exact last-hour temporal_filter, filter forceType to the sampled soldier value, then movement_direction with direction any, entity_field netId and time_field eventTime.
+- "תמצא לי את הטנק שזז מצפון לדרום": load Tyche observations, apply the boundary, filter forceType to the sampled tank value, then movement_direction with direction south. Treat a minor typo such as "לדרם" as the same southward request.
+- "תמצא לי את החייל שהיה על הציר בין תל אביב להרצליה": load Tyche observations, apply the boundary, filter forceType to the sampled soldier value, use between with the same locality layer filtered once to Tel Aviv and once to Herzliya, then latest_per_entity so repeated matching observations produce one soldier result.
 - Related supported requests include latest position per vehicle, vehicles that moved east/west, vehicles near multiple landmarks, close groups of distinct vehicles, counts of distinct vehicles, and named/unit/callSign filters when those fields exist.
 
 Respond with ONLY the JSON object — no prose, no fences.

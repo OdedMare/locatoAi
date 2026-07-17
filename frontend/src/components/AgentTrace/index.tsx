@@ -4,11 +4,19 @@ import { useState } from "react";
 import { submitFeedback } from "@/services/feedbackService";
 import type { GeoPlanStep, GeoQueryResponse } from "@/types/geo-query";
 
-const DIRECTION_HE: Record<string, string> = {
+const EXTREME_DIRECTION_HE: Record<string, string> = {
   north: "הצפוני ביותר",
   south: "הדרומי ביותר",
   east: "המזרחי ביותר",
   west: "המערבי ביותר",
+};
+
+const MOVEMENT_DIRECTION_HE: Record<string, string> = {
+  any: "בכיוון כלשהו",
+  north: "צפונה",
+  south: "דרומה",
+  east: "מזרחה",
+  west: "מערבה",
 };
 
 /** One Hebrew line per plan step, with layer ids resolved to names. */
@@ -35,7 +43,7 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
     case "contains":
       return `מכיל ישות מתוך ${layerName(step.target_layer)}`;
     case "directional":
-      return `${DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
+      return `${EXTREME_DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
     case "temporal_filter":
       return `סינון זמן: ${step.from} עד ${step.to}`;
     case "cluster":
@@ -43,7 +51,7 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
     case "latest_per_entity":
       return `המיקום האחרון לכל ישות לפי ${step.entity_field ?? "netId"}`;
     case "movement_direction":
-      return `ישויות שנעו ${DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? 50} מ'`;
+      return `ישויות שנעו ${MOVEMENT_DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? 50} מ'`;
     case "count":
       return "ספירת תוצאות";
   }

@@ -7,7 +7,7 @@ class MovementDirectionStep(BaseModel):
     id: str
     op: Literal["movement_direction"]
     input: str
-    direction: Literal["north", "south", "east", "west"]
+    direction: Literal["any", "north", "south", "east", "west"]
     entity_field: str = "netId"
     time_field: str = "eventTime"
     min_distance_m: float = Field(default=50, ge=0, le=50000)

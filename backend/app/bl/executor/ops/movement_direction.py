@@ -40,7 +40,7 @@ class MovementDirectionOp(OpHandler):
                 continue
             first, last = group.iloc[0], group.iloc[-1]
             dx, dy = last.geometry.x - first.geometry.x, last.geometry.y - first.geometry.y
-            distance = float((dx * dx + dy * dy) ** 0.5)
+            distance = self._distance(group, dx, dy, step.direction)
             if distance >= step.min_distance_m and self._matches(step.direction, dx, dy):
                 positions.append(data.index.get_loc(group.index[-1]))
                 distances.append(round(distance, 2))
@@ -50,7 +50,16 @@ class MovementDirectionOp(OpHandler):
         return positions, distances, paths
 
     @staticmethod
+    def _distance(group, dx: float, dy: float, direction: str) -> float:
+        if direction != "any":
+            return float((dx * dx + dy * dy) ** 0.5)
+        points = list(group.geometry)
+        return float(sum(left.distance(right) for left, right in zip(points, points[1:])))
+
+    @staticmethod
     def _matches(direction: str, dx: float, dy: float) -> bool:
+        if direction == "any":
+            return True
         vertical = direction in ("north", "south")
         if vertical and abs(dy) < abs(dx):
             return False

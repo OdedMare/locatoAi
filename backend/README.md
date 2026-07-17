@@ -154,7 +154,7 @@ Plans are DAGs of steps chained by `id`/`input`. Validators guarantee every
 | `near_all` | require proximity to every one of 2–5 targets | AND semantics; optional ranking limit |
 | `cluster` | find mutually close groups within the input layer | adds `cluster_id` |
 | `latest_per_entity` | newest observation per identity | Cubes defaults: `netId` + `eventTime` |
-| `movement_direction` | dominant trajectory direction | latest matching position + distance |
+| `movement_direction` | movement in any or a dominant compass direction | latest matching position + path distance/displacement |
 | `between` | keep features in a corridor between two references | metric corridor width |
 | `crosses` | input crosses target | topological relation |
 | `touches` | input touches target without interior overlap | topological relation |

@@ -94,6 +94,16 @@ def test_moving_entity_steps_parse():
     validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
 
 
+def test_movement_without_compass_direction_parses():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "accidents"},
+        {"id": "s2", "op": "movement_direction", "input": "s1",
+         "direction": "any", "entity_field": "netId",
+         "time_field": "eventTime", "min_distance_m": 50},
+    ], output="s2")
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
 def test_unknown_op_rejected_at_parse_time():
     with pytest.raises(ValidationError):
         make_plan(steps=[{"id": "s1", "op": "drop_table", "layer": "schools"}])

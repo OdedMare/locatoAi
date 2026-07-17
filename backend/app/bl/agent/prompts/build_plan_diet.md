@@ -28,8 +28,9 @@ OPERATIONS (exact shapes)
   Same-layer close groups; not a different reference layer. Sizes 2..20, distance 1..5000.
 - {"id":"s8","op":"latest_per_entity","input":"s7","entity_field":"netId","time_field":"eventTime"}
   Collapse moving observations before returning/counting/clustering distinct vehicles.
-- {"id":"s9","op":"movement_direction","input":"s8","direction":"north|south|east|west","entity_field":"netId","time_field":"eventTime","min_distance_m":50}
-  Apply temporal_filter first; "north to south" means south.
+- {"id":"s9","op":"movement_direction","input":"s8","direction":"any|north|south|east|west","entity_field":"netId","time_field":"eventTime","min_distance_m":50}
+  Apply temporal_filter first. Use any for moved/זז without a requested compass direction;
+  "north to south"/"מצפון לדרום" means south.
 - {"id":"s10","op":"directional","input":"s9","direction":"north|south|east|west","count":1}
 - {"id":"s11","op":"between","input":"s10","first_target_layer":"id","second_target_layer":"id","corridor_width_m":100,"first_target_field":"optional","first_target_operator":"eq|contains","first_target_value":"optional","second_target_field":"optional","second_target_operator":"eq|contains","second_target_value":"optional"}
   Corridor between two references; named targets require their complete filter triple.
@@ -46,9 +47,14 @@ RULES
 - Layer and target IDs must come from LAYERS. Fields must exist in their schema.
 - A named target's optional filter is all-or-none. Match sample language/format.
 - `near_all` is mandatory for simultaneous multi-reference proximity.
-- Cubes/moving data: apply requested temporal_filter; use netId/eventTime. For vehicle near
-  a reference: spatial/time filters, near, then latest_per_entity. Before cluster, collapse
-  observations. For travel direction, use movement_direction.
+- Tyche/Cubes moving data: apply requested temporal_filter; use netId/eventTime. For a
+  vehicle near a reference or between two places: apply the spatial relation, then
+  latest_per_entity. Before cluster, collapse observations. For moved/זז or travel
+  direction, use movement_direction; direction any means movement without a named bearing.
+- Tyche examples: "חייל שזז בשעה האחרונה" => time + soldier forceType + direction any;
+  "טנק שזז מצפון לדרום" (also typo לדרם) => tank forceType + direction south;
+  "חייל שהיה על הציר בין תל אביב להרצליה" => soldier forceType + between two filtered
+  locality targets + latest_per_entity.
 - Ask sample_field when field/value is uncertain. At most 3 tool rounds are available.
 - Clarify only if layers/operations truly cannot answer the query; do not clarify before
   using sample_field for a plausible field.

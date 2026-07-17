@@ -143,7 +143,7 @@ A plan is an ordered DAG. Each step has a unique ID, and any `input` must refer 
 | `near_all` | Requires proximity to every one of 2–5 target references and can rank/limit matches. |
 | `cluster` | Finds same-layer groups whose members are mutually close. |
 | `latest_per_entity` | Keeps the newest observation for each stable entity identity. |
-| `movement_direction` | Detects dominant first-to-last trajectory direction and returns each matching entity's latest position. |
+| `movement_direction` | Detects movement in any direction or a dominant compass direction and returns each matching entity's latest position and path. |
 | `between` | Keeps features inside a metric corridor between two references. |
 | `crosses` | Keeps input geometries crossing a target geometry. |
 | `touches` | Keeps input geometries touching a target boundary without interior overlap. |
@@ -179,7 +179,7 @@ the request boundary expanded by their requested distance.
 
 ### Cubes
 
-Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, sends the user boundary through `Location`, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect north/south/east/west trajectories with `movement_direction`.
+Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, sends the user boundary through `Location`, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect movement in any/north/south/east/west direction with `movement_direction`.
 
 Tyche provides the time-varying Our Forces layer. After its URL, username, and
 write-only authorization token are configured, the Layers UI can probe the service and

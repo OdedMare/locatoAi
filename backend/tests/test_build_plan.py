@@ -78,6 +78,8 @@ def test_diet_plan_prompt_is_short_and_preserves_all_operations(catalog):
         assert f'"op":"{operation}"' in diet_prompt
     assert "city_en:string=" in diet_prompt
     assert "sample_field" in diet_prompt
+    assert '"direction":"any|north|south|east|west"' in diet_prompt
+    assert "חייל שזז בשעה האחרונה" in diet_prompt
 
 
 def test_hebrew_multi_reference_query_builds_near_all(catalog):

@@ -51,3 +51,26 @@ def test_movement_direction_ignores_single_observation_entities():
     step = MovementDirectionStep(id="move", op="movement_direction", input="input",
                                  direction="west", min_distance_m=0)
     assert MovementDirectionOp().run(step, ctx).empty
+
+
+def test_movement_without_direction_uses_traveled_path():
+    data = gpd.GeoDataFrame({
+        "netId": ["patrol", "patrol", "patrol"],
+        "eventTime": [
+            "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z",
+            "2026-07-15T10:00:00Z",
+        ],
+    }, geometry=[
+        Point(34.78, 32.10), Point(34.78, 32.08), Point(34.78, 32.10),
+    ], crs="EPSG:4326")
+    ctx = SimpleNamespace(results={"input": data})
+    step = MovementDirectionStep(
+        id="move", op="movement_direction", input="input",
+        direction="any", min_distance_m=100,
+    )
+
+    result = MovementDirectionOp().run(step, ctx)
+
+    assert list(result["netId"]) == ["patrol"]
+    assert result.iloc[0]["movement_distance_m"] > 100
+    assert result.iloc[0]["movement_direction"] == "any"

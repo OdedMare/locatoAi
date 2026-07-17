@@ -221,8 +221,9 @@ upstream Tyche 404 is normalized by FastAPI to a provider error (HTTP 502), whil
 
 The TypeScript interfaces intentionally mirror Pydantic DTOs. When an API contract changes, update both sides in the same change.
 
-Moving Cubes entities use `netId` as their stable identity. Agent traces describe
-`latest_per_entity` deduplication and `movement_direction` trajectory detection.
+Moving Tyche/Cubes entities use `netId` as their stable identity. Agent traces describe
+`latest_per_entity` deduplication and `movement_direction` trajectory detection, including
+movement without a requested compass direction.
 
 ## Styling and directionality
 
