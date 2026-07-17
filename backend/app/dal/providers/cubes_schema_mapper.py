@@ -183,6 +183,7 @@ class CubesSchemaMapper:
             required=bool(item.get("IsRequired")),
             single_value=bool(item.get("IsSingleValue", True)),
             options=options, is_dynamic=dynamic,
+            configured_value=item.get("Value"),
         )
 
     @staticmethod

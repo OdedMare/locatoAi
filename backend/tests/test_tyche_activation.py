@@ -40,6 +40,8 @@ def test_activation_probes_then_idempotently_upserts_catalog_layer():
     assert first.name == "כוחותינו"
     assert "כיוון תנועה" in first.description
     assert "כוחותינו" in first.tags
+    assert "חיילים" in first.tags
+    assert "טנקים" in first.tags
     assert "trajectory" in first.tags
     assert sample_count == 0
     assert len(repository.list_layers()) == 1
@@ -79,6 +81,26 @@ def test_activation_replaces_the_old_default_description():
 
     assert "סימן קריאה" in activated.description
     assert "כיוון תנועה" in activated.description
+
+
+def test_activation_replaces_the_previous_movement_description():
+    existing = LayerMeta(
+        id="existing", name="כוחותינו",
+        description=(
+            "שכבת Tyche של דיווחי מיקום מתוזמנים לכוחותינו. כוללת מזהה רשת, "
+            "סוג כוח, יחידה, סימן קריאה, זמני אירוע והגעה וגאומטריה; מתאימה "
+            "להצגת מיקום אחרון, סינון זמן וסוג כוח, קרבה, קיבוץ וניתוח כיוון תנועה."
+        ),
+        tags=[], provider="tyche", source_url="tyche://ourforces",
+    )
+    repository = FakeLayersRepository([existing])
+    provider = Mock()
+    provider.fetch_features.return_value = gpd.GeoDataFrame()
+
+    activated, _, _ = activate_tyche_layer(repository, provider)
+
+    assert "חיילים וטנקים" in activated.description
+    assert "ללא כיוון" in activated.description
 
 
 def test_failed_tyche_probe_does_not_modify_catalog():

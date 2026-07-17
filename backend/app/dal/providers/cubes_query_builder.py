@@ -31,7 +31,7 @@ class CubesQueryBuilder:
             key: self._parameter_value(key, now, temporal_range)
             for key in keys if self.parts(key)[0] in self._TIME_FIELDS
         }
-        self._apply_dynamic(parameters, body)
+        self._apply_configured(parameters, body)
         self._validate_required(parameters, body)
         self._add_location(body, geometry)
         return body
@@ -130,10 +130,12 @@ class CubesQueryBuilder:
         ).replace("+00:00", "Z")
 
     @staticmethod
-    def _apply_dynamic(parameters: List[LayerParameter], body: dict) -> None:
+    def _apply_configured(parameters: List[LayerParameter], body: dict) -> None:
         for parameter in parameters:
             if parameter.is_dynamic and parameter.resolved_value is not None:
                 body[parameter.name] = parameter.resolved_value
+            elif parameter.configured_value not in (None, ""):
+                body.setdefault(parameter.name, parameter.configured_value)
 
     def _validate_required(self, parameters: List[LayerParameter], body: dict) -> None:
         for parameter in parameters:

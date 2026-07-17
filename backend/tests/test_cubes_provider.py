@@ -264,6 +264,56 @@ def test_rejects_unknown_required_parameter_instead_of_guessing(tmp_path):
         provider.fetch_features(layer())
 
 
+def test_required_parameter_uses_value_configured_in_metadata(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "environment", "DisplayName": "סביבה",
+                    "IsRequired": True, "IsSingleValue": True,
+                    "Type": "String", "Value": "prod",
+                    "Options": [{"Name": "מבצעית", "Value": "prod"}],
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer())
+
+    body = json.loads(posted_request(handler).content)
+    assert body["environment"] == "prod"
+    parameter = provider.describe_schema(layer()).parameters[0]
+    assert parameter.required is True
+    assert parameter.options == ["prod"]
+    assert parameter.configured_value == "prod"
+    assert "configured_value" not in parameter.model_dump()
+
+
+def test_optional_parameter_with_configured_value_is_also_sent(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "includeInactive", "IsRequired": False,
+                    "Type": "Boolean", "Value": False,
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer())
+
+    assert json.loads(posted_request(handler).content)["includeInactive"] is False
+
+
 def test_match_and_not_parameter_names_map_to_request_operators(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 
