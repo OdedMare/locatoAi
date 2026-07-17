@@ -346,6 +346,9 @@ provider behavior belongs in the collaborator that owns that single responsibili
   receives the relative time-back shape, and an unsuffixed parameter keeps the legacy
   plain/`.not` pair. User geometry is sent through the available temporal parameter's
   `Location` and is rechecked locally before applying a result limit.
+  A non-empty metadata `Value` is preserved and sent under the parameter's exact name
+  on every request, satisfying required fixed parameters such as `environment=prod`.
+  Configured values are excluded from model-facing schema serialization.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
   from being mistaken for multiple vehicles and support trajectory questions.

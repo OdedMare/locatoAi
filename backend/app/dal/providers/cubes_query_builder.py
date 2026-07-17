@@ -134,8 +134,18 @@ class CubesQueryBuilder:
         for parameter in parameters:
             if parameter.is_dynamic and parameter.resolved_value is not None:
                 body[parameter.name] = parameter.resolved_value
-            elif parameter.configured_value not in (None, ""):
+            elif CubesQueryBuilder._has_configured_value(
+                parameter.configured_value
+            ):
                 body.setdefault(parameter.name, parameter.configured_value)
+
+    @staticmethod
+    def _has_configured_value(value: object) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, (str, list, dict)):
+            return bool(value)
+        return True
 
     def _validate_required(self, parameters: List[LayerParameter], body: dict) -> None:
         for parameter in parameters:

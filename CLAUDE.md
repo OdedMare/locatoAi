@@ -47,6 +47,9 @@ a bare database name; the backend canonicalizes it to
 and gives the official cube name/description, parameter options, and entity samples to
 `LayerMetadataGenerator`. Suffixed parameter names are preserved exactly; a plain name
 keeps the legacy plain/`.not` pair. Never hardcode the response field list.
+Any non-empty parameter `Value` configured in Cubes metadata is included unchanged in
+the request body; this is how required fixed selectors such as `environment=prod` are
+satisfied. Configured values remain internal and must not be serialized into LLM prompts.
 
 **Cubes dynamic parameters:** dynamic parameter names are not fixed (`vehicleType`,
 `fl:dynamic`, etc.). Discover `Role=dynamic` metadata and names ending in `:dynamic`; when

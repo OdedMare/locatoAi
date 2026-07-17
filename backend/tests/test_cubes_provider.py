@@ -243,6 +243,30 @@ def test_discovers_parameters_from_dedicated_endpoint(tmp_path):
     ]
 
 
+def test_sends_configured_parameter_from_dedicated_endpoint(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.url.path.endswith("/parameters"):
+            return httpx.Response(200, json=[{
+                "Name": "environment", "IsRequired": True,
+                "IsSingleValue": True, "Type": "String", "Value": "prod",
+                "Options": [{"Name": "מבצעית", "Value": "prod"}],
+            }])
+        if request.method == "GET":
+            return httpx.Response(200, json={"Name": "Transport", "Fields": []})
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer())
+
+    assert json.loads(posted_request(handler).content)["environment"] == "prod"
+    assert [request.url.path for request in handler.requests[:2]] == [
+        "/cube/v1/transport", "/cube/v1/transport/parameters",
+    ]
+
+
 def test_rejects_unknown_required_parameter_instead_of_guessing(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 
@@ -521,6 +545,28 @@ def test_dynamic_parameter_required_without_resolved_value_fails(tmp_path):
         return httpx.Response(200, json=[record()])
 
     provider._transport = httpx.MockTransport(metadata_handler)
+    with pytest.raises(ProviderError, match="TeamType.*no configured value"):
+        provider.fetch_features(layer())
+
+
+def test_dynamic_parameter_does_not_use_metadata_value_as_a_resolution(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": "TeamType", "IsRequired": True,
+                    "Role": "dynamic", "Type": "String",
+                    "Value": "placeholder",
+                }],
+                "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+
     with pytest.raises(ProviderError, match="TeamType.*no configured value"):
         provider.fetch_features(layer())
 
