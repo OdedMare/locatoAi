@@ -771,6 +771,7 @@ def test_rasta_moria_land_parameter_details_build_supported_request(tmp_path):
         },
         "environment": {
             "Name": "environment", "is_required": True, "Type": "String",
+            "Value": "prod",
             "Options": [{"Value": "prod", "Name": "Production"}],
         },
         "polygon": {

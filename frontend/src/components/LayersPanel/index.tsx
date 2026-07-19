@@ -13,9 +13,11 @@ import {
 import type {
   CatalogLayer,
   CubesAutocompleteOption,
+  CubesParameterDefinition,
   CubesQueryMode,
   RemoteMqsLayer,
 } from "@/types/catalog";
+import CubesParametersFieldset from "./CubesParametersFieldset";
 
 interface LayersPanelProps {
   onClose: () => void;
@@ -49,8 +51,9 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const [sourceUrl, setSourceUrl] = useState("");
   const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
+  const [parameterDefinitions, setParameterDefinitions] =
+    useState<CubesParameterDefinition[]>([]);
   const [manualDynamicParameterNames, setManualDynamicParameterNames] = useState<string[]>([]);
-  const [dynamicParameterDraft, setDynamicParameterDraft] = useState("");
   const [dynamicParameterOptions, setDynamicParameterOptions] =
     useState<Record<string, CubesAutocompleteOption[]>>({});
   const [dynamicParameterValues, setDynamicParameterValues] =
@@ -165,7 +168,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
         cubes_query_mode: cubesQueryMode,
-        cubes_dynamic_parameters: dynamicParameterValues,
+        cubes_parameters: dynamicParameterValues,
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -175,8 +178,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setSourceUrl("");
       setCubesQueryMode("auto");
       setDynamicParameterNames([]);
+      setParameterDefinitions([]);
       setManualDynamicParameterNames([]);
-      setDynamicParameterDraft("");
       setDynamicParameterOptions({});
       setDynamicParameterValues({});
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
@@ -212,7 +215,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
       cubes_query_mode: cubesQueryMode,
-      cubes_dynamic_parameters: selectedDynamicValues,
+      cubes_parameters: selectedDynamicValues,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
@@ -224,27 +227,47 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
         setTags(generated.tags);
         setTagDraft("");
       }
-      const dynamicNames = [...generated.dynamic_parameters];
+      const definitions = [...generated.configurable_parameters];
       for (const manualName of manualDynamicParameterNames) {
-        if (!dynamicNames.some(
-          (parameterName) => parameterName.toLocaleLowerCase() === manualName.toLocaleLowerCase()
+        if (!definitions.some(
+          (item) => item.name.toLocaleLowerCase() === manualName.toLocaleLowerCase()
         )) {
-          dynamicNames.push(manualName);
+          definitions.push({
+            name: manualName,
+            display_name: "",
+            required: true,
+            dynamic: true,
+            options: [],
+          });
         }
       }
-      setDynamicParameterNames(dynamicNames);
+      const parameterNames = definitions.map((item) => item.name);
+      setParameterDefinitions(definitions);
+      setDynamicParameterNames(parameterNames);
       setDynamicParameterOptions((current) => Object.fromEntries(
-        dynamicNames
-          .filter((parameterName) => current[parameterName])
-          .map((parameterName) => [parameterName, current[parameterName]])
+        definitions
+          .map((item) => {
+            const staticOptions = item.options.map((value) => ({ value, name: value }));
+            return [
+              item.name,
+              item.dynamic
+                ? current[item.name]
+                : staticOptions.length > 0 ? staticOptions : undefined,
+            ] as const;
+          })
+          .filter((entry): entry is readonly [string, CubesAutocompleteOption[]] =>
+            Boolean(entry[1])
+          )
       ));
       setDynamicParameterValues((current) => Object.fromEntries(
-        dynamicNames
+        parameterNames
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
       let dynamicOptionsError: string | null = null;
-      for (const dynamicName of dynamicNames) {
+      for (const dynamicName of definitions.filter((item) => item.dynamic).map(
+        (item) => item.name
+      )) {
         setLoadingDynamicParameter(dynamicName);
         try {
           const result = await fetchCubesAutocompleteOptions({
@@ -267,10 +290,10 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setFormMessage(
         dynamicOptionsError
           ? `${dynamicOptionsError} — אפשר לנסות לטעון שוב.`
-          : dynamicNames.length > 0 && generated.sample_count === 0
-          ? "נמצאו פרמטרים דינמיים — יש לבחור ערכים. התוצאות ייטענו אוטומטית."
-          : dynamicNames.length > 0
-          ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שנבחרו ונוצרו הצעות ✓`
+          : parameterNames.length > 0 && generated.sample_count === 0
+          ? "נמצאו פרמטרים נדרשים — יש לבחור ערכים לפני טעינת התוצאות."
+          : parameterNames.length > 0
+          ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
     } catch (err) {
@@ -310,27 +333,32 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     if (allDynamicParametersSelected) {
       void handleGenerateMetadata(undefined, selectedDynamicValues);
     } else {
-      setFormMessage("יש לבחור ערך לכל הפרמטרים הדינמיים.");
+      setFormMessage("יש לבחור ערך לכל הפרמטרים הנדרשים.");
     }
   };
 
-  const handleAddDynamicParameter = () => {
-    const parameterName = dynamicParameterDraft.trim();
-    if (!parameterName) return;
+  const handleAddDynamicParameter = (parameterName: string): boolean => {
     if (dynamicParameterNames.some(
       (name) => name.toLocaleLowerCase() === parameterName.toLocaleLowerCase()
     )) {
       setFormMessage(`הפרמטר ${parameterName} כבר נוסף.`);
-      return;
+      return false;
     }
     setManualDynamicParameterNames((current) => [...current, parameterName]);
     setDynamicParameterNames((current) => [...current, parameterName]);
-    setDynamicParameterDraft("");
+    setParameterDefinitions((current) => [...current, {
+      name: parameterName,
+      display_name: "",
+      required: true,
+      dynamic: true,
+      options: [],
+    }]);
     if (sourceUrl.trim()) {
       void handleFetchDynamicOptions(parameterName);
     } else {
       setFormMessage("יש להזין קודם שם Cube, ואז לטעון את אפשרויות הפרמטר.");
     }
+    return true;
   };
 
   const selectMqsLayer = (layer: RemoteMqsLayer) => {
@@ -342,8 +370,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setSourceUrl(layer.source_url);
     setCubesQueryMode("auto");
     setDynamicParameterNames([]);
+    setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
-    setDynamicParameterDraft("");
     setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setFormMessage(null);
@@ -356,8 +384,8 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setProvider("cubes");
     setSourceUrl("");
     setDynamicParameterNames([]);
+    setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
-    setDynamicParameterDraft("");
     setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setName("");
@@ -540,78 +568,25 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
               </fieldset>
             )}
             {provider.trim().toLowerCase() === "cubes" && (
-              <fieldset className="cubes-dynamic-parameters">
-                <legend>פרמטרים דינמיים <span className="optional">(מקורות המידע עשויים להשתנות — נטענים מחדש בכל פעם)</span></legend>
-                <div className="cubes-dynamic-parameter">
-                  <label className="field-label" htmlFor="dynamic-param-name">
-                    שם פרמטר דינמי <span className="optional">(לדוגמה vehicleType או fl:dynamic)</span>
-                  </label>
-                  <input
-                    id="dynamic-param-name"
-                    className="settings-input"
-                    value={dynamicParameterDraft}
-                    onChange={(event) => setDynamicParameterDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                        event.preventDefault();
-                        handleAddDynamicParameter();
-                      }
-                    }}
-                    placeholder="vehicleType"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    className="add-layer-toggle"
-                    onClick={handleAddDynamicParameter}
-                    disabled={
-                      !dynamicParameterDraft.trim() || generatingMetadata ||
-                      loadingDynamicParameter !== null
-                    }
-                  >
-                    + הוספת פרמטר דינמי
-                  </button>
-                </div>
-                {dynamicParameterNames.map((parameterName) => {
-                  const options = dynamicParameterOptions[parameterName];
-                  const isLoading = loadingDynamicParameter === parameterName;
-                  return (
-                    <div key={parameterName} className="cubes-dynamic-parameter">
-                      <label className="field-label" htmlFor={`dynamic-param-${parameterName}`} dir="ltr">
-                        {parameterName}
-                      </label>
-                      {options ? (
-                        <select
-                          id={`dynamic-param-${parameterName}`}
-                          className="settings-input"
-                          value={dynamicParameterValues[parameterName] ?? ""}
-                          onChange={(e) => handleSelectDynamicParameter(
-                            parameterName, e.target.value
-                          )}
-                          disabled={generatingMetadata || isLoading}
-                          dir="auto"
-                        >
-                          <option value="" disabled>בחירת ערך…</option>
-                          {options.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.name || option.value}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <button
-                          type="button"
-                          className="add-layer-toggle"
-                          onClick={() => void handleFetchDynamicOptions(parameterName)}
-                          disabled={!sourceUrl.trim() || isLoading}
-                        >
-                          {isLoading ? "טוען אפשרויות…" : `טעינת אפשרויות עבור ${parameterName}`}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </fieldset>
+              <CubesParametersFieldset
+                definitions={parameterDefinitions}
+                options={dynamicParameterOptions}
+                values={dynamicParameterValues}
+                loadingParameter={loadingDynamicParameter}
+                busy={generatingMetadata}
+                sourceConfigured={Boolean(sourceUrl.trim())}
+                onAddManual={handleAddDynamicParameter}
+                onFetchOptions={(parameterName) => {
+                  void handleFetchDynamicOptions(parameterName);
+                }}
+                onSelect={handleSelectDynamicParameter}
+                onChangeValue={(parameterName, value) => {
+                  setDynamicParameterValues((current) => ({
+                    ...current,
+                    [parameterName]: value,
+                  }));
+                }}
+              />
             )}
             {formMessage && <p className="settings-message">{formMessage}</p>}
             <button

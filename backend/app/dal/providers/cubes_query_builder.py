@@ -58,6 +58,8 @@ class CubesQueryBuilder:
             return True
         if not parameter.required or self._is_managed(parameter):
             return False
+        if parameter.options:
+            return True
         return not self._has_configured_value(parameter.configured_value)
 
     def match_window_key(self, body: dict) -> Optional[str]:

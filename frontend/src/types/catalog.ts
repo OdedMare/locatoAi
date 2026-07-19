@@ -21,6 +21,7 @@ export interface CreateLayerRequest {
   provider: string;
   source_url: string;
   cubes_query_mode?: CubesQueryMode;
+  cubes_parameters?: Record<string, string>;
   cubes_dynamic_parameters?: Record<string, string>;
 }
 
@@ -35,6 +36,7 @@ export interface GenerateLayerMetadataRequest {
   provider: string;
   source_url: string;
   cubes_query_mode?: CubesQueryMode;
+  cubes_parameters?: Record<string, string>;
   cubes_dynamic_parameters?: Record<string, string>;
 }
 
@@ -57,6 +59,15 @@ export interface GeneratedLayerMetadataResponse {
   tags: string[];
   sample_count: number;
   dynamic_parameters: string[];
+  configurable_parameters: CubesParameterDefinition[];
+}
+
+export interface CubesParameterDefinition {
+  name: string;
+  display_name: string;
+  required: boolean;
+  dynamic: boolean;
+  options: string[];
 }
 
 export interface MqsSyncResponse {

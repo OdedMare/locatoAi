@@ -140,6 +140,7 @@ def test_cubes_metadata_discovers_required_parameter_details_before_row_fetch(
         },
         "environment": {
             "Name": "environment", "IsRequired": True, "Type": "String",
+            "Value": "prod",
             "Options": [{"Value": "prod", "Name": "Production"}],
         },
     }
