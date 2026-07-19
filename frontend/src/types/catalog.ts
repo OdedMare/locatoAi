@@ -1,5 +1,7 @@
 /** Mirrors backend/app/service/catalog_router.py — keep in sync. */
 
+import type { GeoJSONMultiPolygon } from "@/types/geo-query";
+
 export type CubesQueryMode = "auto" | "match_not" | "legacy";
 
 export interface CatalogLayer {
@@ -38,6 +40,7 @@ export interface GenerateLayerMetadataRequest {
   cubes_query_mode?: CubesQueryMode;
   cubes_parameters?: Record<string, string>;
   cubes_dynamic_parameters?: Record<string, string>;
+  cubes_sample_boundary?: GeoJSONMultiPolygon | null;
 }
 
 export interface CubesAutocompleteRequest {
@@ -60,6 +63,7 @@ export interface GeneratedLayerMetadataResponse {
   sample_count: number;
   dynamic_parameters: string[];
   configurable_parameters: CubesParameterDefinition[];
+  requires_sample_polygon: boolean;
 }
 
 export interface CubesParameterDefinition {

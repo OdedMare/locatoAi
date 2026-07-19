@@ -63,6 +63,12 @@ class CubesQueryBuilder:
             return True
         return not self._has_configured_value(parameter.configured_value)
 
+    def requires_geometry(self, parameters: List[LayerParameter]) -> bool:
+        return any(
+            parameter.required and self._is_spatial(parameter)
+            for parameter in parameters
+        )
+
     def match_window_key(self, body: dict) -> Optional[str]:
         return next((key for key in body if self.parts(key)[1] == "match"), None)
 

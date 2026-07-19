@@ -11,3 +11,4 @@ class GeneratedLayerMetadataResponse(BaseModel):
     sample_count: int
     dynamic_parameters: List[str] = []
     configurable_parameters: List[CubesParameterResponse] = []
+    requires_sample_polygon: bool = False

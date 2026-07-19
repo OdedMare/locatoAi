@@ -70,6 +70,11 @@ class CubesProvider:
             if self._query.requires_configuration(parameter)
         ]
 
+    def requires_geometry(self, layer: LayerMeta) -> bool:
+        return self._query.requires_geometry(
+            self._configured_parameters(layer)
+        )
+
     def fetch_features(
         self,
         layer: LayerMeta,
@@ -84,16 +89,18 @@ class CubesProvider:
         )
 
     def sample_for_metadata(
-        self, layer: LayerMeta, limit: int = 100
+        self, layer: LayerMeta, limit: int = 100,
+        geometry: Optional[BaseGeometry] = None,
     ) -> Tuple[gpd.GeoDataFrame, LayerSchema]:
-        """Sample a cube without requiring its spatial request parameter.
+        """Sample a cube with an optional user-selected preview boundary.
 
-        Catalog metadata generation has no user boundary. All resolved and
-        temporal parameters are still sent, but a required polygon is omitted
-        for this bounded preview request only.
+        Cubes that declare a required polygon are held by the metadata
+        generator until the UI supplies one. Cubes without that requirement
+        can still be previewed without a boundary.
         """
         features = self._fetch_features(
-            layer, limit=limit, allow_missing_geometry=True
+            layer, geometry=geometry, limit=limit,
+            allow_missing_geometry=geometry is None,
         )
         return features, self.describe_schema(layer)
 

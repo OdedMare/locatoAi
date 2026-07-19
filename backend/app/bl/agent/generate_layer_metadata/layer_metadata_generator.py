@@ -26,25 +26,40 @@ class LayerMetadataGenerator:
         self._response_mapper = MetadataResponseMapper()
 
     def generate(
-        self, name: str, provider_name: str, source_url: str
+        self, name: str, provider_name: str, source_url: str,
+        sample_geometry=None,
     ) -> GeneratedLayerMetadata:
         layer = self._layer(name, provider_name, source_url)
         provider = self._providers.get(layer.provider)
         parameters = self._configurable_parameters(layer, provider)
-        if any(item.resolved_value is None for item in parameters):
-            return self._unresolved(parameters)
-        features, schema = self._sample(layer, provider)
+        requires_polygon = self._requires_sample_polygon(layer, provider)
+        if (
+            any(item.resolved_value is None for item in parameters)
+            or (requires_polygon and sample_geometry is None)
+        ):
+            return self._unresolved(parameters, requires_polygon)
+        features, schema = self._sample(
+            layer, provider, sample_geometry
+        )
         user, sample_count = self._sample_builder.build(layer, features, schema)
         data = self._llm.complete_json(system=self._prompt, user=user)
-        return self._response_mapper.map(data, sample_count, parameters)
+        return self._response_mapper.map(
+            data, sample_count, parameters, requires_polygon
+        )
 
-    def _sample(self, layer, provider):
+    def _sample(self, layer, provider, sample_geometry=None):
         try:
             metadata_sampler = getattr(provider, "sample_for_metadata", None)
             if callable(metadata_sampler):
-                features, schema = metadata_sampler(
-                    layer, limit=self._FETCH_LIMIT
-                )
+                if layer.provider == "cubes":
+                    features, schema = metadata_sampler(
+                        layer, limit=self._FETCH_LIMIT,
+                        geometry=sample_geometry,
+                    )
+                else:
+                    features, schema = metadata_sampler(
+                        layer, limit=self._FETCH_LIMIT
+                    )
             else:
                 features = provider.fetch_features(layer, limit=self._FETCH_LIMIT)
                 schema = provider.describe_schema(layer)
@@ -77,9 +92,19 @@ class LayerMetadataGenerator:
         return provider.list_configurable_parameters(layer, refresh=True)
 
     @staticmethod
-    def _unresolved(parameters) -> GeneratedLayerMetadata:
+    def _requires_sample_polygon(layer: LayerMeta, provider) -> bool:
+        return (
+            layer.provider == "cubes"
+            and provider.requires_geometry(layer)
+        )
+
+    @staticmethod
+    def _unresolved(
+        parameters, requires_sample_polygon: bool = False
+    ) -> GeneratedLayerMetadata:
         return GeneratedLayerMetadata(
             description="", sample_count=0,
             dynamic_parameters=[item.name for item in parameters if item.is_dynamic],
             configurable_parameters=parameters,
+            requires_sample_polygon=requires_sample_polygon,
         )

@@ -9,7 +9,10 @@ class MetadataResponseMapper:
     _MAX_TAG_CHARS = 60
     _MAX_DESCRIPTION_CHARS = 2000
 
-    def map(self, data, sample_count, parameters):
+    def map(
+        self, data, sample_count, parameters,
+        requires_sample_polygon: bool = False,
+    ):
         description = data.get("description")
         raw_tags = data.get("tags")
         if not isinstance(description, str) or not description.strip():
@@ -26,6 +29,7 @@ class MetadataResponseMapper:
                 item.name for item in parameters if item.is_dynamic
             ],
             configurable_parameters=parameters,
+            requires_sample_polygon=requires_sample_polygon,
         )
 
     def _tags(self, raw_tags):

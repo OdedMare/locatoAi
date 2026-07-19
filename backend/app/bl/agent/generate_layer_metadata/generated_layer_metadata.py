@@ -15,3 +15,5 @@ class GeneratedLayerMetadata:
     configurable_parameters: List[LayerParameter] = field(default_factory=list)
     """Required selectors the catalog must resolve before sampling. Configured
     metadata values are excluded so provider-owned secrets never reach the UI."""
+    requires_sample_polygon: bool = False
+    """The Cubes preview request needs a user-selected map polygon."""

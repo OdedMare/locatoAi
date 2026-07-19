@@ -17,10 +17,13 @@ import type {
   CubesQueryMode,
   RemoteMqsLayer,
 } from "@/types/catalog";
+import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 import CubesParametersFieldset from "./CubesParametersFieldset";
 
 interface LayersPanelProps {
   onClose: () => void;
+  drawnSampleBoundary: GeoJSONMultiPolygon | null;
+  viewportSampleBoundary: GeoJSONMultiPolygon;
 }
 
 function mergeTags(current: string[], value: string, limit: number): string[] {
@@ -38,7 +41,11 @@ function mergeTags(current: string[], value: string, limit: number): string[] {
  * Catalog browser: every data layer the agent can query, searchable by
  * name / description / tags — so users know what they can ask about.
  */
-export default function LayersPanel({ onClose }: LayersPanelProps) {
+export default function LayersPanel({
+  onClose,
+  drawnSampleBoundary,
+  viewportSampleBoundary,
+}: LayersPanelProps) {
   const [layers, setLayers] = useState<CatalogLayer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -58,6 +65,11 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     useState<Record<string, CubesAutocompleteOption[]>>({});
   const [dynamicParameterValues, setDynamicParameterValues] =
     useState<Record<string, string>>({});
+  const [requiresSamplePolygon, setRequiresSamplePolygon] = useState(false);
+  const [cubesSampleBoundary, setCubesSampleBoundary] =
+    useState<GeoJSONMultiPolygon | null>(null);
+  const [cubesSampleBoundarySource, setCubesSampleBoundarySource] =
+    useState<"drawn" | "viewport" | null>(null);
   const [loadingDynamicParameter, setLoadingDynamicParameter] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [generatingMetadata, setGeneratingMetadata] = useState(false);
@@ -182,6 +194,9 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       setManualDynamicParameterNames([]);
       setDynamicParameterOptions({});
       setDynamicParameterValues({});
+      setRequiresSamplePolygon(false);
+      setCubesSampleBoundary(null);
+      setCubesSampleBoundarySource(null);
       setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
     } catch (err) {
       console.error("Layer creation failed", err);
@@ -239,6 +254,7 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
   const handleGenerateMetadata = async (
     selected?: RemoteMqsLayer,
     selectedDynamicValues: Record<string, string> = dynamicParameterValues,
+    selectedBoundary: GeoJSONMultiPolygon | null = cubesSampleBoundary,
   ) => {
     const target = {
       name: selected?.name ?? name,
@@ -246,12 +262,14 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
       source_url: selected?.source_url ?? sourceUrl,
       cubes_query_mode: cubesQueryMode,
       cubes_parameters: selectedDynamicValues,
+      cubes_sample_boundary: selectedBoundary,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
     setFormMessage("דוגם עד 10 ישויות ומייצר תיאור ותגיות…");
     try {
       const generated = await generateLayerMetadata(target);
+      setRequiresSamplePolygon(generated.requires_sample_polygon);
       if (generated.sample_count > 0) {
         setDescription(generated.description);
         setTags(generated.tags);
@@ -294,8 +312,16 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
+      const missingParameters = parameterNames.some(
+        (parameterName) => !selectedDynamicValues[parameterName]
+      );
+      const missingPolygon = generated.requires_sample_polygon && !selectedBoundary;
       setFormMessage(
-        parameterNames.length > 0 && generated.sample_count === 0
+        missingParameters && missingPolygon
+          ? "יש לבחור ערכים לפרמטרים הנדרשים ופוליגון לדגימת ה-metadata."
+          : missingPolygon
+          ? "ה-Cube דורש פוליגון לדגימת metadata — בחרו פוליגון שצויר במפה או את תחום התצוגה."
+          : missingParameters
           ? "נמצאו פרמטרים נדרשים — יש לבחור ערכים לפני טעינת התוצאות."
           : parameterNames.length > 0
           ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות ✓`
@@ -346,10 +372,28 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     const allDynamicParametersSelected = dynamicParameterNames.every(
       (name) => Boolean(selectedDynamicValues[name])
     );
-    if (allDynamicParametersSelected) {
+    if (allDynamicParametersSelected && (!requiresSamplePolygon || cubesSampleBoundary)) {
       void handleGenerateMetadata(undefined, selectedDynamicValues);
+    } else if (requiresSamplePolygon && !cubesSampleBoundary) {
+      setFormMessage("יש לבחור פוליגון לדגימת ה-metadata.");
     } else {
       setFormMessage("יש לבחור ערך לכל הפרמטרים הנדרשים.");
+    }
+  };
+
+  const handleUseSampleBoundary = (
+    boundary: GeoJSONMultiPolygon,
+    source: "drawn" | "viewport",
+  ) => {
+    setCubesSampleBoundary(boundary);
+    setCubesSampleBoundarySource(source);
+    const allParametersSelected = dynamicParameterNames.every(
+      (parameterName) => Boolean(dynamicParameterValues[parameterName])
+    );
+    if (allParametersSelected) {
+      void handleGenerateMetadata(undefined, dynamicParameterValues, boundary);
+    } else {
+      setFormMessage("הפוליגון נבחר. כעת יש לבחור ערך לכל הפרמטרים הנדרשים.");
     }
   };
 
@@ -390,10 +434,13 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setManualDynamicParameterNames([]);
     setDynamicParameterOptions({});
     setDynamicParameterValues({});
+    setRequiresSamplePolygon(false);
+    setCubesSampleBoundary(null);
+    setCubesSampleBoundarySource(null);
     setFormMessage(null);
     setShowAddForm(true);
     setShowMqsBrowser(false);
-    void handleGenerateMetadata(layer);
+    void handleGenerateMetadata(layer, {}, null);
   };
 
   const startCubesLayer = () => {
@@ -404,6 +451,9 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     setManualDynamicParameterNames([]);
     setDynamicParameterOptions({});
     setDynamicParameterValues({});
+    setRequiresSamplePolygon(false);
+    setCubesSampleBoundary(null);
+    setCubesSampleBoundarySource(null);
     setName("");
     setDescription("");
     setTags([]);
@@ -517,7 +567,19 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
               </div>
               <div>
                 <label className="field-label" htmlFor="layer-provider">ספק</label>
-                <input id="layer-provider" className="settings-input" value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="mqs" dir="ltr" />
+                <input
+                  id="layer-provider"
+                  className="settings-input"
+                  value={provider}
+                  onChange={(e) => {
+                    setProvider(e.target.value);
+                    setRequiresSamplePolygon(false);
+                    setCubesSampleBoundary(null);
+                    setCubesSampleBoundarySource(null);
+                  }}
+                  placeholder="mqs"
+                  dir="ltr"
+                />
               </div>
             </div>
             <label className="field-label" htmlFor="layer-description">תיאור</label>
@@ -559,7 +621,19 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
                   ? "מקור Tyche"
                   : "כתובת המקור"}
             </label>
-            <input id="layer-source-url" className="settings-input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : provider.trim().toLowerCase() === "tyche" ? "ourforces (or tyche://ourforces)" : "https://provider.example/layer"} dir="ltr" />
+            <input
+              id="layer-source-url"
+              className="settings-input"
+              value={sourceUrl}
+              onChange={(e) => {
+                setSourceUrl(e.target.value);
+                setRequiresSamplePolygon(false);
+                setCubesSampleBoundary(null);
+                setCubesSampleBoundarySource(null);
+              }}
+              placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : provider.trim().toLowerCase() === "tyche" ? "ourforces (or tyche://ourforces)" : "https://provider.example/layer"}
+              dir="ltr"
+            />
             {provider.trim().toLowerCase() === "cubes" && (
               <fieldset className="cubes-query-mode">
                 <legend>מבנה שאילתת זמן וגיאוגרפיה</legend>
@@ -603,6 +677,39 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
                   }));
                 }}
               />
+            )}
+            {provider.trim().toLowerCase() === "cubes" && requiresSamplePolygon && (
+              <fieldset className="cubes-query-mode cubes-sample-polygon">
+                <legend>פוליגון לדגימת metadata</legend>
+                <div className="cubes-query-mode-options cubes-sample-polygon-options">
+                  <button
+                    type="button"
+                    className={cubesSampleBoundarySource === "drawn" ? "active" : ""}
+                    aria-pressed={cubesSampleBoundarySource === "drawn"}
+                    disabled={!drawnSampleBoundary || generatingMetadata}
+                    onClick={() => {
+                      if (drawnSampleBoundary) {
+                        handleUseSampleBoundary(drawnSampleBoundary, "drawn");
+                      }
+                    }}
+                  >
+                    <strong>שימוש בפוליגון שצויר</strong>
+                    <small>{drawnSampleBoundary ? "פוליגון/מלבן הקיים במפה" : "סגרו, ציירו פוליגון ופתחו שוב"}</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={cubesSampleBoundarySource === "viewport" ? "active" : ""}
+                    aria-pressed={cubesSampleBoundarySource === "viewport"}
+                    disabled={generatingMetadata}
+                    onClick={() => handleUseSampleBoundary(
+                      viewportSampleBoundary, "viewport"
+                    )}
+                  >
+                    <strong>שימוש בתחום התצוגה</strong>
+                    <small>האזור שמוצג כרגע במפה</small>
+                  </button>
+                </div>
+              </fieldset>
             )}
             {formMessage && <p className="settings-message">{formMessage}</p>}
             <button

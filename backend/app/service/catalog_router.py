@@ -104,6 +104,7 @@ class CatalogRouter:
                 body.provider, body.source_url, body.cubes_query_mode,
                 body.parameter_values(),
             ),
+            sample_geometry=cls._sample_geometry(body),
         )
         return GeneratedLayerMetadataResponse(
             description=result.description, tags=result.tags,
@@ -119,7 +120,20 @@ class CatalogRouter:
                 )
                 for item in result.configurable_parameters
             ],
+            requires_sample_polygon=result.requires_sample_polygon,
         )
+
+    @staticmethod
+    def _sample_geometry(body: GenerateLayerMetadataRequest):
+        if body.provider.strip().lower() != "cubes":
+            return None
+        boundary = body.cubes_sample_boundary
+        if boundary is None:
+            return None
+        geometry = boundary.to_shapely()
+        if geometry.geom_type == "MultiPolygon" and len(geometry.geoms) == 1:
+            return geometry.geoms[0]
+        return geometry
 
     @classmethod
     def autocomplete(

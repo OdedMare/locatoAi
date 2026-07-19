@@ -10,6 +10,7 @@ import {
   bboxToMultiPolygon,
   polygonToMultiPolygon,
   type GeographyMode,
+  type GeoJSONMultiPolygon,
   type GeoJSONPolygon,
   type GeoQueryRequest,
   type GeoQueryResponse,
@@ -44,6 +45,11 @@ export default function AppShell() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const drawnSampleBoundary: GeoJSONMultiPolygon | null = drawnGeometry
+    ? polygonToMultiPolygon(drawnGeometry)
+    : null;
+  const viewportSampleBoundary = bboxToMultiPolygon(mapView.bbox);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -142,7 +148,13 @@ export default function AppShell() {
       {isSettingsOpen && (
         <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
       )}
-      {isLayersOpen && <LayersPanel onClose={() => setIsLayersOpen(false)} />}
+      {isLayersOpen && (
+        <LayersPanel
+          onClose={() => setIsLayersOpen(false)}
+          drawnSampleBoundary={drawnSampleBoundary}
+          viewportSampleBoundary={viewportSampleBoundary}
+        />
+      )}
       <MapWorkspace
         mode={geographyMode}
         drawnGeometry={drawnGeometry}

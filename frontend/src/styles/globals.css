@@ -1375,6 +1375,15 @@ body {
   display: block;
 }
 
+.cubes-sample-polygon-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cubes-sample-polygon-options button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .cubes-query-mode-options small {
   margin-top: 4px;
   color: var(--text-muted);

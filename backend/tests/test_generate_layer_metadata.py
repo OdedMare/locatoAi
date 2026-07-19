@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from shapely.geometry import Point
+from shapely.geometry import Point, box
 
 from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
     LayerMetadataGenerator,
@@ -76,9 +76,13 @@ class CapturingLlm:
 class CapturingMetadataGenerator:
     def __init__(self):
         self.source_url = None
+        self.sample_geometry = None
 
-    def generate(self, name, provider_name, source_url):
+    def generate(
+        self, name, provider_name, source_url, sample_geometry=None
+    ):
         self.source_url = source_url
+        self.sample_geometry = sample_geometry
         return GeneratedLayerMetadata(
             description="",
             dynamic_parameters=["fl:dynamic"],
@@ -297,6 +301,12 @@ def test_metadata_api_contract_persists_values_without_exposing_fixed_values():
         provider="cubes",
         source_url="rastaMoriaLand",
         cubes_parameters={"fl:dynamic": "9000", "environment": "prod"},
+        cubes_sample_boundary={
+            "type": "MultiPolygon",
+            "coordinates": [[[[34.6, 31.9], [34.9, 31.9],
+                              [34.9, 32.2], [34.6, 32.2],
+                              [34.6, 31.9]]]],
+        },
     )
 
     response = CatalogRouter.generate_metadata(body, request)
@@ -305,6 +315,8 @@ def test_metadata_api_contract_persists_values_without_exposing_fixed_values():
         "cubes://db/rastaMoriaLand?"
         "param_fl%3Adynamic=9000&param_environment=prod"
     )
+    assert generator.sample_geometry.equals(box(34.6, 31.9, 34.9, 32.2))
+    assert generator.sample_geometry.geom_type == "Polygon"
     assert response.model_dump() == {
         "description": "",
         "tags": [],
@@ -320,6 +332,7 @@ def test_metadata_api_contract_persists_values_without_exposing_fixed_values():
                 "required": True, "dynamic": False, "options": ["prod"],
             },
         ],
+        "requires_sample_polygon": False,
     }
 
 
@@ -360,7 +373,7 @@ def test_cubes_metadata_samples_main_route_after_dynamic_value_is_resolved(tmp_p
     assert llm.user is not None
 
 
-def test_cubes_metadata_posts_resolved_query_without_required_polygon(tmp_path):
+def test_cubes_metadata_waits_for_and_posts_required_sample_polygon(tmp_path):
     rows = [{
         "netId": f"force-{index}",
         "geometry": f"POINT (34.{70 + index} 32.08)",
@@ -395,6 +408,7 @@ def test_cubes_metadata_posts_resolved_query_without_required_polygon(tmp_path):
             "date": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
             "fl:dynamic": "9000",
             "environment": "prod",
+            "polygon": {"value": [sample_boundary.wkt]},
         }
         return httpx.Response(200, json=rows)
 
@@ -403,7 +417,8 @@ def test_cubes_metadata_posts_resolved_query_without_required_polygon(tmp_path):
     providers.register("cubes", cubes)
     llm = CapturingLlm()
 
-    result = LayerMetadataGenerator(llm, providers).generate(
+    generator = LayerMetadataGenerator(llm, providers)
+    unresolved = generator.generate(
         name="Rasta", provider_name="cubes",
         source_url=(
             "cubes://db/rastaMoriaLand?"
@@ -411,7 +426,23 @@ def test_cubes_metadata_posts_resolved_query_without_required_polygon(tmp_path):
         ),
     )
 
+    assert unresolved.sample_count == 0
+    assert unresolved.requires_sample_polygon is True
+    assert llm.user is None
+    assert all(request.method == "GET" for request in handler.requests)
+
+    sample_boundary = box(34.6, 31.9, 34.9, 32.2)
+    result = generator.generate(
+        name="Rasta", provider_name="cubes",
+        source_url=(
+            "cubes://db/rastaMoriaLand?"
+            "param_fl%3Adynamic=9000&param_environment=prod"
+        ),
+        sample_geometry=sample_boundary,
+    )
+
     assert result.sample_count == 10
+    assert result.requires_sample_polygon is True
     assert llm.user is not None
     post_requests = [
         request for request in handler.requests if request.method == "POST"
