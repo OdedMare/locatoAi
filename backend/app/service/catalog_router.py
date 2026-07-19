@@ -152,12 +152,14 @@ class CatalogRouter:
     def normalized_source(
         cls, provider: str, source_url: str, cubes_query_mode: str = "auto",
         cubes_parameters: Optional[Dict[str, str]] = None,
+        cubes_dynamic_parameters: Optional[Dict[str, str]] = None,
     ) -> str:
         source = source_url.strip()
         if provider.strip().lower() == "cubes":
             source = source if "://" in source else f"cubes://db/{source.strip('/')}"
             source = cls.with_cubes_mode(source, cubes_query_mode)
-            return cls.with_parameters(source, cubes_parameters or {})
+            values = cubes_parameters or cubes_dynamic_parameters or {}
+            return cls.with_parameters(source, values)
         if provider.strip().lower() == "tyche" and "://" not in source:
             return f"tyche://{source.strip('/')}"
         return source

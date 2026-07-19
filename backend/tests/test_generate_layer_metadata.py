@@ -130,6 +130,50 @@ def test_cubes_metadata_discovers_dynamic_parameter_before_row_fetch(tmp_path):
     assert [request.method for request in handler.requests] == ["GET"]
 
 
+def test_cubes_metadata_discovers_required_parameter_details_before_row_fetch(
+    tmp_path,
+):
+    cubes, handler = make_cubes_provider(tmp_path, [])
+    definitions = {
+        "fl:dynamic": {
+            "Name": "fl:dynamic", "IsRequired": True, "Type": "String",
+        },
+        "environment": {
+            "Name": "environment", "IsRequired": True, "Type": "String",
+            "Options": [{"Value": "prod", "Name": "Production"}],
+        },
+    }
+
+    def metadata_only(request):
+        handler.requests.append(request)
+        path = request.url.path
+        if path.endswith("/parameters"):
+            return httpx.Response(200, json=list(definitions))
+        if "/parameters/" in path:
+            return httpx.Response(
+                200, json=definitions[path.split("/parameters/", 1)[1]]
+            )
+        return httpx.Response(200, json={"Name": "Rasta", "Fields": []})
+
+    cubes._transport = httpx.MockTransport(metadata_only)
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="Rasta", provider_name="cubes", source_url="rastaMoriaLand"
+    )
+
+    assert result.dynamic_parameters == ["fl:dynamic"]
+    assert [item.name for item in result.configurable_parameters] == [
+        "fl:dynamic", "environment",
+    ]
+    assert result.configurable_parameters[1].options == ["prod"]
+    assert result.sample_count == 0
+    assert llm.user is None
+    assert all(request.method == "GET" for request in handler.requests)
+
+
 def test_cubes_metadata_samples_main_route_after_dynamic_value_is_resolved(tmp_path):
     rows = [{
         "netId": f"force-{index}", "forceType": "vehicle",

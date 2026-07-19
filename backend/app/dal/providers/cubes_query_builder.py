@@ -35,8 +35,8 @@ class CubesQueryBuilder:
             for key in keys if self.parts(key)[0] in self._TIME_FIELDS
         }
         self._apply_configured(parameters, body)
-        self._validate_required(parameters, body)
         self._add_geometry(body, parameters, geometry)
+        self._validate_required(parameters, body)
         return body
 
     def resolve_parameters(

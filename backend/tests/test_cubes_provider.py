@@ -763,6 +763,66 @@ def test_dynamic_suffix_value_uses_exact_request_key(tmp_path):
     assert body["fl:dynamic"] == "612"
 
 
+def test_rasta_moria_land_parameter_details_build_supported_request(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+    definitions = {
+        "fl:dynamic": {
+            "Name": "fl:dynamic", "IsRequired": True, "Type": "String",
+        },
+        "environment": {
+            "Name": "environment", "is_required": True, "Type": "String",
+            "Options": [{"Value": "prod", "Name": "Production"}],
+        },
+        "polygon": {
+            "Name": "polygon", "IsRequired": True, "Type": "Polygon",
+        },
+        "date": {
+            "Name": "date", "IsRequired": True, "Type": "DateTime",
+        },
+    }
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        path = request.url.path
+        if request.method == "GET" and path.endswith("/parameters"):
+            return httpx.Response(200, json=list(definitions))
+        if request.method == "GET" and "/parameters/" in path:
+            name = path.split("/parameters/", 1)[1]
+            return httpx.Response(200, json=definitions[name])
+        if request.method == "GET":
+            return httpx.Response(200, json={"Name": "Rasta", "Fields": []})
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    configured = layer(
+        "cubes://db/rastaMoriaLand?"
+        "param_fl%3Adynamic=9000&param_environment=prod"
+    )
+    boundary = box(34.49, 31.52, 34.52, 31.55)
+
+    parameters = provider.list_configurable_parameters(configured)
+    provider.fetch_features(configured, geometry=boundary)
+
+    assert [item.name for item in parameters] == ["fl:dynamic", "environment"]
+    assert [item.resolved_value for item in parameters] == ["9000", "prod"]
+    assert json.loads(posted_request(handler).content) == {
+        "date": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
+        "fl:dynamic": "9000",
+        "environment": "prod",
+        "polygon": {"value": [boundary.wkt]},
+    }
+    assert [
+        request.url.path for request in handler.requests if request.method == "GET"
+    ] == [
+        "/cube/v1/rastaMoriaLand",
+        "/cube/v1/rastaMoriaLand/parameters",
+        "/cube/v1/rastaMoriaLand/parameters/fl:dynamic",
+        "/cube/v1/rastaMoriaLand/parameters/environment",
+        "/cube/v1/rastaMoriaLand/parameters/polygon",
+        "/cube/v1/rastaMoriaLand/parameters/date",
+    ]
+
+
 def test_manual_dynamic_value_works_when_metadata_omits_parameter(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 

@@ -1,6 +1,6 @@
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.service.catalog_dto.cubes_query_mode import CubesQueryMode
 from app.service.catalog_dto.cubes_parameter_values import CubesParameterValues
