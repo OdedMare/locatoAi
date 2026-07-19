@@ -43,16 +43,16 @@ class CubesGateway:
         self._transport = transport
 
     def metadata(self, layer: LayerMeta) -> dict:
-        cached = self._metadata_cache.get(layer.id)
+        database = quote(self._source.database_name(layer), safe="")
+        cached = self._metadata_cache.get(database)
         if cached is not None:
             return cached
-        database = quote(self._source.database_name(layer), safe="")
         payload = self._get_json(f"/cube/v1/{database}", "metadata")
         if not isinstance(payload, dict):
             raise ProviderError("Cubes metadata response must be a JSON object")
-        if "Parameters" not in payload:
+        if not isinstance(payload.get("Parameters"), list):
             payload["Parameters"] = self._parameters(database)
-        self._metadata_cache[layer.id] = payload
+        self._metadata_cache[database] = payload
         return payload
 
     def autocomplete(

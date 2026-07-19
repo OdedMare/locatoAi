@@ -32,7 +32,7 @@ class CubesProvider:
         self._gateway = CubesGateway(
             settings_store, self._source, self._query, self._mapper, transport
         )
-        self._schema_cache: Dict[str, LayerSchema] = {}
+        self._schema_cache: Dict[Tuple[str, str], LayerSchema] = {}
 
     @property
     def _transport(self) -> Optional[httpx.BaseTransport]:
@@ -44,10 +44,11 @@ class CubesProvider:
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
         metadata = self._gateway.metadata(layer)
-        sampled = self._schema_cache.get(layer.id)
+        cache_key = self._schema_cache_key(layer)
+        sampled = self._schema_cache.get(cache_key)
         if sampled is None:
             self.fetch_features(layer, limit=self._SCHEMA_SAMPLE_LIMIT)
-            sampled = self._schema_cache.get(layer.id)
+            sampled = self._schema_cache.get(cache_key)
         return self._mapper.merge_schema(layer.id, metadata, sampled)
 
     def list_dynamic_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
@@ -68,7 +69,9 @@ class CubesProvider:
             self._mapper.results_limit(metadata), limit, now, temporal_range,
             self._source.query_mode(layer),
         )
-        self._schema_cache[layer.id] = self._mapper.infer_schema(layer.id, rows)
+        self._schema_cache[self._schema_cache_key(layer)] = self._mapper.infer_schema(
+            layer.id, rows
+        )
         return self._features(rows, geometry, limit)
 
     def sample_field_values(
@@ -91,6 +94,10 @@ class CubesProvider:
         return self._query.resolve_dynamic(
             parameters, self._source.resolved_parameters(layer)
         )
+
+    @staticmethod
+    def _schema_cache_key(layer: LayerMeta) -> Tuple[str, str]:
+        return layer.id, layer.source_url
 
     def _features(
         self, rows: List[dict], geometry: Optional[BaseGeometry], limit: Optional[int]

@@ -243,6 +243,31 @@ def test_discovers_parameters_from_dedicated_endpoint(tmp_path):
     ]
 
 
+def test_discovers_parameters_when_metadata_parameters_is_null(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        if request.url.path.endswith("/parameters"):
+            return httpx.Response(200, json=[{
+                "Name": "environment", "IsRequired": True,
+                "Type": "String", "Value": "prod",
+            }])
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Name": "Transport", "Parameters": None, "Fields": [],
+            })
+        return httpx.Response(200, json=[record()])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer())
+
+    assert json.loads(posted_request(handler).content)["environment"] == "prod"
+    assert [request.url.path for request in handler.requests[:2]] == [
+        "/cube/v1/transport", "/cube/v1/transport/parameters",
+    ]
+
+
 def test_sends_configured_parameter_from_dedicated_endpoint(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
 
@@ -264,6 +289,44 @@ def test_sends_configured_parameter_from_dedicated_endpoint(tmp_path):
     assert json.loads(posted_request(handler).content)["environment"] == "prod"
     assert [request.url.path for request in handler.requests[:2]] == [
         "/cube/v1/transport", "/cube/v1/transport/parameters",
+    ]
+
+
+def test_metadata_preview_cache_is_isolated_between_databases(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()])
+
+    def metadata_handler(request):
+        handler.requests.append(request)
+        database = request.url.path.rsplit("/", 1)[-1]
+        if request.method == "GET":
+            parameter = "environment" if database == "transport" else "tenant"
+            value = "prod" if database == "transport" else "operations"
+            return httpx.Response(200, json={
+                "Parameters": [{
+                    "Name": parameter, "IsRequired": True,
+                    "Type": "String", "Value": value,
+                }],
+                "Fields": [],
+            })
+        body = json.loads(request.content)
+        if database == "emergency" and body.get("tenant") != "operations":
+            return httpx.Response(500, json={"error": "missing tenant"})
+        return httpx.Response(200, json=[record(database)])
+
+    provider._transport = httpx.MockTransport(metadata_handler)
+    provider.fetch_features(layer("cubes://db/transport"))
+    provider.fetch_features(layer("cubes://db/emergency"))
+
+    get_paths = [
+        request.url.path for request in handler.requests if request.method == "GET"
+    ]
+    post_bodies = [
+        json.loads(request.content)
+        for request in handler.requests if request.method == "POST"
+    ]
+    assert get_paths == ["/cube/v1/transport", "/cube/v1/emergency"]
+    assert post_bodies == [
+        {"environment": "prod"}, {"tenant": "operations"},
     ]
 
 
