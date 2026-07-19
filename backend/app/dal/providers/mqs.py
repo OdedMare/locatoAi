@@ -24,6 +24,7 @@ from app.dal.providers.mqs_source import MqsSource
 
 class MqsProvider:
     _MAX_SAMPLE_CHARS = 40
+    _METADATA_SAMPLE_SIZE = 10
 
     def __init__(
         self,
@@ -62,6 +63,42 @@ class MqsProvider:
                 client, layer_id, geometry, limit, attribute_filters
             )
             return self._mapper.to_gdf(layer_id, entities, geometry)
+
+    def sample_for_metadata(
+        self, layer: LayerMeta, limit: int = 100
+    ) -> Tuple[gpd.GeoDataFrame, LayerSchema]:
+        """Fetch one MQS sample and build its schema from the same entities.
+
+        Metadata generation only displays ten entities. Stop as soon as ten
+        valid rows with business properties are available instead of issuing
+        another independent schema fetch and up to 120 EntityInfo calls.
+        """
+        layer_id = self._source.layer_id(layer)
+        business_entities = []
+        fallback_entities = []
+        with self._gateway.client() as client:
+            entities = self._stream.query(client, layer_id, limit=limit)
+            for batch in self._stream.batched(
+                entities, size=self._METADATA_SAMPLE_SIZE
+            ):
+                enriched = self._stream.enrich_batch(client, layer_id, batch)
+                for entity in enriched:
+                    if self._mapper.to_record(entity) is None:
+                        continue
+                    if len(fallback_entities) < self._METADATA_SAMPLE_SIZE:
+                        fallback_entities.append(entity)
+                    if self._mapper.property_attributes(entity):
+                        business_entities.append(entity)
+                if len(business_entities) >= self._METADATA_SAMPLE_SIZE:
+                    break
+        sampled = (
+            business_entities[:self._METADATA_SAMPLE_SIZE]
+            if business_entities else fallback_entities
+        )
+        return (
+            self._mapper.to_gdf(layer_id, sampled),
+            self._schema.build(layer, layer_id, sampled),
+        )
 
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20

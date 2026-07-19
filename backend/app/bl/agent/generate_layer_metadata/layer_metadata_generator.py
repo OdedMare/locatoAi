@@ -40,8 +40,14 @@ class LayerMetadataGenerator:
 
     def _sample(self, layer, provider):
         try:
-            features = provider.fetch_features(layer, limit=self._FETCH_LIMIT)
-            schema = provider.describe_schema(layer)
+            metadata_sampler = getattr(provider, "sample_for_metadata", None)
+            if callable(metadata_sampler):
+                features, schema = metadata_sampler(
+                    layer, limit=self._FETCH_LIMIT
+                )
+            else:
+                features = provider.fetch_features(layer, limit=self._FETCH_LIMIT)
+                schema = provider.describe_schema(layer)
         except Exception as exc:
             if isinstance(exc, ProviderError):
                 raise
@@ -65,7 +71,10 @@ class LayerMetadataGenerator:
     ) -> List[LayerParameter]:
         if layer.provider != "cubes":
             return []
-        return provider.list_configurable_parameters(layer)
+        # Catalog metadata is editable upstream. A fresh generation attempt
+        # must see newly-required parameters instead of an old process-local
+        # Cubes metadata cache entry.
+        return provider.list_configurable_parameters(layer, refresh=True)
 
     @staticmethod
     def _unresolved(parameters) -> GeneratedLayerMetadata:

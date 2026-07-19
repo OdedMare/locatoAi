@@ -53,8 +53,10 @@ class CubesSchemaMapper:
         return LayerSchema(
             layer_id=layer_id, geometry_type="Point", fields=merged,
             parameters=self.metadata_parameters(metadata),
-            source_name=str(metadata.get("Name") or ""),
-            source_description=str(metadata.get("Description") or ""),
+            source_name=str(self._value(metadata, "Name", "name") or ""),
+            source_description=str(self._value(
+                metadata, "Description", "description"
+            ) or ""),
             temporal_field=temporal or (sampled.temporal_field if sampled else None),
         )
 
@@ -70,22 +72,26 @@ class CubesSchemaMapper:
         )
 
     def metadata_fields(self, payload: dict) -> List[LayerField]:
+        fields = self._value(payload, "Fields", "fields") or []
         return [
             self._metadata_field(item)
-            for item in payload.get("Fields") or []
-            if isinstance(item, dict) and item.get("Name")
+            for item in fields
+            if isinstance(item, dict) and self._value(item, "Name", "name")
         ]
 
     def metadata_parameters(self, payload: dict) -> List[LayerParameter]:
+        parameters = self._value(payload, "Parameters", "parameters") or []
         return [
             self._metadata_parameter(item)
-            for item in payload.get("Parameters") or []
-            if isinstance(item, dict) and item.get("Name")
+            for item in parameters
+            if isinstance(item, dict) and self._value(item, "Name", "name")
         ]
 
     @staticmethod
     def results_limit(metadata: dict) -> int:
-        value = metadata.get("ResultsLimit")
+        value = CubesSchemaMapper._value(
+            metadata, "ResultsLimit", "resultsLimit", "results_limit"
+        )
         return value if isinstance(value, int) and value > 0 else 10000
 
     @staticmethod
@@ -157,13 +163,15 @@ class CubesSchemaMapper:
     def _metadata_field(self, item: dict) -> LayerField:
         description = " — ".join(
             value for value in (
-                str(item.get("DisplayName") or ""),
-                str(item.get("Description") or ""),
+                str(self._value(
+                    item, "DisplayName", "displayName", "display_name"
+                ) or ""),
+                str(self._value(item, "Description", "description") or ""),
             ) if value
         )
         return LayerField(
-            name=str(item["Name"]),
-            type=str(item.get("Type") or "string").lower(),
+            name=str(self._value(item, "Name", "name")),
+            type=str(self._value(item, "Type", "type") or "string").lower(),
             description=description,
         )
 

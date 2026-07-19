@@ -20,6 +20,7 @@ from app.dal.providers.cubes_source import CubesSource
 class CubesGateway:
     _MAX_CHUNK_DEPTH = 5
     _MAX_ROWS = 100000
+    _SAMPLE_TIMEOUT_SECONDS = 60
 
     def __init__(
         self,
@@ -60,7 +61,10 @@ class CubesGateway:
         temporal_range: Optional[Tuple[str, str]], query_mode: str,
     ) -> List[dict]:
         body = self._query.build(geometry, parameters, now, temporal_range, query_mode)
-        rows = self._post_rows(client, path, body)
+        rows = self._post_rows(
+            client, path, body,
+            self._SAMPLE_TIMEOUT_SECONDS if requested_limit is not None else None,
+        )
         if requested_limit is not None or len(rows) < results_limit:
             return rows
         if geometry is not None:
@@ -137,9 +141,15 @@ class CubesGateway:
             client, path, parameters, results_limit, window, query_mode, depth + 1
         )
 
-    def _post_rows(self, client: httpx.Client, path: str, body: dict) -> List[dict]:
+    def _post_rows(
+        self,
+        client: httpx.Client,
+        path: str,
+        body: dict,
+        timeout: Optional[float] = None,
+    ) -> List[dict]:
         try:
-            response = client.post(path, json=body)
+            response = client.post(path, json=body, timeout=timeout)
             response.raise_for_status()
             return self._mapper.records(response.json())
         except httpx.HTTPError as exc:

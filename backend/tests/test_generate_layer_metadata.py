@@ -137,6 +137,7 @@ def test_cubes_metadata_discovers_dynamic_parameter_before_row_fetch(tmp_path):
     def metadata_only(request):
         handler.requests.append(request)
         assert request.method == "GET"
+        assert request.extensions["timeout"]["read"] == 30
         return httpx.Response(200, json={
             "Name": "Our forces", "Description": "Moving forces",
             "Parameters": [{
@@ -206,6 +207,77 @@ def test_cubes_metadata_discovers_required_parameter_details_before_row_fetch(
     assert all(request.method == "GET" for request in handler.requests)
 
 
+def test_cubes_metadata_exposes_snake_case_required_parameter_before_row_fetch(
+    tmp_path,
+):
+    cubes, handler = make_cubes_provider(tmp_path, [])
+
+    def metadata_only(request):
+        handler.requests.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={
+            "name": "Operations",
+            "parameters": [{
+                "name": "environment", "is_required": True,
+                "type": "String", "options": ["prod", "test"],
+            }],
+            "fields": [],
+        })
+
+    cubes._transport = httpx.MockTransport(metadata_only)
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="Operations", provider_name="cubes", source_url="operations"
+    )
+
+    assert [item.name for item in result.configurable_parameters] == [
+        "environment",
+    ]
+    assert result.configurable_parameters[0].required is True
+    assert result.configurable_parameters[0].options == ["prod", "test"]
+    assert result.sample_count == 0
+    assert llm.user is None
+    assert [request.method for request in handler.requests] == ["GET"]
+
+
+def test_new_metadata_generation_refreshes_changed_required_parameters(tmp_path):
+    cubes, handler = make_cubes_provider(tmp_path, [])
+    parameter_required = False
+
+    def metadata_only(request):
+        handler.requests.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={
+            "Parameters": [{
+                "Name": "tenant", "IsRequired": parameter_required,
+                "Type": "String",
+            }],
+            "Fields": [],
+        })
+
+    cubes._transport = httpx.MockTransport(metadata_only)
+    assert cubes.list_configurable_parameters(
+        SimpleNamespace(id="preview", source_url="cubes://db/operations")
+    ) == []
+
+    parameter_required = True
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="Operations", provider_name="cubes", source_url="operations"
+    )
+
+    assert [item.name for item in result.configurable_parameters] == ["tenant"]
+    assert result.sample_count == 0
+    assert llm.user is None
+    assert [request.method for request in handler.requests] == ["GET", "GET"]
+
+
 def test_metadata_api_contract_persists_values_without_exposing_fixed_values():
     generator = CapturingMetadataGenerator()
     request = SimpleNamespace(
@@ -263,6 +335,7 @@ def test_cubes_metadata_samples_main_route_after_dynamic_value_is_resolved(tmp_p
             })
         body = json.loads(request.content)
         assert body["TeamType"] == "our_forces"
+        assert request.extensions["timeout"]["read"] == 60
         return httpx.Response(200, json=rows)
 
     cubes._transport = httpx.MockTransport(resolved_handler)

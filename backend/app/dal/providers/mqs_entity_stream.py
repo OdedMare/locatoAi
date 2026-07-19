@@ -78,11 +78,14 @@ class MqsEntityStream:
                 entities,
             ))
 
-    def batched(self, entities: Iterable[dict]) -> Iterable[List[dict]]:
+    def batched(
+        self, entities: Iterable[dict], size: Optional[int] = None
+    ) -> Iterable[List[dict]]:
+        batch_size = max(1, size or self._detail_concurrency)
         batch: List[dict] = []
         for entity in entities:
             batch.append(entity)
-            if len(batch) >= self._detail_concurrency:
+            if len(batch) >= batch_size:
                 yield batch
                 batch = []
         if batch:

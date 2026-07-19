@@ -15,7 +15,8 @@ class MetadataSampleBuilder:
         fields = [field for field in schema.fields if field.metadata_relevant]
         if layer.provider == "mqs" and not fields:
             raise ProviderError(
-                "MQS property_list fields were not found in the entity detail response"
+                "MQS property_list fields were not found in the EntityInfo response. "
+                "Check the MQS User_ID setting and EntityInfo access for this layer"
             )
         sample_count = min(self._SAMPLE_SIZE, len(features))
         records = self._records(features, fields, sample_count)

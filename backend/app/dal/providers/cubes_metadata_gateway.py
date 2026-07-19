@@ -14,6 +14,8 @@ from app.dal.providers.cubes_source import CubesSource
 
 
 class CubesMetadataGateway:
+    _REQUEST_TIMEOUT_SECONDS = 30
+
     def __init__(
         self,
         clients: CubesClientFactory,
@@ -25,16 +27,22 @@ class CubesMetadataGateway:
         self._parameters = parameters
         self._cache: Dict[str, dict] = {}
 
-    def metadata(self, layer: LayerMeta) -> dict:
+    def metadata(self, layer: LayerMeta, refresh: bool = False) -> dict:
         database = quote(self._source.database_name(layer), safe="")
-        cached = self._cache.get(database)
+        cached = None if refresh else self._cache.get(database)
         if cached is not None:
             return cached
         payload = self._get_json(f"/cube/v1/{database}", "metadata")
         if not isinstance(payload, dict):
             raise ProviderError("Cubes metadata response must be a JSON object")
         payload["Parameters"] = self._parameters.load(
-            database, payload.get("Parameters"), self._get_json
+            database,
+            (
+                payload["Parameters"]
+                if "Parameters" in payload
+                else payload.get("parameters")
+            ),
+            self._get_json,
         )
         self._cache[database] = payload
         return payload
@@ -59,7 +67,9 @@ class CubesMetadataGateway:
     def _get_json(self, path: str, request_name: str) -> object:
         try:
             with self._clients.create() as client:
-                response = client.get(path)
+                response = client.get(
+                    path, timeout=self._REQUEST_TIMEOUT_SECONDS
+                )
                 response.raise_for_status()
                 return response.json()
         except (httpx.HTTPError, ValueError) as exc:
@@ -70,7 +80,9 @@ class CubesMetadataGateway:
     def _post_json(self, path: str, body: dict, request_name: str) -> object:
         try:
             with self._clients.create() as client:
-                response = client.post(path, json=body)
+                response = client.post(
+                    path, json=body, timeout=self._REQUEST_TIMEOUT_SECONDS
+                )
                 response.raise_for_status()
                 return response.json()
         except (httpx.HTTPError, ValueError) as exc:

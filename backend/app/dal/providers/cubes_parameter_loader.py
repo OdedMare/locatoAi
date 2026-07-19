@@ -20,6 +20,12 @@ class CubesParameterLoader:
         ]
 
     def _summaries(self, database, embedded, fetch_json) -> List[object]:
+        if isinstance(embedded, dict):
+            embedded = (
+                embedded["Parameters"]
+                if "Parameters" in embedded
+                else embedded.get("parameters")
+            )
         if isinstance(embedded, list):
             return embedded
         path = f"/cube/v1/{database}/parameters"
@@ -35,7 +41,10 @@ class CubesParameterLoader:
         if name is None:
             raise ProviderError("Cubes returned a parameter without a name")
         if self._is_complete(summary):
-            return dict(summary)
+            # Downstream mapping accepts several casing conventions, but keeping
+            # one canonical name also prevents a complete snake_case summary
+            # (``name`` + ``is_required``) from being filtered out.
+            return {**dict(summary), "Name": name}
         parameter = quote(name, safe="")
         path = f"/cube/v1/{database}/parameters/{parameter}"
         detail = self._detail(fetch_json(path, f"parameter '{name}'"), name)

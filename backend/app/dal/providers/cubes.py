@@ -62,9 +62,11 @@ class CubesProvider:
         parameters = self._configured_parameters(layer)
         return [parameter for parameter in parameters if parameter.is_dynamic]
 
-    def list_configurable_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
+    def list_configurable_parameters(
+        self, layer: LayerMeta, refresh: bool = False
+    ) -> List[LayerParameter]:
         return [
-            parameter for parameter in self._configured_parameters(layer)
+            parameter for parameter in self._configured_parameters(layer, refresh)
             if self._query.requires_configuration(parameter)
         ]
 
@@ -101,8 +103,10 @@ class CubesProvider:
     ) -> List[LayerParameterOption]:
         return self._metadata.autocomplete(layer, parameter_name)
 
-    def _configured_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
-        metadata = self._metadata.metadata(layer)
+    def _configured_parameters(
+        self, layer: LayerMeta, refresh: bool = False
+    ) -> List[LayerParameter]:
+        metadata = self._metadata.metadata(layer, refresh=refresh)
         parameters = self._mapper.metadata_parameters(metadata)
         return self._query.resolve_parameters(
             parameters, self._source.resolved_parameters(layer)

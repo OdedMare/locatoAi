@@ -315,7 +315,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           />
           <label className="field-label" htmlFor="set-mqs-user-id">
             מזהה משתמש (User_ID){" "}
-            <span className="optional">(נשלח ככותרת בכל בקשה ל-MQS; ריק = ללא)</span>
+            <span className="optional">
+              (נדרש ברוב התקנות MQS ונשלח בכל בקשה; ריק = ללא)
+            </span>
           </label>
           <input
             id="set-mqs-user-id"

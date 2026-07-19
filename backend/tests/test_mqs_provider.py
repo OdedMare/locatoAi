@@ -204,6 +204,30 @@ def test_entity_detail_calls_entityinfo_not_entities(tmp_path):
                for request in handler.requests)
 
 
+def test_entity_detail_url_encodes_reserved_entity_id_characters(tmp_path):
+    entity_id = "source/folder?id=1"
+    listed = entity(entity_id)
+    detailed = entity(entity_id, property_list={"name": "encoded"})
+
+    def responses(request):
+        if "/EntityInfo/" in request.url.path:
+            return detailed
+        return {"next_page": None, "entities_list": [listed]}
+
+    provider, handler = make_provider(tmp_path, responses)
+
+    features = provider.fetch_features(mqs_layer())
+
+    assert features.iloc[0]["name"] == "encoded"
+    detail_request = next(
+        request for request in handler.requests
+        if "/EntityInfo/" in request.url.path
+    )
+    assert detail_request.url.raw_path.decode().endswith(
+        "/EntityInfo/source%2Ffolder%3Fid%3D1"
+    )
+
+
 def test_entityinfo_502_falls_back_to_list_entity(tmp_path):
     listed = entity("{G1}")
 
@@ -378,6 +402,21 @@ def test_fetch_features_http_error_wrapped(tmp_path):
     )
     with pytest.raises(ProviderError, match="MQS request failed"):
         provider.fetch_features(mqs_layer())
+
+
+def test_mqs_500_without_user_id_has_actionable_error(tmp_path):
+    provider, _ = make_provider(
+        tmp_path,
+        lambda request: httpx.Response(500, json={"error": "missing identity"}),
+    )
+
+    with pytest.raises(ProviderError) as raised:
+        provider.fetch_features(mqs_layer())
+
+    message = str(raised.value)
+    assert "500 Internal Server Error" in message
+    assert "missing identity" in message
+    assert "User_ID is not configured" in message
 
 
 def test_fetch_features_invalid_json_wrapped(tmp_path):
@@ -656,6 +695,35 @@ def test_fetch_features_with_limit_stops_without_following_next_page(tmp_path):
         if request.url.path.endswith("/Entities")
     ]
     assert len(page_requests) == 1
+
+
+def test_metadata_sample_reuses_entities_for_schema_and_stops_after_ten(tmp_path):
+    listed = [entity(str(index)) for index in range(30)]
+
+    def responses(request):
+        if "/EntityInfo/" in request.url.path:
+            entity_id = request.url.path.rsplit("/", 1)[-1]
+            return entity(entity_id, property_list={
+                "name": f"place-{entity_id}", "kind": "business",
+            })
+        return {"next_page": None, "entities_list": listed}
+
+    provider, handler = make_provider(tmp_path, responses)
+
+    features, schema = provider.sample_for_metadata(mqs_layer(), limit=100)
+
+    assert len(features) == 10
+    assert {field.name for field in schema.fields} >= {"name", "kind"}
+    entity_requests = [
+        request for request in handler.requests
+        if request.url.path.endswith("/Entities")
+    ]
+    detail_requests = [
+        request for request in handler.requests
+        if "/EntityInfo/" in request.url.path
+    ]
+    assert len(entity_requests) == 1
+    assert len(detail_requests) == 10
 
 
 def test_user_id_header_sent_when_configured(tmp_path):

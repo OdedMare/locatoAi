@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
 from shapely.geometry.base import BaseGeometry
@@ -109,6 +109,7 @@ class MqsGateway:
             yield from entities
             if next_page is None:
                 return
+            
             params = self.next_page_params(next_page)
 
     def entity_detail(
@@ -136,6 +137,8 @@ class MqsGateway:
             self._logger.info("MQS GET %s -> %s", response.request.url, response.status_code)
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise self._status_error(path, exc) from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"MQS request failed ({path}): {exc}") from exc
         except ValueError as exc:
@@ -150,6 +153,8 @@ class MqsGateway:
             self._logger.info("MQS POST %s -> %s", response.request.url, response.status_code)
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise self._status_error(path, exc) from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"MQS request failed ({path}): {exc}") from exc
         except ValueError as exc:
@@ -212,7 +217,10 @@ class MqsGateway:
             )
 
     def _safe_detail(self, client, layer_id: str, entity_id: str) -> object:
-        path = f"/MoriaProject/{layer_id}/EntityInfo/{entity_id}"
+        path = (
+            f"/MoriaProject/{quote(layer_id, safe='')}/EntityInfo/"
+            f"{quote(entity_id, safe='')}"
+        )
         try:
             return self.get_json(client, path)
         except ProviderError as exc:
@@ -229,3 +237,20 @@ class MqsGateway:
             if isinstance(payload.get(key), dict):
                 return payload[key]
         return payload
+
+    @staticmethod
+    def _status_error(path: str, exc: httpx.HTTPStatusError) -> ProviderError:
+        response = exc.response
+        message = (
+            f"MQS request failed ({path}): upstream returned "
+            f"{response.status_code} {response.reason_phrase}"
+        )
+        body = " ".join(response.text.split())[:300]
+        if body:
+            message += f" — {body}"
+        if (
+            response.status_code >= 500
+            and "User_ID" not in response.request.headers
+        ):
+            message += " — MQS User_ID is not configured; this endpoint may require it"
+        return ProviderError(message)

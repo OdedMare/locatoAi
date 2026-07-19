@@ -206,6 +206,36 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
     }
   };
 
+  const loadDynamicParameterOptions = async (
+    cubeSource: string,
+    parameterNames: string[],
+  ) => {
+    let optionsError: string | null = null;
+    for (const parameterName of parameterNames) {
+      setLoadingDynamicParameter(parameterName);
+      try {
+        const result = await fetchCubesAutocompleteOptions({
+          source_url: cubeSource,
+          parameter_name: parameterName,
+        });
+        setDynamicParameterOptions((current) => ({
+          ...current,
+          [parameterName]: result.options,
+        }));
+      } catch (err) {
+        console.error(`Cubes ${parameterName} autocomplete fetch failed`, err);
+        optionsError = err instanceof Error
+          ? err.message
+          : `טעינת אפשרויות ${parameterName} נכשלה`;
+      } finally {
+        setLoadingDynamicParameter(null);
+      }
+    }
+    if (optionsError) {
+      setFormMessage(`${optionsError} — אפשר לנסות לטעון שוב.`);
+    }
+  };
+
   const handleGenerateMetadata = async (
     selected?: RemoteMqsLayer,
     selectedDynamicValues: Record<string, string> = dynamicParameterValues,
@@ -264,38 +294,24 @@ export default function LayersPanel({ onClose }: LayersPanelProps) {
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
-      let dynamicOptionsError: string | null = null;
-      for (const dynamicName of definitions.filter((item) => item.dynamic).map(
-        (item) => item.name
-      )) {
-        setLoadingDynamicParameter(dynamicName);
-        try {
-          const result = await fetchCubesAutocompleteOptions({
-            source_url: target.source_url.trim(),
-            parameter_name: dynamicName,
-          });
-          setDynamicParameterOptions((current) => ({
-            ...current,
-            [dynamicName]: result.options,
-          }));
-        } catch (err) {
-          console.error(`Cubes ${dynamicName} autocomplete fetch failed`, err);
-          dynamicOptionsError = err instanceof Error
-            ? err.message
-            : `טעינת אפשרויות ${dynamicName} נכשלה`;
-        } finally {
-          setLoadingDynamicParameter(null);
-        }
-      }
       setFormMessage(
-        dynamicOptionsError
-          ? `${dynamicOptionsError} — אפשר לנסות לטעון שוב.`
-          : parameterNames.length > 0 && generated.sample_count === 0
+        parameterNames.length > 0 && generated.sample_count === 0
           ? "נמצאו פרמטרים נדרשים — יש לבחור ערכים לפני טעינת התוצאות."
           : parameterNames.length > 0
           ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
+      const dynamicNames = definitions
+        .filter((item) => item.dynamic)
+        .map((item) => item.name);
+      if (dynamicNames.length > 0) {
+        // Required controls are already visible. Autocomplete hydration runs
+        // separately so a slow child cube cannot keep metadata generation
+        // in its busy state or hide the parameters from the user.
+        void loadDynamicParameterOptions(
+          target.source_url.trim(), dynamicNames
+        );
+      }
     } catch (err) {
       console.error("Layer metadata generation failed", err);
       setFormMessage(err instanceof Error ? err.message : "יצירת התיאור והתגיות נכשלה");
