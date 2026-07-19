@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import geopandas as gpd
 import httpx
@@ -8,10 +9,18 @@ from shapely.geometry import Point
 from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
     LayerMetadataGenerator,
 )
+from app.bl.agent.generate_layer_metadata.generated_layer_metadata import (
+    GeneratedLayerMetadata,
+)
 from app.bl.ports.layer_field import LayerField
+from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_schema import LayerSchema
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.common.errors.provider_error import ProviderError
+from app.service.catalog_dto.generate_layer_metadata_request import (
+    GenerateLayerMetadataRequest,
+)
+from app.service.catalog_router import CatalogRouter
 from tests.test_cubes_provider import make_provider as make_cubes_provider
 
 
@@ -55,6 +64,28 @@ class CapturingLlm:
             "tags": ["חינוך", "Education", "חינוך", "", 7],
             "_usage": {"total_tokens": 10},
         }
+
+
+class CapturingMetadataGenerator:
+    def __init__(self):
+        self.source_url = None
+
+    def generate(self, name, provider_name, source_url):
+        self.source_url = source_url
+        return GeneratedLayerMetadata(
+            description="",
+            dynamic_parameters=["fl:dynamic"],
+            configurable_parameters=[
+                LayerParameter(
+                    name="fl:dynamic", type="string", required=True,
+                    is_dynamic=True, configured_value="must-not-leak",
+                ),
+                LayerParameter(
+                    name="environment", type="string", required=True,
+                    options=["prod"], configured_value="must-not-leak",
+                ),
+            ],
+        )
 
 
 def test_generates_editable_metadata_from_ten_random_entities():
@@ -173,6 +204,44 @@ def test_cubes_metadata_discovers_required_parameter_details_before_row_fetch(
     assert result.sample_count == 0
     assert llm.user is None
     assert all(request.method == "GET" for request in handler.requests)
+
+
+def test_metadata_api_contract_persists_values_without_exposing_fixed_values():
+    generator = CapturingMetadataGenerator()
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(layer_metadata_generator=generator)
+        )
+    )
+    body = GenerateLayerMetadataRequest(
+        name="Rasta",
+        provider="cubes",
+        source_url="rastaMoriaLand",
+        cubes_parameters={"fl:dynamic": "9000", "environment": "prod"},
+    )
+
+    response = CatalogRouter.generate_metadata(body, request)
+
+    assert generator.source_url == (
+        "cubes://db/rastaMoriaLand?"
+        "param_fl%3Adynamic=9000&param_environment=prod"
+    )
+    assert response.model_dump() == {
+        "description": "",
+        "tags": [],
+        "sample_count": 0,
+        "dynamic_parameters": ["fl:dynamic"],
+        "configurable_parameters": [
+            {
+                "name": "fl:dynamic", "display_name": "",
+                "required": True, "dynamic": True, "options": [],
+            },
+            {
+                "name": "environment", "display_name": "",
+                "required": True, "dynamic": False, "options": ["prod"],
+            },
+        ],
+    }
 
 
 def test_cubes_metadata_samples_main_route_after_dynamic_value_is_resolved(tmp_path):
