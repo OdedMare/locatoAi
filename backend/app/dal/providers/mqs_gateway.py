@@ -18,7 +18,6 @@ _AttributeFilters = Optional[Sequence[Tuple[str, str]]]
 class MqsGateway:
     PAGE_SIZE = 10000
     MAX_FEATURES = 50000
-    _TIMEOUT_SECONDS = 30
     _ENTITY_LIST_KEYS = (
         "entities_list", "EntitiesList", "features", "Features", "entities",
         "Entities", "data", "Data", "results", "Results", "items", "Items",
@@ -49,7 +48,7 @@ class MqsGateway:
             )
         return httpx.Client(
             base_url=settings.mqs_base_url,
-            timeout=self._TIMEOUT_SECONDS,
+            timeout=None,  # explicit: omitting it would apply httpx's 5s default
             verify=settings.mqs_verify_tls,
             transport=self._transport,
             headers=self._headers(settings.mqs_user_id),

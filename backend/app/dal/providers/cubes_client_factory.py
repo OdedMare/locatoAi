@@ -9,8 +9,6 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 
 
 class CubesClientFactory:
-    TIMEOUT_SECONDS = 30
-
     def __init__(
         self,
         settings_store: RuntimeSettingsStore,
@@ -37,7 +35,7 @@ class CubesClientFactory:
         return httpx.Client(
             base_url=settings.cubes_base_url,
             headers=self._headers(settings.cubes_token),
-            timeout=self.TIMEOUT_SECONDS,
+            timeout=None,  # explicit: omitting it would apply httpx's 5s default
             verify=settings.cubes_verify_tls,
             transport=self._transport,
         )

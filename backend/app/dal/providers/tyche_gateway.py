@@ -11,7 +11,6 @@ from app.dal.providers.tyche_feature_mapper import TycheFeatureMapper
 
 class TycheGateway:
     _PATH = "/coordinate/v1/ourforces"
-    _TIMEOUT_SECONDS = 30
     _PAGE_SIZE = 10000
     _MAX_ROWS = 100000
 
@@ -47,7 +46,7 @@ class TycheGateway:
         return httpx.Client(
             base_url=settings.tyche_base_url,
             headers=self._headers(settings.tyche_username, settings.tyche_token),
-            timeout=self._TIMEOUT_SECONDS,
+            timeout=None,  # explicit: omitting it would apply httpx's 5s default
             verify=settings.tyche_verify_tls,
             transport=self._transport,
         )
