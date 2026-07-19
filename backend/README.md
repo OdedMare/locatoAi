@@ -338,6 +338,9 @@ provider behavior belongs in the collaborator that owns that single responsibili
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
   reads metadata with `GET /cube/v1/<dbname>` and falls back to
   `GET /cube/v1/<dbname>/parameters` when parameter definitions are not embedded.
+  Name-only entries are hydrated through
+  `GET /cube/v1/<dbname>/parameters/<parameterName>` so required flags, types,
+  options, roles, and defaults are known before any row request.
   It posts metadata-driven temporal payloads to `/cube/v1/<dbname>`, sends the write-only
   Authorization token, and converts WKT POINT geometry to WGS84. Declared fields are
   merged with every non-geometry JSON key discovered dynamically; types, samples, and
@@ -349,6 +352,11 @@ provider behavior belongs in the collaborator that owns that single responsibili
   A non-empty metadata `Value` is preserved and sent under the parameter's exact name
   on every request, satisfying required fixed parameters such as `environment=prod`.
   Configured values are excluded from model-facing schema serialization.
+  Required selectors with options and dynamic selectors are resolved during the
+  two-phase catalog flow, then stored in `source_url` as exact `param_<name>` values.
+  New requests use `cubes_parameters`; `cubes_dynamic_parameters` is retained for
+  compatibility. A declared `polygon` receives `{"value": [<boundary WKT>]}` and a
+  plain `date` receives `{"TimeBackUnit":"no_time","TimeBackValue":1}`.
   Moving-entity plans use `netId` as identity and `eventTime` as time. The
   `latest_per_entity` and `movement_direction` operations prevent repeated observations
   from being mistaken for multiple vehicles and support trajectory questions.

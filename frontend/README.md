@@ -136,9 +136,10 @@ cube/database name; the backend normalizes it, executes the known request, dynam
 discovers cube fields and parameters, samples entities, and returns editable AI-generated
 description/tags before save.
 
-If metadata generation reports any dynamic (autocomplete-backed) parameters — a cube's
-own source-selector fields, whose valid values come from a child cube rather than static
-metadata — a "פרמטרים דינמיים" section appears with one control per parameter.
+If metadata generation reports dynamic (autocomplete-backed) parameters or ordinary
+required selectors, a Cubes parameter section appears with one control per parameter.
+Static selectors use declared options or free text; dynamic values still come from the
+child autocomplete cube rather than static metadata.
 Names are arbitrary (`vehicleType`, `fl:dynamic`, etc.). The form also accepts an exact
 parameter name manually when metadata does not report it. Each parameter calls
 `POST /api/layers/autocomplete-parameter` to populate its dropdown. Once every dynamic
@@ -147,7 +148,7 @@ Cube rows with the exact selected request keys; no second button click is requir
 Options are fetched live
 (never cached, since these cubes can change schema between calls) and becomes a dropdown
 once loaded. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
-chosen value; the choices are sent as `cubes_dynamic_parameters` and the backend folds
+chosen value; the choices are sent as `cubes_parameters` and the backend folds
 them into `source_url` alongside `cubes_query_mode`.
 Discovery is two-phase: the first metadata request reads parameter definitions only and
 does not call the cube row route while dynamic values are unresolved. After values are

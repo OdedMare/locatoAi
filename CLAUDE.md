@@ -45,7 +45,9 @@ a bare database name; the backend canonicalizes it to
 `cubes://db/<dbname>`. `CubesProvider` reads `GET /cube/v1/{cubeName}` and falls back to
 `GET /cube/v1/{cubeName}/parameters`, merges declared fields with sampled response fields,
 and gives the official cube name/description, parameter options, and entity samples to
-`LayerMetadataGenerator`. Suffixed parameter names are preserved exactly; a plain name
+`LayerMetadataGenerator`. Name-only parameter entries are hydrated from
+`GET /cube/v1/{cubeName}/parameters/{parameterName}` before required flags, types,
+options, or defaults are interpreted. Suffixed parameter names are preserved exactly; a plain name
 keeps the legacy plain/`.not` pair. Never hardcode the response field list.
 Any non-empty parameter `Value` configured in Cubes metadata is included unchanged in
 the request body; this is how required fixed selectors such as `environment=prod` are
@@ -62,13 +64,17 @@ marks these; `CubesProvider.fetch_autocomplete_options` calls the route on deman
 cached, since these cubes can change schema between calls. Resolution happens once at
 layer-add time in the catalog UI (`POST /api/layers/autocomplete-parameter`), not per query:
 metadata generation is two-phase and MUST NOT fetch cube rows until every dynamic value
-has been resolved; the resolved metadata request then samples the normal cube route.
+and configurable required selector has been resolved; the resolved metadata request then
+samples the normal cube route. Required static selectors use declared options or free text.
 Preserve the complete parameter name in the autocomplete route, catalog source URL, and
 final Cubes request body. The chosen `{parameter_name: value}` map is folded into
 `source_url` as `param_<name>=<value>`
 query params (parsed back out by `cubes_resolved_parameters`), the same mechanism already
-used for `query_mode`. A required dynamic parameter with no resolved value fails loudly
-at fetch time rather than guessing.
+used for `query_mode`. New clients send the map as `cubes_parameters`; the legacy
+`cubes_dynamic_parameters` property remains accepted. A required dynamic parameter with
+no resolved value fails loudly at fetch time rather than guessing. A declared `polygon`
+parameter receives `{"value": [<boundary WKT>]}` and a plain `date` parameter receives
+the Cubes `no_time` shape; other cubes retain the existing temporal/`Location` behavior.
 
 **Cubes result cap:** metadata `ResultsLimit` defaults to 10,000 when absent. A bounded
 query that hits the cap uses adaptive quadtree subdivision of only saturated tiles and
