@@ -360,6 +360,65 @@ def test_cubes_metadata_samples_main_route_after_dynamic_value_is_resolved(tmp_p
     assert llm.user is not None
 
 
+def test_cubes_metadata_posts_resolved_query_without_required_polygon(tmp_path):
+    rows = [{
+        "netId": f"force-{index}",
+        "geometry": f"POINT (34.{70 + index} 32.08)",
+    } for index in range(10)]
+    cubes, handler = make_cubes_provider(tmp_path, rows)
+
+    def rasta_handler(request):
+        handler.requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "Parameters": [
+                    {
+                        "Name": "fl:dynamic", "IsRequired": True,
+                        "Type": "String",
+                    },
+                    {
+                        "Name": "environment", "IsRequired": True,
+                        "Type": "String",
+                    },
+                    {
+                        "Name": "polygon", "IsRequired": True,
+                        "Type": "Polygon",
+                    },
+                    {
+                        "Name": "date", "IsRequired": True,
+                        "Type": "DateTime",
+                    },
+                ],
+                "Fields": [{"Name": "netId", "Type": "String"}],
+            })
+        assert json.loads(request.content) == {
+            "date": {"TimeBackUnit": "no_time", "TimeBackValue": 1},
+            "fl:dynamic": "9000",
+            "environment": "prod",
+        }
+        return httpx.Response(200, json=rows)
+
+    cubes._transport = httpx.MockTransport(rasta_handler)
+    providers = InMemoryProviderRegistry()
+    providers.register("cubes", cubes)
+    llm = CapturingLlm()
+
+    result = LayerMetadataGenerator(llm, providers).generate(
+        name="Rasta", provider_name="cubes",
+        source_url=(
+            "cubes://db/rastaMoriaLand?"
+            "param_fl%3Adynamic=9000&param_environment=prod"
+        ),
+    )
+
+    assert result.sample_count == 10
+    assert llm.user is not None
+    post_requests = [
+        request for request in handler.requests if request.method == "POST"
+    ]
+    assert len(post_requests) == 1
+
+
 class MqsMetadataProvider:
     def __init__(self, include_business=True):
         self.include_business = include_business

@@ -136,7 +136,7 @@ def test_posts_query_and_preserves_all_fields(tmp_path):
     request = posted_request(handler)
     assert request.method == "POST"
     assert request.url.path == "/cube/v1/transport"
-    assert request.headers["Authorization"] == "jwt"
+    assert request.headers["Authorization"] == "Bearer jwt"
     body = json.loads(request.content)
     assert body["eventTime"] == {"TimeBackUnit": "hour", "TimeBackValue": "1"}
     assert "Location" not in body["arriveTime.not"]
@@ -800,6 +800,9 @@ def test_rasta_moria_land_parameter_details_build_supported_request(tmp_path):
         "param_fl%3Adynamic=9000&param_environment=prod"
     )
     boundary = box(34.49, 31.52, 34.52, 31.55)
+
+    with pytest.raises(ProviderError, match="polygon.*required"):
+        provider.fetch_features(configured)
 
     parameters = provider.list_configurable_parameters(configured)
     provider.fetch_features(configured, geometry=boundary)

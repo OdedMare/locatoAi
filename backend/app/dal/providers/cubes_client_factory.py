@@ -42,8 +42,11 @@ class CubesClientFactory:
 
     @staticmethod
     def _headers(token: str) -> dict:
+        authorization = token.strip()
+        if not authorization.casefold().startswith("bearer "):
+            authorization = f"Bearer {authorization}"
         return {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Authorization": token,
+            "Authorization": authorization,
         }

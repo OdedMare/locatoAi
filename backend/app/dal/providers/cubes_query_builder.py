@@ -27,6 +27,7 @@ class CubesQueryBuilder:
         now: Optional[datetime] = None,
         temporal_range=None,
         query_mode: str = "auto",
+        allow_missing_geometry: bool = False,
     ) -> dict:
         parameters = parameters or []
         keys = self._query_keys(parameters, query_mode)
@@ -36,7 +37,7 @@ class CubesQueryBuilder:
         }
         self._apply_configured(parameters, body)
         self._add_geometry(body, parameters, geometry)
-        self._validate_required(parameters, body)
+        self._validate_required(parameters, body, allow_missing_geometry)
         return body
 
     def resolve_parameters(
@@ -167,8 +168,15 @@ class CubesQueryBuilder:
             return bool(value)
         return True
 
-    def _validate_required(self, parameters: List[LayerParameter], body: dict) -> None:
+    def _validate_required(
+        self,
+        parameters: List[LayerParameter],
+        body: dict,
+        allow_missing_geometry: bool = False,
+    ) -> None:
         for parameter in parameters:
+            if allow_missing_geometry and self._is_spatial(parameter):
+                continue
             base, operator = self.parts(parameter.name)
             configured = operator is None and any(
                 self.parts(body_key)[0] == base for body_key in body
@@ -224,6 +232,11 @@ class CubesQueryBuilder:
         base, _ = self.parts(parameter.name)
         return (
             base in self._TIME_FIELDS
-            or parameter.name.casefold() in self._POLYGON_FIELDS
+            or self._is_spatial(parameter)
+        )
+
+    def _is_spatial(self, parameter: LayerParameter) -> bool:
+        return (
+            parameter.name.casefold() in self._POLYGON_FIELDS
             or parameter.type.casefold() in self._POLYGON_FIELDS
         )

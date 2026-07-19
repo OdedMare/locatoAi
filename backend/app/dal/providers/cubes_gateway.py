@@ -45,6 +45,7 @@ class CubesGateway:
         now: Optional[datetime],
         temporal_range: Optional[Tuple[str, str]],
         query_mode: str,
+        allow_missing_geometry: bool = False,
     ) -> List[dict]:
         database = quote(self._source.database_name(layer), safe="")
         path = f"/cube/v1/{database}"
@@ -52,6 +53,7 @@ class CubesGateway:
             return self._fetch(
                 client, path, parameters, geometry, results_limit,
                 requested_limit, now, temporal_range, query_mode,
+                allow_missing_geometry,
             )
 
     def _fetch(
@@ -59,8 +61,12 @@ class CubesGateway:
         geometry: Optional[BaseGeometry], results_limit: int,
         requested_limit: Optional[int], now: Optional[datetime],
         temporal_range: Optional[Tuple[str, str]], query_mode: str,
+        allow_missing_geometry: bool,
     ) -> List[dict]:
-        body = self._query.build(geometry, parameters, now, temporal_range, query_mode)
+        body = self._query.build(
+            geometry, parameters, now, temporal_range, query_mode,
+            allow_missing_geometry,
+        )
         rows = self._post_rows(
             client, path, body,
             self._SAMPLE_TIMEOUT_SECONDS if requested_limit is not None else None,

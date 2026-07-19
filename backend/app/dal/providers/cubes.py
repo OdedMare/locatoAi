@@ -78,11 +78,40 @@ class CubesProvider:
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
+        return self._fetch_features(
+            layer, now, geometry, limit, temporal_range,
+            allow_missing_geometry=False,
+        )
+
+    def sample_for_metadata(
+        self, layer: LayerMeta, limit: int = 100
+    ) -> Tuple[gpd.GeoDataFrame, LayerSchema]:
+        """Sample a cube without requiring its spatial request parameter.
+
+        Catalog metadata generation has no user boundary. All resolved and
+        temporal parameters are still sent, but a required polygon is omitted
+        for this bounded preview request only.
+        """
+        features = self._fetch_features(
+            layer, limit=limit, allow_missing_geometry=True
+        )
+        return features, self.describe_schema(layer)
+
+    def _fetch_features(
+        self,
+        layer: LayerMeta,
+        now: Optional[datetime] = None,
+        geometry: Optional[BaseGeometry] = None,
+        limit: Optional[int] = None,
+        temporal_range: Optional[Tuple[str, str]] = None,
+        allow_missing_geometry: bool = False,
+    ) -> gpd.GeoDataFrame:
         metadata = self._metadata.metadata(layer)
         rows = self._gateway.fetch_rows(
             layer, self._configured_parameters(layer), geometry,
             self._mapper.results_limit(metadata), limit, now, temporal_range,
             self._source.query_mode(layer),
+            allow_missing_geometry,
         )
         self._schema_cache[self._schema_cache_key(layer)] = self._mapper.infer_schema(
             layer.id, rows

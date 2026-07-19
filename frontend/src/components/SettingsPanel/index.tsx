@@ -237,7 +237,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             dir="ltr"
             type="password"
             className="settings-input"
-            placeholder={settings?.cubes_token_set ? "השאירו ריק כדי לשמור" : "JWT token"}
+            placeholder={settings?.cubes_token_set ? "השאירו ריק כדי לשמור" : "JWT or Bearer token"}
             value={cubesToken}
             onChange={(e) => setCubesToken(e.target.value)}
           />
