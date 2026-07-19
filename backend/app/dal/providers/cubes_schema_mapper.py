@@ -202,8 +202,11 @@ class CubesSchemaMapper:
             return []
         values = []
         for option in raw:
-            value = CubesSchemaMapper._value(option, "Value", "value") \
-                if isinstance(option, dict) else option
+            value = (
+                CubesSchemaMapper._value(option, "Value", "value")
+                if isinstance(option, dict)
+                else option
+            )
             if value not in (None, ""):
                 values.append(str(value))
         return values

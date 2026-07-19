@@ -9,7 +9,7 @@ class MetadataResponseMapper:
     _MAX_TAG_CHARS = 60
     _MAX_DESCRIPTION_CHARS = 2000
 
-    def map(self, data, sample_count, dynamic_parameters):
+    def map(self, data, sample_count, parameters):
         description = data.get("description")
         raw_tags = data.get("tags")
         if not isinstance(description, str) or not description.strip():
@@ -23,9 +23,9 @@ class MetadataResponseMapper:
             description=description.strip()[:self._MAX_DESCRIPTION_CHARS],
             tags=tags, sample_count=sample_count,
             dynamic_parameters=[
-                item.name for item in dynamic_parameters if item.is_dynamic
+                item.name for item in parameters if item.is_dynamic
             ],
-            configurable_parameters=dynamic_parameters,
+            configurable_parameters=parameters,
         )
 
     def _tags(self, raw_tags):

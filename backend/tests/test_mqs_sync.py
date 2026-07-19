@@ -169,5 +169,13 @@ def test_cubes_database_name_normalizes_to_catalog_source_url():
         "cubes", "rastaMorialand", cubes_dynamic_parameters={"fl:dynamic": "612"}
     ) == "cubes://db/rastaMorialand?param_fl%3Adynamic=612"
     assert _normalized_source(
+        "cubes",
+        "rastaMoriaLand",
+        cubes_parameters={"fl:dynamic": "9000", "environment": "prod"},
+    ) == (
+        "cubes://db/rastaMoriaLand?"
+        "param_fl%3Adynamic=9000&param_environment=prod"
+    )
+    assert _normalized_source(
         "mqs", "mqs://layer/42", "match_not"
     ) == "mqs://layer/42"
