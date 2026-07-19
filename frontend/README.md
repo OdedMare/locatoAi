@@ -146,8 +146,11 @@ parameter name manually when metadata does not report it. Each parameter calls
 parameter has a selected value, metadata generation runs again automatically and fetches
 Cube rows with the exact selected request keys; no second button click is required.
 Options are fetched live
-(never cached, since these cubes can change schema between calls) and becomes a dropdown
-once loaded. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
+(never cached, since these cubes can change schema between calls) and become a dropdown
+once loaded. The full option list is loaded up front; when it holds more than a dozen
+values a local search field filters it by option name or value, and rendering is capped
+at 200 visible options with a "showing X of Y" hint so very large autocomplete cubes
+stay responsive. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
 chosen value; the choices are sent as `cubes_parameters` and the backend folds
 them into `source_url` alongside `cubes_query_mode`.
 Discovery is two-phase: the first metadata request reads parameter definitions only and

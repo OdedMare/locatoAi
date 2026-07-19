@@ -4,6 +4,7 @@ import type {
   CubesAutocompleteOption,
   CubesParameterDefinition,
 } from "@/types/catalog";
+import CubesParameterOptionPicker from "./CubesParameterOptionPicker";
 
 interface CubesParametersFieldsetProps {
   definitions: CubesParameterDefinition[];
@@ -84,21 +85,13 @@ export default function CubesParametersFieldset({
               {definition.display_name && ` (${definition.name})`}
             </label>
             {parameterOptions && parameterOptions.length > 0 ? (
-              <select
-                id={inputId}
-                className="settings-input"
+              <CubesParameterOptionPicker
+                inputId={inputId}
+                options={parameterOptions}
                 value={values[definition.name] ?? ""}
-                onChange={(event) => onSelect(definition.name, event.target.value)}
                 disabled={busy || isLoading}
-                dir="auto"
-              >
-                <option value="" disabled>בחירת ערך…</option>
-                {parameterOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.name || option.value}
-                  </option>
-                ))}
-              </select>
+                onSelect={(value) => onSelect(definition.name, value)}
+              />
             ) : definition.dynamic ? (
               <button
                 id={inputId}

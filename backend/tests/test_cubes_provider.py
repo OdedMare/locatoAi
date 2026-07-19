@@ -142,6 +142,14 @@ def test_posts_query_and_preserves_all_fields(tmp_path):
     assert "Location" not in body["arriveTime.not"]
 
 
+def test_authorization_does_not_duplicate_existing_bearer_prefix(tmp_path):
+    provider, handler = make_provider(tmp_path, [record()], token="Bearer jwt")
+
+    provider.fetch_features(layer())
+
+    assert posted_request(handler).headers["Authorization"] == "Bearer jwt"
+
+
 def test_pushes_boundary_as_wkt_location(tmp_path):
     provider, handler = make_provider(tmp_path, {"data": [record()]})
     boundary = box(34.7, 32.0, 34.9, 32.2)
