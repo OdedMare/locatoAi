@@ -4,6 +4,8 @@ from types import SimpleNamespace
 import geopandas as gpd
 import httpx
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from shapely.geometry import Point
 
 from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
@@ -15,8 +17,13 @@ from app.bl.agent.generate_layer_metadata.generated_layer_metadata import (
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_schema import LayerSchema
-from app.dal.providers.registry import InMemoryProviderRegistry
+from app.common.config import Settings
 from app.common.errors.provider_error import ProviderError
+from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
+from app.dal.providers.mqs import MqsProvider
+from app.dal.providers.registry import InMemoryProviderRegistry
+from app.main import _register_error_handlers
+from app.service import catalog_router
 from app.service.catalog_dto.generate_layer_metadata_request import (
     GenerateLayerMetadataRequest,
 )
@@ -399,3 +406,31 @@ def test_mqs_metadata_fails_when_property_list_is_missing():
         LayerMetadataGenerator(CapturingLlm(), providers).generate(
             name="מקומות", provider_name="mqs", source_url="42"
         )
+
+
+def test_mqs_upstream_500_from_generate_metadata_is_diagnostic_502(tmp_path):
+    store = RuntimeSettingsStore(Settings(
+        _env_file=None,
+        runtime_settings_file=str(tmp_path / "runtime-settings.json"),
+        mqs_base_url="https://mqs.test",
+    ))
+    mqs = MqsProvider(store, httpx.MockTransport(
+        lambda request: httpx.Response(500, json={"error": "MQS failed"})
+    ))
+    providers = InMemoryProviderRegistry()
+    providers.register("mqs", mqs)
+    app = FastAPI()
+    _register_error_handlers(app)
+    app.include_router(catalog_router.router)
+    app.state.layer_metadata_generator = LayerMetadataGenerator(
+        CapturingLlm(), providers
+    )
+
+    response = TestClient(app, raise_server_exceptions=False).post(
+        "/api/layers/generate-metadata",
+        json={"name": "Places", "provider": "mqs", "source_url": "42"},
+    )
+
+    assert response.status_code == 502
+    assert "upstream returned 500" in response.json()["detail"]
+    assert "User_ID is not configured" in response.json()["detail"]

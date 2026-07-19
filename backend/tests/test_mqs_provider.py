@@ -724,6 +724,7 @@ def test_metadata_sample_reuses_entities_for_schema_and_stops_after_ten(tmp_path
     ]
     assert len(entity_requests) == 1
     assert len(detail_requests) == 10
+    assert dict(entity_requests[0].url.params) == {"from": "0", "to": "10"}
 
 
 def test_user_id_header_sent_when_configured(tmp_path):

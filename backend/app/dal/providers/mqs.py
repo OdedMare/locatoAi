@@ -69,17 +69,19 @@ class MqsProvider:
     ) -> Tuple[gpd.GeoDataFrame, LayerSchema]:
         """Fetch one MQS sample and build its schema from the same entities.
 
-        Metadata generation only displays ten entities. Stop as soon as ten
-        valid rows with business properties are available instead of issuing
-        another independent schema fetch and up to 120 EntityInfo calls.
+        Metadata generation only displays ten entities, so ask MQS for ten
+        and enrich them sequentially. This avoids both the old duplicate
+        schema fetch and a burst of concurrent EntityInfo requests against
+        an otherwise healthy but load-sensitive MQS instance.
         """
         layer_id = self._source.layer_id(layer)
         business_entities = []
         fallback_entities = []
+        fetch_limit = min(limit, self._METADATA_SAMPLE_SIZE)
         with self._gateway.client() as client:
-            entities = self._stream.query(client, layer_id, limit=limit)
+            entities = self._stream.query(client, layer_id, limit=fetch_limit)
             for batch in self._stream.batched(
-                entities, size=self._METADATA_SAMPLE_SIZE
+                entities, size=1
             ):
                 enriched = self._stream.enrich_batch(client, layer_id, batch)
                 for entity in enriched:
