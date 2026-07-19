@@ -22,7 +22,10 @@ class MetadataResponseMapper:
         return GeneratedLayerMetadata(
             description=description.strip()[:self._MAX_DESCRIPTION_CHARS],
             tags=tags, sample_count=sample_count,
-            dynamic_parameters=[item.name for item in dynamic_parameters],
+            dynamic_parameters=[
+                item.name for item in dynamic_parameters if item.is_dynamic
+            ],
+            configurable_parameters=dynamic_parameters,
         )
 
     def _tags(self, raw_tags):

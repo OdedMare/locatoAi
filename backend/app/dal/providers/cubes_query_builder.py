@@ -11,7 +11,10 @@ from app.common.errors.provider_error import ProviderError
 
 
 class CubesQueryBuilder:
-    _TIME_FIELDS = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
+    _TIME_FIELDS = (
+        "eventTime", "arriveTime", "timestamp", "time", "datetime", "date",
+    )
+    _POLYGON_FIELDS = ("polygon",)
     _OPERATORS = ("match", "not")
     _DEFAULT_KEYS = (
         "eventTime", "eventTime.not", "arriveTime", "arriveTime.not",
@@ -33,10 +36,10 @@ class CubesQueryBuilder:
         }
         self._apply_configured(parameters, body)
         self._validate_required(parameters, body)
-        self._add_location(body, geometry)
+        self._add_geometry(body, parameters, geometry)
         return body
 
-    def resolve_dynamic(
+    def resolve_parameters(
         self, parameters: List[LayerParameter], resolved: Dict[str, str]
     ) -> List[LayerParameter]:
         configured = [self._with_resolved(item, resolved) for item in parameters]
@@ -49,6 +52,13 @@ class CubesQueryBuilder:
             if name not in configured_names
         )
         return configured
+
+    def requires_configuration(self, parameter: LayerParameter) -> bool:
+        if parameter.is_dynamic:
+            return True
+        if not parameter.required or self._is_managed(parameter):
+            return False
+        return not self._has_configured_value(parameter.configured_value)
 
     def match_window_key(self, body: dict) -> Optional[str]:
         return next((key for key in body if self.parts(key)[1] == "match"), None)
@@ -89,7 +99,11 @@ class CubesQueryBuilder:
         keys: List[str] = []
         for parameter in parameters:
             base, operator = self.parts(parameter.name)
-            for item in ((operator,) if operator else (None, "not")):
+            if base == "date" and operator is None:
+                variants = (None,)
+            else:
+                variants = (operator,) if operator else (None, "not")
+            for item in variants:
                 key = self._key(base, item)
                 if key not in keys:
                     keys.append(key)
@@ -110,8 +124,12 @@ class CubesQueryBuilder:
         base, operator = self.parts(key)
         if operator == "match":
             return self._absolute_window(now, temporal_range)
-        unit = "no_time" if base == "arriveTime" and operator is None else "hour"
-        return {"TimeBackValue": "1", "TimeBackUnit": unit}
+        no_time = base in ("arriveTime", "date") and operator is None
+        value = 1 if base == "date" else "1"
+        return {
+            "TimeBackValue": value,
+            "TimeBackUnit": "no_time" if no_time else "hour",
+        }
 
     def _absolute_window(self, now, temporal_range) -> dict:
         if temporal_range is not None:
@@ -132,7 +150,7 @@ class CubesQueryBuilder:
     @staticmethod
     def _apply_configured(parameters: List[LayerParameter], body: dict) -> None:
         for parameter in parameters:
-            if parameter.is_dynamic and parameter.resolved_value is not None:
+            if parameter.resolved_value is not None:
                 body[parameter.name] = parameter.resolved_value
             elif CubesQueryBuilder._has_configured_value(
                 parameter.configured_value
@@ -158,14 +176,31 @@ class CubesQueryBuilder:
                     f"Cubes parameter '{parameter.name}' is required and has no configured value"
                 )
 
-    def _add_location(
-        self, body: dict, geometry: Optional[BaseGeometry]
+    def _add_geometry(
+        self,
+        body: dict,
+        parameters: List[LayerParameter],
+        geometry: Optional[BaseGeometry],
     ) -> None:
         if geometry is None:
+            return
+        polygon_key = self._polygon_key(parameters)
+        if polygon_key is not None:
+            body[polygon_key] = {"value": [geometry.wkt]}
             return
         location_key = self._location_key(body)
         if location_key is not None:
             body[location_key]["Location"] = geometry.wkt
+
+    def _polygon_key(self, parameters: List[LayerParameter]) -> Optional[str]:
+        return next(
+            (
+                parameter.name for parameter in parameters
+                if parameter.name.casefold() in self._POLYGON_FIELDS
+                or parameter.type.casefold() in self._POLYGON_FIELDS
+            ),
+            None,
+        )
 
     def _location_key(self, body: dict) -> Optional[str]:
         for key in ("arriveTime.not", "eventTime.not"):
@@ -180,6 +215,13 @@ class CubesQueryBuilder:
         if parameter.name not in resolved:
             return parameter
         return parameter.model_copy(update={
-            "is_dynamic": True,
             "resolved_value": resolved[parameter.name],
         })
+
+    def _is_managed(self, parameter: LayerParameter) -> bool:
+        base, _ = self.parts(parameter.name)
+        return (
+            base in self._TIME_FIELDS
+            or parameter.name.casefold() in self._POLYGON_FIELDS
+            or parameter.type.casefold() in self._POLYGON_FIELDS
+        )

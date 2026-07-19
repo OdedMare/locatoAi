@@ -12,7 +12,10 @@ from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_parameter_option import LayerParameterOption
 from app.bl.ports.layer_schema import LayerSchema
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
+from app.dal.providers.cubes_client_factory import CubesClientFactory
 from app.dal.providers.cubes_gateway import CubesGateway
+from app.dal.providers.cubes_metadata_gateway import CubesMetadataGateway
+from app.dal.providers.cubes_parameter_loader import CubesParameterLoader
 from app.dal.providers.cubes_query_builder import CubesQueryBuilder
 from app.dal.providers.cubes_schema_mapper import CubesSchemaMapper
 from app.dal.providers.cubes_source import CubesSource
@@ -29,21 +32,25 @@ class CubesProvider:
         self._source = CubesSource()
         self._query = CubesQueryBuilder()
         self._mapper = CubesSchemaMapper()
+        self._clients = CubesClientFactory(settings_store, transport)
+        self._metadata = CubesMetadataGateway(
+            self._clients, self._source, CubesParameterLoader()
+        )
         self._gateway = CubesGateway(
-            settings_store, self._source, self._query, self._mapper, transport
+            self._clients, self._source, self._query, self._mapper
         )
         self._schema_cache: Dict[Tuple[str, str], LayerSchema] = {}
 
     @property
     def _transport(self) -> Optional[httpx.BaseTransport]:
-        return self._gateway._transport
+        return self._clients.transport
 
     @_transport.setter
     def _transport(self, transport: Optional[httpx.BaseTransport]) -> None:
-        self._gateway.set_transport(transport)
+        self._clients.set_transport(transport)
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
-        metadata = self._gateway.metadata(layer)
+        metadata = self._metadata.metadata(layer)
         cache_key = self._schema_cache_key(layer)
         sampled = self._schema_cache.get(cache_key)
         if sampled is None:
@@ -55,6 +62,12 @@ class CubesProvider:
         parameters = self._configured_parameters(layer)
         return [parameter for parameter in parameters if parameter.is_dynamic]
 
+    def list_configurable_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
+        return [
+            parameter for parameter in self._configured_parameters(layer)
+            if self._query.requires_configuration(parameter)
+        ]
+
     def fetch_features(
         self,
         layer: LayerMeta,
@@ -63,7 +76,7 @@ class CubesProvider:
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
-        metadata = self._gateway.metadata(layer)
+        metadata = self._metadata.metadata(layer)
         rows = self._gateway.fetch_rows(
             layer, self._configured_parameters(layer), geometry,
             self._mapper.results_limit(metadata), limit, now, temporal_range,
@@ -86,12 +99,12 @@ class CubesProvider:
     def fetch_autocomplete_options(
         self, layer: LayerMeta, parameter_name: str
     ) -> List[LayerParameterOption]:
-        return self._gateway.autocomplete(layer, parameter_name)
+        return self._metadata.autocomplete(layer, parameter_name)
 
     def _configured_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
-        metadata = self._gateway.metadata(layer)
+        metadata = self._metadata.metadata(layer)
         parameters = self._mapper.metadata_parameters(metadata)
-        return self._query.resolve_dynamic(
+        return self._query.resolve_parameters(
             parameters, self._source.resolved_parameters(layer)
         )
 
@@ -113,3 +126,4 @@ cubes_database_name = _source_compat.database_name
 cubes_query_mode = _source_compat.query_mode
 cubes_resolved_parameters = _source_compat.resolved_parameters
 DYNAMIC_PARAM_PREFIX = CubesSource.DYNAMIC_PARAM_PREFIX
+PARAMETER_PREFIX = CubesSource.PARAMETER_PREFIX

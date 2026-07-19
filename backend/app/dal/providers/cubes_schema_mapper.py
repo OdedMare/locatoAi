@@ -169,22 +169,57 @@ class CubesSchemaMapper:
 
     @staticmethod
     def _metadata_parameter(item: dict) -> LayerParameter:
-        name = str(item["Name"])
+        name = str(CubesSchemaMapper._value(item, "Name", "name"))
+        role = CubesSchemaMapper._value(item, "Role", "role")
         dynamic = (name.casefold().endswith(":dynamic")
-                   or str(item.get("Role") or "").casefold() == "dynamic")
-        options = [] if dynamic else [
-            str(option.get("Value")) for option in item.get("Options") or []
-            if isinstance(option, dict) and option.get("Value")
-        ]
+                   or str(role or "").casefold() == "dynamic")
+        options = [] if dynamic else CubesSchemaMapper._options(item)
         return LayerParameter(
-            name=name, type=str(item.get("Type") or "string").lower(),
-            display_name=str(item.get("DisplayName") or ""),
-            description=str(item.get("Description") or ""),
-            required=bool(item.get("IsRequired")),
-            single_value=bool(item.get("IsSingleValue", True)),
+            name=name,
+            type=str(CubesSchemaMapper._value(item, "Type", "type") or "string").lower(),
+            display_name=str(CubesSchemaMapper._value(
+                item, "DisplayName", "displayName", "display_name"
+            ) or ""),
+            description=str(CubesSchemaMapper._value(
+                item, "Description", "description"
+            ) or ""),
+            required=CubesSchemaMapper._bool_value(
+                item, False, "IsRequired", "isRequired", "is_required", "required"
+            ),
+            single_value=CubesSchemaMapper._bool_value(
+                item, True, "IsSingleValue", "isSingleValue", "is_single_value"
+            ),
             options=options, is_dynamic=dynamic,
-            configured_value=None if dynamic else item.get("Value"),
+            configured_value=None if dynamic else CubesSchemaMapper._value(
+                item, "Value", "value"
+            ),
         )
+
+    @staticmethod
+    def _options(item: dict) -> List[str]:
+        raw = CubesSchemaMapper._value(item, "Options", "options") or []
+        if not isinstance(raw, list):
+            return []
+        values = []
+        for option in raw:
+            value = CubesSchemaMapper._value(option, "Value", "value") \
+                if isinstance(option, dict) else option
+            if value not in (None, ""):
+                values.append(str(value))
+        return values
+
+    @staticmethod
+    def _value(item: dict, *keys: str):
+        return next((item[key] for key in keys if key in item), None)
+
+    @staticmethod
+    def _bool_value(item: dict, default: bool, *keys: str) -> bool:
+        value = CubesSchemaMapper._value(item, *keys)
+        if value is None:
+            return default
+        if isinstance(value, str):
+            return value.strip().casefold() in ("true", "1", "yes")
+        return bool(value)
 
     @staticmethod
     def _merge_field(field: LayerField, sample: Optional[LayerField]) -> LayerField:

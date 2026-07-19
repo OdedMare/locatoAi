@@ -12,12 +12,13 @@ from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
 from app.bl.catalog.tyche_activation import TYCHE_SOURCE, activate_tyche_layer
 from app.bl.ports.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
-from app.dal.providers.cubes import DYNAMIC_PARAM_PREFIX
+from app.dal.providers.cubes import PARAMETER_PREFIX
 from app.service.catalog_dto.catalog_layer import CatalogLayer
 from app.service.catalog_dto.create_layer_request import CreateLayerRequest
 from app.service.catalog_dto.cubes_autocomplete_option_response import CubesAutocompleteOptionResponse
 from app.service.catalog_dto.cubes_autocomplete_request import CubesAutocompleteRequest
 from app.service.catalog_dto.cubes_autocomplete_response import CubesAutocompleteResponse
+from app.service.catalog_dto.cubes_parameter_response import CubesParameterResponse
 from app.service.catalog_dto.generate_layer_metadata_request import GenerateLayerMetadataRequest
 from app.service.catalog_dto.generated_layer_metadata_response import GeneratedLayerMetadataResponse
 from app.service.catalog_dto.layers_response import LayersResponse
@@ -101,13 +102,23 @@ class CatalogRouter:
             name=body.name, provider_name=body.provider,
             source_url=cls.normalized_source(
                 body.provider, body.source_url, body.cubes_query_mode,
-                body.cubes_dynamic_parameters,
+                body.parameter_values(),
             ),
         )
         return GeneratedLayerMetadataResponse(
             description=result.description, tags=result.tags,
             sample_count=result.sample_count,
             dynamic_parameters=result.dynamic_parameters,
+            configurable_parameters=[
+                CubesParameterResponse(
+                    name=item.name,
+                    display_name=item.display_name,
+                    required=item.required,
+                    dynamic=item.is_dynamic,
+                    options=item.options,
+                )
+                for item in result.configurable_parameters
+            ],
         )
 
     @classmethod
@@ -140,13 +151,13 @@ class CatalogRouter:
     @classmethod
     def normalized_source(
         cls, provider: str, source_url: str, cubes_query_mode: str = "auto",
-        cubes_dynamic_parameters: Optional[Dict[str, str]] = None,
+        cubes_parameters: Optional[Dict[str, str]] = None,
     ) -> str:
         source = source_url.strip()
         if provider.strip().lower() == "cubes":
             source = source if "://" in source else f"cubes://db/{source.strip('/')}"
             source = cls.with_cubes_mode(source, cubes_query_mode)
-            return cls.with_dynamic_parameters(source, cubes_dynamic_parameters or {})
+            return cls.with_parameters(source, cubes_parameters or {})
         if provider.strip().lower() == "tyche" and "://" not in source:
             return f"tyche://{source.strip('/')}"
         return source
@@ -162,14 +173,14 @@ class CatalogRouter:
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @staticmethod
-    def with_dynamic_parameters(source: str, parameters: Dict[str, str]) -> str:
+    def with_parameters(source: str, parameters: Dict[str, str]) -> str:
         parsed = urlsplit(source)
         query = parse_qs(parsed.query, keep_blank_values=True)
-        for key in [key for key in query if key.startswith(DYNAMIC_PARAM_PREFIX)]:
+        for key in [key for key in query if key.startswith(PARAMETER_PREFIX)]:
             query.pop(key)
         for name, value in parameters.items():
             if name and value:
-                query[f"{DYNAMIC_PARAM_PREFIX}{name}"] = [value]
+                query[f"{PARAMETER_PREFIX}{name}"] = [value]
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @staticmethod
@@ -192,7 +203,7 @@ class CatalogRouter:
             provider=body.provider.strip(),
             source_url=cls.normalized_source(
                 body.provider, body.source_url, body.cubes_query_mode,
-                body.cubes_dynamic_parameters,
+                body.parameter_values(),
             ),
         )
 
@@ -213,7 +224,8 @@ update_layer = CatalogRouter.update_layer
 generate_layer_metadata = CatalogRouter.generate_metadata
 autocomplete_cubes_parameter = CatalogRouter.autocomplete
 _with_cubes_mode = CatalogRouter.with_cubes_mode
-_with_cubes_dynamic_parameters = CatalogRouter.with_dynamic_parameters
+_with_cubes_parameters = CatalogRouter.with_parameters
+_with_cubes_dynamic_parameters = CatalogRouter.with_parameters
 _normalized_source = CatalogRouter.normalized_source
 _clean_tags = CatalogRouter.clean_tags
 _catalog_layer = CatalogRouter.catalog_layer

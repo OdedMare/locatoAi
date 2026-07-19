@@ -8,7 +8,8 @@ from app.common.errors.provider_error import ProviderError
 
 
 class CubesSource:
-    DYNAMIC_PARAM_PREFIX = "param_"
+    PARAMETER_PREFIX = "param_"
+    DYNAMIC_PARAM_PREFIX = PARAMETER_PREFIX
     _QUERY_MODES = {"auto", "match_not", "legacy"}
 
     def database_name(self, layer: LayerMeta) -> str:
@@ -34,7 +35,7 @@ class CubesSource:
         query = parse_qs(urlsplit(layer.source_url).query)
         resolved = {}
         for key, values in query.items():
-            if key.startswith(self.DYNAMIC_PARAM_PREFIX) and values:
-                name = key[len(self.DYNAMIC_PARAM_PREFIX):]
+            if key.startswith(self.PARAMETER_PREFIX) and values:
+                name = key[len(self.PARAMETER_PREFIX):]
                 resolved[name] = values[0]
         return resolved

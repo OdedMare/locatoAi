@@ -30,13 +30,13 @@ class LayerMetadataGenerator:
     ) -> GeneratedLayerMetadata:
         layer = self._layer(name, provider_name, source_url)
         provider = self._providers.get(layer.provider)
-        dynamic = self._dynamic_parameters(layer, provider)
-        if any(item.resolved_value is None for item in dynamic):
-            return self._unresolved(dynamic)
+        parameters = self._configurable_parameters(layer, provider)
+        if any(item.resolved_value is None for item in parameters):
+            return self._unresolved(parameters)
         features, schema = self._sample(layer, provider)
         user, sample_count = self._sample_builder.build(layer, features, schema)
         data = self._llm.complete_json(system=self._prompt, user=user)
-        return self._response_mapper.map(data, sample_count, dynamic)
+        return self._response_mapper.map(data, sample_count, parameters)
 
     def _sample(self, layer, provider):
         try:
@@ -60,12 +60,17 @@ class LayerMetadataGenerator:
         )
 
     @staticmethod
-    def _dynamic_parameters(layer: LayerMeta, provider) -> List[LayerParameter]:
-        return provider.list_dynamic_parameters(layer) if layer.provider == "cubes" else []
+    def _configurable_parameters(
+        layer: LayerMeta, provider
+    ) -> List[LayerParameter]:
+        if layer.provider != "cubes":
+            return []
+        return provider.list_configurable_parameters(layer)
 
     @staticmethod
     def _unresolved(parameters) -> GeneratedLayerMetadata:
         return GeneratedLayerMetadata(
             description="", sample_count=0,
-            dynamic_parameters=[item.name for item in parameters],
+            dynamic_parameters=[item.name for item in parameters if item.is_dynamic],
+            configurable_parameters=parameters,
         )
