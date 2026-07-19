@@ -13,8 +13,8 @@ class LayerParameter(BaseModel):
     options: List[str] = []
     is_dynamic: bool = False
     resolved_value: Optional[str] = None
-    """Value chosen at layer-add time for a dynamic parameter (via the
-    Cubes autocomplete route); None means it was never resolved."""
+    """Value chosen at layer-add time for a configurable Cubes parameter;
+    None means the catalog workflow has not resolved it."""
     configured_value: Any = Field(default=None, exclude=True, repr=False)
     """Value configured by the provider metadata. It is kept out of model
     serialization because Cubes may mark configured parameters as passwords."""
