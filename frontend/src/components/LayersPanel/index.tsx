@@ -573,6 +573,11 @@ export default function LayersPanel({
                   value={provider}
                   onChange={(e) => {
                     setProvider(e.target.value);
+                    setDynamicParameterNames([]);
+                    setParameterDefinitions([]);
+                    setManualDynamicParameterNames([]);
+                    setDynamicParameterOptions({});
+                    setDynamicParameterValues({});
                     setRequiresSamplePolygon(false);
                     setCubesSampleBoundary(null);
                     setCubesSampleBoundarySource(null);
