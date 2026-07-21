@@ -6,11 +6,11 @@ import pytest
 from shapely import wkt
 from shapely.geometry import box
 
-from app.bl.ports.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.cubes import (
+from app.dal.providers.cubes.provider import (
     CubesProvider,
     cubes_database_name,
     cubes_query_mode,

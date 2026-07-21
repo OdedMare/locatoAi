@@ -11,8 +11,8 @@ from app.bl.agent.build_plan.plan_build_result import PlanBuildResult
 from app.bl.agent.build_plan.preserves_constraints import preserves_constraints
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.llm_client import LLMClient
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.agent.llm_client import LLMClient
 
 _PROMPTS = Path(__file__).parent.parent / "prompts"
 _FALLBACK_CLARIFY = PlanBuildLoop._FALLBACK

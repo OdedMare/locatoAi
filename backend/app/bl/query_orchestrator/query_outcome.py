@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import geopandas as gpd
 
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
-from app.bl.ports.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_meta import LayerMeta
 
 
 @dataclass

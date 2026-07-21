@@ -8,14 +8,14 @@ from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.common.logging.configurator import configure_logging
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.feedback_repository import PostgresFeedbackRepository
-from app.dal.layers_repository import PostgresLayersRepository
+from app.dal.feedback.feedback_repository import PostgresFeedbackRepository
+from app.dal.catalog.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.providers.cubes import CubesProvider
-from app.dal.providers.mqs import MqsProvider
+from app.dal.providers.cubes.provider import CubesProvider
+from app.dal.providers.mqs.provider import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
-from app.dal.providers.tyche import TycheProvider
-from app.runtime_diet_mode import RuntimeDietMode
+from app.dal.providers.tyche.provider import TycheProvider
+from app.bl.agent.runtime_diet_mode import RuntimeDietMode
 
 
 class ApplicationStateWiring:

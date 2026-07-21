@@ -6,10 +6,10 @@ from typing import List
 from app.bl.agent.generate_layer_metadata.generated_layer_metadata import GeneratedLayerMetadata
 from app.bl.agent.generate_layer_metadata.metadata_response_mapper import MetadataResponseMapper
 from app.bl.agent.generate_layer_metadata.metadata_sample_builder import MetadataSampleBuilder
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.layer_parameter import LayerParameter
-from app.bl.ports.llm_client import LLMClient
-from app.bl.ports.provider_registry import ProviderRegistry
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_parameter import LayerParameter
+from app.bl.agent.llm_client import LLMClient
+from app.bl.providers.registry import ProviderRegistry
 from app.common.errors.provider_error import ProviderError
 
 _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "generate_layer_metadata.md"

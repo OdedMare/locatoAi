@@ -7,13 +7,13 @@ business core. See [`../index.md`](../index.md) for how it fits with `dal/`,
 
 ## What this tier is
 
-Pure business logic. No HTTP, no DB, no HTTP-client code of its own — `bl` depends only
-on abstract `Protocol`/interfaces in `bl/ports/`; `dal/` supplies the concrete
-implementations, wired together in `app/main.py`. `bl` never imports `dal` directly.
+Pure business logic. No HTTP, no DB, no HTTP-client code of its own — `bl` owns the
+abstract `Protocol` interfaces beside the context that uses them; `dal/` supplies the
+concrete implementations, wired together in `app/main.py`. `bl` never imports `dal`
+directly.
 
 ```
 app/bl/
-├── ports/                    DIP seam — Protocols + DTOs implemented by dal/
 ├── plan/
 │   ├── models/                one Pydantic model per plan step + discriminated union
 │   └── validators.py          semantic checks
@@ -21,38 +21,44 @@ app/bl/
 │   ├── engine/                 dispatches steps via the op registry
 │   └── ops/                    ONE module per op, self-registering (@register_op)
 ├── agent/
+│   ├── llm_client.py           agent-owned LLM Protocol
 │   ├── select_layers/          call 1: catalog → prompt → layer ids
 │   ├── build_plan/             call 2: schemas → plan, tools, constraint preservation
 │   ├── generate_layer_metadata/  provider sample → editable catalog metadata
 │   └── prompts/                prompts are FILES; tuning ≠ code change
 ├── query_orchestrator/        select → plan → validate → execute → diagnose flow
-└── catalog/                   layer lookup, schema cache, MQS sync, Tyche activation
+├── providers/                 provider + registry Protocols used by the BL
+└── catalog/
+    ├── models/                 layer metadata/schema/parameter models
+    ├── layers_repository.py    catalog-owned repository Protocol
+    └── ...                     layer lookup, schema cache, MQS sync, Tyche activation
 ```
 
 Dependency order within the tier: `plan` has no dependency on `executor`/`agent`;
-`executor` depends on `plan.models` + `catalog` + `ports`; `agent` depends on `plan`,
-`catalog`, `ports`; `query_orchestrator` composes `agent` + `catalog` + `executor`;
-`catalog` depends only on `ports`.
+`executor` depends on `plan.models` + `catalog` + `providers`; `agent` depends on
+`plan`, `catalog`, and its `LLMClient` Protocol; `query_orchestrator` composes
+`agent` + `catalog` + `executor`; `catalog` depends only on its repository Protocol
+and the provider registry Protocol.
 
-## 1. `bl/ports/` — the DIP seam between `bl` and `dal`
+## 1. Context-owned models and Protocols — the DIP seam
 
 Pure-data Pydantic models plus `typing.Protocol` interfaces. No implementation lives
 here — `dal/` supplies it structurally (duck-typed, no explicit inheritance needed).
 
 | File | Type | Abstract methods | Implemented by |
 |---|---|---|---|
-| `layers_repository.py` | `LayersRepository(Protocol)` | `list_layers()`, `get_layer(id)`, `add_layer(layer)`, `update_layer_metadata(id, name, description, tags)`, `upsert_layer(layer) -> (layer, created)` | `dal/layers_repository.py::PostgresLayersRepository` |
-| `llm_client.py` | `LLMClient(Protocol)` | `complete_json(system, user) -> dict`, `list_models() -> List[str]` | `dal/llm/openai_client.py::OpenAIJsonClient` |
-| `provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | `describe_schema(layer) -> LayerSchema`; `fetch_features(layer, now=None, geometry=None, limit=None, attribute_filters=None) -> gpd.GeoDataFrame` (geometry/limit/attribute_filters are pushdown *hints* — correctness never depends on the provider honoring them); `sample_field_values(layer, field, limit=20) -> List[str]` | `CubesProvider`, `MqsProvider`, `TycheProvider` |
-| `provider_registry.py` | `ProviderRegistry(Protocol)` | `get(provider_name) -> Provider`, `has(provider_name) -> bool` | `InMemoryProviderRegistry` |
-| `layer_meta.py` | `LayerMeta(BaseModel)` | data only — one catalog row: `id, name, description="", tags=[], provider, source_url` | n/a |
-| `layer_schema.py` | `LayerSchema(BaseModel)` | data only: `layer_id, geometry_type, fields: List[LayerField], parameters: List[LayerParameter]=[], source_name="", source_description="", temporal_field: Optional[str]` | n/a |
-| `layer_field.py` | `LayerField(BaseModel)` | data only: `name, type, description="", samples: List[str]=[], metadata_relevant=True` | n/a |
-| `layer_parameter.py` | `LayerParameter(BaseModel)` | data only: `name, type, display_name="", description="", required=False, single_value=True, options=[], is_dynamic=False, resolved_value=None, configured_value: Any` (excluded from serialization — may hold secrets) | n/a |
-| `layer_parameter_option.py` | `LayerParameterOption(BaseModel)` | data only: `value, name=""` | n/a |
+| `catalog/layers_repository.py` | `LayersRepository(Protocol)` | `list_layers()`, `get_layer(id)`, `add_layer(layer)`, `update_layer_metadata(id, name, description, tags)`, `upsert_layer(layer) -> (layer, created)` | `dal/catalog/layers_repository.py::PostgresLayersRepository` |
+| `agent/llm_client.py` | `LLMClient(Protocol)` | `complete_json(system, user) -> dict`, `list_models() -> List[str]` | `dal/llm/openai_client.py::OpenAIJsonClient` |
+| `providers/provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | `describe_schema(layer) -> LayerSchema`; `fetch_features(layer, now=None, geometry=None, limit=None, attribute_filters=None) -> gpd.GeoDataFrame` (geometry/limit/attribute_filters are pushdown *hints* — correctness never depends on the provider honoring them); `sample_field_values(layer, field, limit=20) -> List[str]` | `CubesProvider`, `MqsProvider`, `TycheProvider` |
+| `providers/registry.py` | `ProviderRegistry(Protocol)` | `get(provider_name) -> Provider`, `has(provider_name) -> bool` | `InMemoryProviderRegistry` |
+| `catalog/models/layer_meta.py` | `LayerMeta(BaseModel)` | data only — one catalog row: `id, name, description="", tags=[], provider, source_url` | n/a |
+| `catalog/models/layer_schema.py` | `LayerSchema(BaseModel)` | data only: `layer_id, geometry_type, fields: List[LayerField], parameters: List[LayerParameter]=[], source_name="", source_description="", temporal_field: Optional[str]` | n/a |
+| `catalog/models/layer_field.py` | `LayerField(BaseModel)` | data only: `name, type, description="", samples: List[str]=[], metadata_relevant=True` | n/a |
+| `catalog/models/layer_parameter.py` | `LayerParameter(BaseModel)` | data only: `name, type, display_name="", description="", required=False, single_value=True, options=[], is_dynamic=False, resolved_value=None, configured_value: Any` (excluded from serialization — may hold secrets) | n/a |
+| `catalog/models/layer_parameter_option.py` | `LayerParameterOption(BaseModel)` | data only: `value, name=""` | n/a |
 
 When you need to call a provider or the LLM or the catalog repository from `bl` code,
-import the Protocol from `ports/`, never the concrete `dal` class.
+import the Protocol from its BL context, never the concrete `dal` class.
 
 ## 2. `bl/plan/` — the GeoQueryPlan contract
 

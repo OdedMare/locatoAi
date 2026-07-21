@@ -51,6 +51,13 @@ RULES
   vehicle near a reference or between two places: apply the spatial relation, then
   latest_per_entity. Before cluster, collapse observations. For moved/זז or travel
   direction, use movement_direction; direction any means movement without a named bearing.
+- Mission path, without changing generic queries: OurForce/soldier/tank/unit/callSign uses
+  `tyche` as subject/output and matching `mqs`/`cubes` layers as references. Use load →
+  boundary → requested time → sampled entity filters → near/near_all/between →
+  latest_per_entity. No explicit Tyche time means its one-hour provider lookback. Reference
+  ops load targets internally; list them in context_layers, not as unused load steps.
+- Count distinct forces only after latest_per_entity. For movement use movement_direction
+  after filters, without latest_per_entity.
 - Tyche examples: "חייל שזז בשעה האחרונה" => time + soldier forceType + direction any;
   "טנק שזז מצפון לדרום" (also typo לדרם) => tank forceType + direction south;
   "חייל שהיה על הציר בין תל אביב להרצליה" => soldier forceType + between two filtered

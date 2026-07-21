@@ -1,6 +1,6 @@
 from starlette.requests import Request
 
-from app.service.query_router import _request_id
+from app.service.query.router import _request_id
 
 
 def request_with_id(value: str) -> Request:

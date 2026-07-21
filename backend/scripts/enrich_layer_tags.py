@@ -21,9 +21,9 @@ import psycopg
 
 from app.common.config.settings_provider import get_settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.layers_repository import PostgresLayersRepository
+from app.dal.catalog.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.providers.mqs import MqsProvider
+from app.dal.providers.mqs.provider import MqsProvider
 
 _SYSTEM = """You generate search alias tags for a GIS layer catalog.
 

@@ -2,7 +2,7 @@
  * Core types for the Geo-AI query request pipeline.
  *
  * GeoQueryRequest/GeoQueryResponse mirror the backend contract exactly
- * (backend/app/service/dto.py). Do not change one side without the other.
+ * (backend/app/service/query/). Do not change one side without the other.
  */
 
 /** How the user scopes the query geographically (UI concept only). */
@@ -102,7 +102,7 @@ export interface GeoQueryPlanDto {
   context_layers: string[];
 }
 
-/** Backend response (backend/app/service/dto.py QueryResponse). */
+/** Backend response (backend/app/service/query/response.py QueryResponse). */
 export interface GeoQueryResponse {
   status: "ok" | "clarify" | "error";
   /** Correlates UI diagnostics with backend console/JSONL events. */

@@ -7,7 +7,7 @@ from app.bl.agent.select_layers.layer_catalog_formatter import LayerCatalogForma
 from app.bl.agent.select_layers.layer_selection import LayerSelection
 from app.bl.agent.select_layers.layer_selection_mapper import LayerSelectionMapper
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.ports.llm_client import LLMClient
+from app.bl.agent.llm_client import LLMClient
 
 _PROMPTS = Path(__file__).parent.parent / "prompts"
 _FALLBACK_CLARIFY = LayerSelectionMapper.FALLBACK_CLARIFY

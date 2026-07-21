@@ -22,8 +22,9 @@ class LayerPromptFormatter:
         return "\n".join(lines)
 
     def _layer_line(self, layer, schema, diet: bool) -> str:
-        return "- id: {id} | name: {name} | geometry: {geom}\n  fields: {fields}".format(
-            id=layer.id, name=layer.name, geom=schema.geometry_type,
+        return "- id: {id} | provider: {provider} | name: {name} | geometry: {geom}\n  fields: {fields}".format(
+            id=layer.id, provider=layer.provider, name=layer.name,
+            geom=schema.geometry_type,
             fields=self._fields(schema, diet),
         )
 

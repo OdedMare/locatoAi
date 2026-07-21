@@ -6,10 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 LocatoAI — a Geo-AI query application: users ask geographic questions in natural language (e.g. "Find schools near train stations in Tel Aviv"), scope them to a viewport or drawn polygon/rectangle, and a live LLM agent turns them into a validated geo query plan executed against GIS providers.
 
+**Primary mission:** locate OurForce entities from the Tyche `כוחותינו` layer and determine
+what named places, objects, infrastructure, or events are nearby using matching MQS/Cubes
+layers as spatial references. This is a priority workflow, not a global restriction:
+non-OurForce queries retain the generic subject/reference behavior, and provider roles must
+come from catalog metadata rather than hardcoded layer UUIDs.
+
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus a ⚙ settings panel (LLM key/model, PG connection, layers table).
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS and Cubes as the only production GIS providers. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for both providers. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, client timezone, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS, Cubes, and Tyche as production GIS providers. Tyche supplies the canonical OurForce observations. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for every provider. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, client timezone, and SSE streaming.
 
 **MQS bounded loading:** Every query-layer load defaults to the request polygon;
 non-proximity reference layers use the exact polygon, and bounded proximity uses only its
@@ -120,13 +126,13 @@ Small DTO/model modules and trivial protocol declarations are the intended unit 
 
 **Full architecture explanation lives in `backend/README.md`** — keep it updated when structure changes. Summary:
 
-Tiers under `backend/app/` — dependency direction is service → bl ← dal (DIP: focused modules under `bl/ports/` define `LayersRepository`/`Provider`/`ProviderRegistry`/`LLMClient`; the DAL implements them; `main.py` is the composition root that wires everything):
+Tiers under `backend/app/` — dependency direction is service → bl ← dal (DIP: BL contexts own `LayersRepository`/`Provider`/`ProviderRegistry`/`LLMClient`; the DAL implements them; `main.py` is the composition root that wires everything):
 
 - `service/` — routers + DTOs only, no logic. `POST /api/query` (NL entry), `POST /api/execute-plan` (debug: run a hand-written plan), `POST /api/select-layers` (debug: agent call 1 only), `GET/PUT /api/settings` (backs the UI settings panel; secrets masked, responses include live catalog status), `GET /api/models` (live model ids from the configured OpenAI-compatible provider), and `GET/POST /api/layers` (browse/add catalog metadata).
 - `bl/plan/` — **GeoQueryPlan is the core contract**: a 16-member discriminated union, including `latest_per_entity` and `movement_direction` for Cubes trajectories. Cubes identity defaults to `netId` and observation time to `eventTime`. Semantic validation enforces earlier references, catalog IDs, complete target filters, required boundaries, final output ordering, and terminal count.
 - `bl/executor/` — engine dispatches via an op registry; each op is one self-registering module in `ops/` (OCP: new op = new file, engine untouched).
 - `bl/agent/` — focused `select_layers/`, `build_plan/`, and `generate_layer_metadata/` packages. Selection drops hallucinated IDs and sanitizes catalog text; planning receives selected-layer schemas/samples, supports bounded sampling, validates, retries once, and can clarify. Prompts remain files in `prompts/`. `bl/query_orchestrator.py` owns select → plan → execute, zero-result diagnosis, timings, and token usage.
-- `dal/` — `layers_repository.py` owns catalog SQL; thin provider coordinators compose one-class-per-file collaborators for source parsing, query building, HTTP/pagination, schema mapping, and dense-result splitting; `llm/openai_client.py` implements the OpenAI-compatible LLM port. Production contains no mock provider.
+- `dal/` — `catalog/layers_repository.py` owns catalog SQL; provider-specific packages compose one-class-per-file collaborators for source parsing, query building, HTTP/pagination, schema mapping, and dense-result splitting; `llm/openai_client.py` implements the OpenAI-compatible LLM port. Production contains no mock provider.
 
 **Layer catalog is Postgres**, not a file: table `public.layers` in the local `gis` DB (25 Hebrew layers; columns id/name/description/tags/provider/source_url). Plans reference layers by UUID.
 
@@ -145,7 +151,7 @@ also go to the browser console.
 
 ## Frontend architecture
 
-**The UI ↔ backend contract is exactly `{query, boundaries: MultiPolygon}`** — mirrored between `frontend/src/types/geo-query.ts` and the focused models under `backend/app/service/dto/`. Never change one side without the other. Geography modes (viewport bbox / drawn polygon / rectangle) all collapse into that required MultiPolygon before sending; viewport is the default.
+**The UI ↔ backend contract is exactly `{query, boundaries: MultiPolygon}`** — mirrored between `frontend/src/types/geo-query.ts` and `backend/app/service/query/request.py`. Never change one side without the other. Geography modes (viewport bbox / drawn polygon / rectangle) all collapse into that required MultiPolygon before sending; viewport is the default.
 
 **State flow:** `components/AppShell/index.tsx` is the single state owner (query text, geography mode, drawn shape, live map view, current request/response, up to eight completed in-memory turns, settings visibility). It builds the request when the composer is submitted and calls `services/geoQueryService.ts`, which POSTs to `/api/query` (proxied to the backend via the rewrite in `next.config.ts` — no CORS involved). A reply following `status="clarify"` includes the immediately preceding request as textual context; this is not persistent server conversation memory. “New geo query” resets conversation and geography state.
 

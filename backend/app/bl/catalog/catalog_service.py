@@ -7,10 +7,10 @@ talk HTTP, or know Postgres — the repository/provider ports do the I/O.
 import time
 from typing import Dict, List, Tuple
 
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.layer_schema import LayerSchema
-from app.bl.ports.layers_repository import LayersRepository
-from app.bl.ports.provider_registry import ProviderRegistry
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_schema import LayerSchema
+from app.bl.catalog.layers_repository import LayersRepository
+from app.bl.providers.registry import ProviderRegistry
 from app.common.errors.layer_not_found_error import LayerNotFoundError
 from app.common.errors.provider_error import ProviderError
 

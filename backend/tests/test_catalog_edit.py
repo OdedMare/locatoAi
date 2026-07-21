@@ -4,9 +4,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.ports.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_meta import LayerMeta
 from app.main import _register_error_handlers
-from app.service import catalog_router
+from app.service.catalog import router as catalog_router
 from tests.conftest import FakeLayersRepository
 
 

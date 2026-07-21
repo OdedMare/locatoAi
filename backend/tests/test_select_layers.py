@@ -61,7 +61,7 @@ def test_no_ids_no_clarify_falls_back(catalog):
 def test_catalog_metadata_is_sanitized_into_prompt(catalog):
     llm = FakeLLM({"layer_ids": ["schools"]})
     LayerSelector(llm, catalog).select("schools")
-    assert "- id: schools | name: בתי ספר" in llm.last_system
+    assert "- id: schools | provider: arcgis | name: בתי ספר" in llm.last_system
     assert "{catalog}" not in llm.last_system
     assert llm.last_user == "schools"
 
@@ -80,6 +80,7 @@ def test_selector_prompt_requires_all_multi_reference_layers(catalog):
         "schools", "roundabouts", "accidents"
     ]
     assert "Never drop the second reference layer" in llm.last_system
+    assert "`tyche` כוחותינו/OurForce layer as the subject" in llm.last_system
 
 
 def test_diet_selector_keeps_contract_with_shorter_prompt(catalog):
@@ -93,9 +94,10 @@ def test_diet_selector_keeps_contract_with_shorter_prompt(catalog):
     ).select("schools")
 
     assert len(diet_llm.last_system) < len(full_llm.last_system) * 0.6
-    assert "schools|בתי ספר|" in diet_llm.last_system
+    assert "schools|arcgis|בתי ספר|" in diet_llm.last_system
     assert '"layer_ids"' in diet_llm.last_system
     assert "A near B and C" in diet_llm.last_system
+    assert "`tyche` כוחותינו layer as subject" in diet_llm.last_system
 
 
 def test_extract_json_plain():

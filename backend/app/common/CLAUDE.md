@@ -88,7 +88,7 @@ add a normalizer if it needs validation, and read it via `store.get().<field>`.
 
 `class AiLocatorError(Exception)` (`ailocator_error.py`) is the base for all domain
 errors. Each subclass lives in its own file and is mapped to an HTTP status by
-`app/error_handler_registry.py` (outside `common/`, in the composition root):
+`app/service/errors/registry.py`:
 
 | Class | File | Meaning | HTTP status |
 |---|---|---|---|
@@ -158,7 +158,7 @@ consumed by `bl`, confirming the dependency direction never reverses.
 
 - Need a new setting? Start in `config/settings.py` + `runtime_settings/runtime_settings.py`.
 - Need to raise a typed failure? Pick from `errors/` — don't invent a new exception type
-  without a good reason; the HTTP mapping lives in `app/error_handler_registry.py`.
+  without a good reason; the HTTP mapping lives in `app/service/errors/registry.py`.
 - Doing distance/buffer/reprojection? Everything you need is a `GeoUtils` static method.
 - Adding a log line? Use the `ConsoleFirstLogger` at `app.state.request_log`, not raw
   `logging.getLogger`.

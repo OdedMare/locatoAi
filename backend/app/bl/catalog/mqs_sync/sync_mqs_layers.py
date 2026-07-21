@@ -2,8 +2,8 @@ from uuid import uuid4
 
 from app.bl.catalog.mqs_sync.browse_mqs_layers import browse_mqs_layers
 from app.bl.catalog.mqs_sync.mqs_sync_result import MqsSyncResult
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.layers_repository import LayersRepository
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.catalog.layers_repository import LayersRepository
 
 
 class MqsLayerSynchronizer:

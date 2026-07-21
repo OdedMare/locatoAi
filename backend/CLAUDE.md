@@ -17,8 +17,8 @@ provider, adding a setting, debugging an error's HTTP status).
 | Tier | Doc | One-line summary |
 |---|---|---|
 | `app/common/` | [`app/common/CLAUDE.md`](app/common/CLAUDE.md) | Dependency-free foundation: env vs. live settings precedence, error hierarchy, CRS/meters math, logging, text normalization. |
-| `app/dal/` | [`app/dal/CLAUDE.md`](app/dal/CLAUDE.md) | Implements `bl/ports/`: MQS/Cubes/Tyche provider adapters, provider registry, LLM client, Postgres repositories. |
-| `app/bl/` | [`app/bl/CLAUDE.md`](app/bl/CLAUDE.md) | The business core: ports (DIP seam), the 16-step `GeoQueryPlan` + validators, the executor engine + ops, the 3-call agent pipeline, the query orchestrator, the catalog service. |
+| `app/dal/` | [`app/dal/CLAUDE.md`](app/dal/CLAUDE.md) | Implements context-owned BL interfaces: MQS/Cubes/Tyche adapters, provider registry, LLM client, and Postgres repositories. |
+| `app/bl/` | [`app/bl/CLAUDE.md`](app/bl/CLAUDE.md) | The business core: context-owned interfaces/models, the 16-step `GeoQueryPlan` + validators, executor ops, agent pipeline, query orchestrator, and catalog service. |
 | `app/service/` | [`app/service/CLAUDE.md`](app/service/CLAUDE.md) | Every HTTP endpoint, DTOs, the composition root (`main.py`), error→HTTP mapping, the `{query, boundaries}` contract, settings secret masking. |
 
 For architecture-level narrative (request lifecycle stage-by-stage, provider deep
@@ -38,7 +38,7 @@ service → bl ← dal
 - `service → bl`: routers call into `bl` objects (orchestrator, catalog, layer
   selector) — never contain business logic themselves (two documented exceptions, see
   `app/service/CLAUDE.md`).
-- `dal ← bl`: `bl` depends only on `Protocol`s in `bl/ports/`; `dal` implements them;
+- `dal ← bl`: `bl` owns `Protocol`s beside their contexts; `dal` implements them;
   `bl` never imports `dal`.
 - `common`: leaf tier, imported by all three others, imports none of them.
 - `app/main.py` / `app/application_state_wiring.py`: the composition root — the only

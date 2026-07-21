@@ -8,6 +8,12 @@ preserve the same output contracts, operation set, safety rules, sampling tool, 
 clarification behavior as their full counterparts. Update and test both profiles whenever
 an operation or invariant changes.
 
+The primary mission overlay locates OurForce entities from Tyche and uses matching MQS or
+Cubes layers as nearby spatial context. It is a priority path, not a global provider rule:
+queries unrelated to OurForce keep the generic subject/reference behavior. Both prompt
+stages receive each catalog layer's provider so this choice is based on metadata rather
+than names or hardcoded layer IDs.
+
 ## Pipeline position
 
 ```text
@@ -25,7 +31,7 @@ user query
 
 ### `select_layers.md`
 
-Used by `LayerSelector` for model call one. `{catalog}` is replaced with a line-oriented list containing catalog ID, truncated name, up to ten tags, and truncated description. Catalog content is untrusted data, never instructions.
+Used by `LayerSelector` for model call one. `{catalog}` is replaced with a line-oriented list containing catalog ID, provider, truncated name, up to ten tags, and truncated description. Catalog content is untrusted data, never instructions.
 
 Expected JSON fields include:
 

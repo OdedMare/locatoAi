@@ -23,7 +23,7 @@ from app.bl.plan.models.count_step import CountStep
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.models.load_step import LoadStep
 from app.bl.plan.models.temporal_filter_step import TemporalFilterStep
-from app.bl.ports.provider_registry import ProviderRegistry
+from app.bl.providers.registry import ProviderRegistry
 
 
 class PlanExecutor:

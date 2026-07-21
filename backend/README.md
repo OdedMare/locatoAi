@@ -29,8 +29,8 @@ over 16 spatial, filtering, movement, and aggregation operations.
 
 ## Architecture: N-tier + SOLID
 
-Dependency direction: **service → bl ← dal**. The BL owns its interfaces
-([`bl/ports/`](app/bl/ports/)); the DAL implements them; only
+Dependency direction: **service → bl ← dal**. The BL owns interfaces beside the
+contexts that consume them; the DAL implements them; only
 [`main.py`](app/main.py) / [`application_state_wiring.py`](app/application_state_wiring.py)
 (composition root) know every tier.
 
@@ -39,22 +39,24 @@ app/
 ├── main.py                  # composition root: app factory + error mapping
 ├── application_state_wiring.py # composition root: builds the dependency graph onto app.state
 │
-├── service/                 # ── HTTP tier: routers + DTOs, zero logic ──
-│   ├── dto/                 # query/plan request and response models
-│   ├── *_dto/               # router-specific settings/catalog/agent DTOs
-│   ├── query_router.py      # POST /api/query           (NL entry point)
-│   ├── plan_router.py       # POST /api/execute-plan    (debug: run a raw plan)
-│   ├── agent_router.py      # POST /api/select-layers   (debug: LLM call 1 only)
-│   ├── catalog_router.py    # Layer CRUD, MQS sync/browse, Tyche activation
-│   ├── settings_router.py   # GET/PUT /api/settings     (backs the UI ⚙ panel)
-│   ├── feedback_router.py   # POST /api/feedback        (👍/👎 → PostgreSQL)
-│   └── deps.py              # FastAPI dependency accessors (app.state)
+├── service/                 # ── HTTP tier: one package per API context ──
+│   ├── query/               # POST /api/query + request/response DTOs and event sink
+│   ├── plan/                # POST /api/execute-plan + request DTO
+│   ├── agent/               # POST /api/select-layers + DTOs
+│   ├── catalog/             # Layer CRUD, MQS sync/browse, Tyche activation + DTOs
+│   ├── settings/            # GET/PUT /api/settings + DTOs
+│   ├── models/              # GET/POST /api/models + DTOs
+│   ├── feedback/            # POST /api/feedback + request DTO
+│   ├── errors/              # domain-error → HTTP handlers
+│   ├── health/              # GET /health handler
+│   ├── shared/              # shared GeoJSON translation models
+│   └── dependencies.py      # FastAPI dependency accessors (app.state)
 │
 ├── bl/                      # ── Business logic tier ──
-│   ├── ports/               # one BL-owned protocol/model per focused module
 │   ├── query_orchestrator/
 │   │   └── query_orchestrator.py # the select → plan → validate → execute flow + retry policy
 │   ├── agent/
+│   │   ├── llm_client.py    # BL-owned LLM protocol
 │   │   ├── select_layers/   # call 1: catalog → prompt → layer ids
 │   │   ├── build_plan/      # call 2: schemas → plan, tools, constraint preservation
 │   │   ├── generate_layer_metadata/ # provider business fields → editable metadata
@@ -65,18 +67,21 @@ app/
 │   ├── executor/
 │   │   ├── engine/          # runs steps in order, dispatches via the op registry
 │   │   └── ops/             # ONE module per op, self-registering (@register_op)
+│   ├── providers/           # BL-owned provider and registry protocols
 │   └── catalog/
-│       ├── catalog_service.py # layer lookup + schema cache (TTL; stale beats failed)
-│       └── mqs_sync/        # MQS layer inventory → catalog upserts (tags preserved)
+│       ├── models/          # layer metadata/schema/parameter models
+│       ├── layers_repository.py # BL-owned catalog repository protocol
+│       ├── catalog_service.py   # layer lookup + schema cache (TTL; stale beats failed)
+│       └── mqs_sync/            # MQS layer inventory → catalog upserts (tags preserved)
 │
-├── dal/                     # ── Data access tier (implements bl.ports) ──
-│   ├── postgres.py          # shared live-settings PostgreSQL connection factory
-│   ├── layers_repository.py # configurable PostgreSQL catalog table
-│   ├── feedback_repository.py # configurable PostgreSQL feedback table
+├── dal/                     # ── Data access tier (implements BL interfaces) ──
+│   ├── database/postgres.py # shared live-settings PostgreSQL connection factory
+│   ├── catalog/             # configurable PostgreSQL catalog repository
+│   ├── feedback/            # configurable PostgreSQL feedback repository
 │   ├── providers/
-│   │   ├── mqs.py           # MQS REST adapter + property_list enrichment
-│   │   ├── cubes.py         # generic Cubes time-varying POINT adapter
-│   │   ├── tyche.py         # Tyche Our Forces time/geometry query adapter
+│   │   ├── mqs/             # MQS REST adapter + collaborators
+│   │   ├── cubes/           # generic Cubes adapter + collaborators
+│   │   ├── tyche/           # Tyche adapter + collaborators
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
 │       └── openai_client.py # OpenAI-compatible JSON-mode client (Ollama/Gemma today)
@@ -115,7 +120,7 @@ The service tier exposes these routes:
 Cubes and Tyche providers, catalog, executor, LLM client, both agent stages,
 and orchestrator.
 These long-lived objects are attached to `app.state`; routers retrieve them
-directly or through `service/deps.py`.
+directly or through `service/dependencies.py`.
 
 **How SOLID maps onto it**
 
@@ -124,7 +129,7 @@ directly or through `service/deps.py`.
 | SRP | routers translate HTTP only; each executor op is one module; DAL repositories own SQL |
 | OCP | new op = new file in `executor/ops/` (engine untouched); new provider = one `register()` call |
 | LSP/ISP | `Provider` is three methods (`describe_schema`, `fetch_features`, `sample_field_values`) — any adapter drops in |
-| DIP | BL imports nothing from DAL; it depends on `bl/ports/` Protocols, wired in `main.py` |
+| DIP | BL imports nothing from DAL; context-owned BL Protocols are wired in `main.py` |
 
 ---
 
@@ -176,7 +181,7 @@ prompt input (sanitized + truncated) · clarify is a first-class response, alway
 
 ### Stage 0: transport and boundary conversion
 
-`service/dto/query_request.py` accepts a non-empty query and a required GeoJSON
+`service/query/request.py` accepts a non-empty query and a required GeoJSON
 `MultiPolygon`. The router converts the boundary to Shapely and passes domain
 values into `QueryOrchestrator`. DTOs contain translation, not planning rules.
 
@@ -299,7 +304,7 @@ mapping, schema inference, and dense-result splitting live in named collaborator
 `TycheGateway`, and `TycheFeatureMapper`. Provider files stay below 250 lines, and new
 provider behavior belongs in the collaborator that owns that single responsibility.
 
-- **`mqs`** — [`mqs.py`](app/dal/providers/mqs.py): the MQS (Moria Query Service)
+- **`mqs`** — [`provider.py`](app/dal/providers/mqs/provider.py): the MQS (Moria Query Service)
   REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
   unset means the provider errors with a clear message → HTTP 502). MQS layers are not
@@ -337,7 +342,7 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `AILOCATOR_MQS_DETAIL_CONCURRENCY` setting bounds detail fan-out and is listed in
   `.env.example`.
 
-- **`cubes`** — [`cubes.py`](app/dal/providers/cubes.py): time-varying entity
+- **`cubes`** — [`provider.py`](app/dal/providers/cubes/provider.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
   reads metadata with `GET /cube/v1/<dbname>` and falls back to
   `GET /cube/v1/<dbname>/parameters` when parameter definitions are not embedded.
@@ -389,7 +394,7 @@ provider behavior belongs in the collaborator that owns that single responsibili
   query params (`cubes_resolved_parameters`), the same mechanism `query_mode` already
   uses. A required dynamic parameter with no resolved value fails loudly at fetch time.
 
-- **`tyche`** — [`tyche.py`](app/dal/providers/tyche.py): the Our Forces API at
+- **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): the Our Forces API at
   `POST /coordinate/v1/ourforces`. Catalog rows use
   `source_url="tyche://ourforces"`; the live base URL, `username` header,
   write-only `Authorization` token, and TLS verification setting are read on
@@ -478,7 +483,7 @@ annotations that pydantic/FastAPI evaluate — use `typing.Optional/Union/List/D
 
 ## Tests
 
-`tests/` runs without Postgres or an LLM: fakes implement the `bl/ports/` protocols
+`tests/` runs without Postgres or an LLM: fakes implement the context-owned BL protocols
 (this is DIP paying rent). Mock data lives in `data/*.geojson`; accident timestamps are
 generated relative to `now`, which tests freeze (`frozen_now` fixture). Golden plans:
 `tests/fixtures/plans/`.

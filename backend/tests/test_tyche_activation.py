@@ -6,10 +6,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.bl.catalog.tyche_activation import activate_tyche_layer
-from app.bl.ports.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
 from app.main import _register_error_handlers, app as composed_app
-from app.service import catalog_router
+from app.service.catalog import router as catalog_router
 from tests.conftest import FakeLayersRepository
 
 

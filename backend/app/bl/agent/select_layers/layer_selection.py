@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from app.bl.ports.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_meta import LayerMeta
 
 
 @dataclass

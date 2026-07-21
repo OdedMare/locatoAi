@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from app.bl.ports.layer_parameter import LayerParameter
+from app.bl.catalog.models.layer_parameter import LayerParameter
 
 
 @dataclass

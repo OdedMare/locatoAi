@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from app.common.config.settings import Settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.feedback_repository import PostgresFeedbackRepository
+from app.dal.feedback.feedback_repository import PostgresFeedbackRepository
 
 
 class FakeConnection:
@@ -26,7 +26,7 @@ def test_feedback_is_inserted_in_configured_postgres_table(tmp_path, monkeypatch
     store.update({"feedback_table": "analytics.user_feedback"})
     connection = FakeConnection()
     monkeypatch.setattr(
-        "app.dal.feedback_repository.connect", lambda ignored_store: connection
+        "app.dal.feedback.feedback_repository.connect", lambda ignored_store: connection
     )
     timestamp = datetime(2026, 7, 14, tzinfo=timezone.utc)
 

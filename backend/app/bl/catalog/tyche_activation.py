@@ -3,9 +3,9 @@
 from typing import List, Optional, Tuple
 from uuid import uuid4
 
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.layers_repository import LayersRepository
-from app.bl.ports.provider import Provider
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.catalog.layers_repository import LayersRepository
+from app.bl.providers.provider import Provider
 
 TYCHE_SOURCE = "tyche://ourforces"
 

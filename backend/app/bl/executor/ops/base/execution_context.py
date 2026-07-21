@@ -6,7 +6,7 @@ import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.ports.provider_registry import ProviderRegistry
+from app.bl.providers.registry import ProviderRegistry
 from app.common.utils.geo_utils import buffer_wgs84_geometry
 
 

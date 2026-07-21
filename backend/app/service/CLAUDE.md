@@ -14,7 +14,7 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 
 | Method | Path | Request DTO | Response DTO | Purpose |
 |---|---|---|---|---|
-| GET | `/health` | — | `dict` | Liveness check (wired directly in `main.py`, not a router module) |
+| GET | `/health` | — | `dict` | Liveness check (`health/router.py`, wired in `main.py`) |
 | POST | `/api/query` | `QueryRequest` | `QueryResponse` | Full NL pipeline: select layers → build plan → execute |
 | POST | `/api/execute-plan` | `ExecutePlanRequest` | `QueryResponse` | Debug: validate + execute a hand-written plan, no LLM calls |
 | POST | `/api/select-layers` | `SelectLayersRequest` | `SelectLayersResponse` | Debug: agent call 1 only |
@@ -34,39 +34,35 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 
 ## Router-by-router
 
-- **`query_router.py`** — `orchestrator.run_query(query, boundaries, event_sink=...)`.
+- **`query/router.py`** — `orchestrator.run_query(query, boundaries, event_sink=...)`.
   Validates/generates `X-Request-ID`, seeds `request.state.pipeline_trace`, wires a
   `QueryEventSink` so the orchestrator can stream trace events into it as it runs. On
   exception: logs then **re-raises** — HTTP mapping happens in the global
   `ErrorHandlerRegistry`, not here. Builds `QueryResponse.from_outcome(outcome)`.
-- **`plan_router.py`** — `orchestrator.execute_plan(body.plan, boundaries)`. No LLM
+- **`plan/router.py`** — `orchestrator.execute_plan(body.plan, boundaries)`. No LLM
   call; tests the executor in isolation.
-- **`agent_router.py`** — `request.app.state.layer_selector.select(body.query)`
-  (accessed directly off `app.state`, not through `deps.py`). Times the call locally
+- **`agent/router.py`** — `request.app.state.layer_selector.select(body.query)`
+  (accessed directly off `app.state`, not through `dependencies.py`). Times the call locally
   purely for the response's `timing_ms`.
-- **`catalog_router.py`** — the most logic-dense router; calls into `bl/catalog`,
-  `bl/agent/generate_layer_metadata`, and `dal/providers/cubes`. See "Zero-logic
+- **`catalog/router.py`** — the most logic-dense router; calls into `bl/catalog` and
+  `bl/agent/generate_layer_metadata`. See "Zero-logic
   compliance" below.
-- **`settings_router.py`** — reads/writes `request.app.state.settings_store`. Owns all
+- **`settings/router.py`** — reads/writes `request.app.state.settings_store`. Owns all
   secret-masking logic (see "Settings secrets" below).
-- **`feedback_router.py`** — `feedback_repository.add(**body.model_dump(),
+- **`feedback/router.py`** — `feedback_repository.add(**body.model_dump(),
   timestamp=utcnow())`. No `response_model` declared (returns a raw dict).
-- **`models_router.py`** — `llm_client.list_models(...)`; POST passes
+- **`models/router.py`** — `llm_client.list_models(...)`; POST passes
   `base_url_override`/`api_key_override` so the UI can test unsaved settings.
 
-## `deps.py`
+## `dependencies.py`
 
 ```python
-class ServiceDependencies:
-    @staticmethod
-    def orchestrator(request: Request) -> QueryOrchestrator:
-        return request.app.state.orchestrator
-
-get_orchestrator = ServiceDependencies.orchestrator
+def get_orchestrator(request: Request) -> QueryOrchestrator:
+    return request.app.state.orchestrator
 ```
 
 Only **one** formal FastAPI dependency exists (`get_orchestrator`, used via
-`Depends(...)` in `query_router.py`/`plan_router.py`). Every other router reads
+`Depends(...)` in `query/router.py` and `plan/router.py`). Every other router reads
 `request.app.state.<thing>` directly as an ambient singleton — an intentional
 inconsistency worth knowing about rather than "fixing" incidentally.
 
@@ -91,9 +87,9 @@ inconsistency worth knowing about rather than "fixing" incidentally.
    `layer_metadata_generator`, `orchestrator`, `request_log`.
 
 (`request.state.request_id` / `request.state.pipeline_trace` are separate, per-request,
-set by `query_router.py` — not part of the composition root.)
+set by `query/router.py` — not part of the composition root.)
 
-### Error mapping — `error_handler_registry.py` + `error_handler.py`
+### Error mapping — `errors/registry.py` + `errors/handler.py`
 
 | Exception (`app.common.errors.*`) | HTTP status |
 |---|---|
@@ -108,19 +104,19 @@ Each `ErrorHandler(status_code)` logs `request_failed` via `app.state.request_lo
 returns `{"status": "error", "request_id", "detail", "error_type", "pipeline_trace"}`
 (`detail` genericized only for the 500 catch-all), echoes `X-Request-ID` back. Routers
 do **not** do their own try/except → HTTPException for these five types — the two
-exceptions are `catalog_router.create_layer` (`ValueError`→409) and
-`settings_router.update_settings` (`ValueError`→422), which are direct `HTTPException`
+exceptions are `catalog/router.py::create_layer` (`ValueError`→409) and
+`settings/router.py::update_settings` (`ValueError`→422), which are direct `HTTPException`
 raises for validation failures, not domain errors.
 
 ## The `{query, boundaries}` contract
 
-Confirmed exact shape — `dto/query_request.py`:
+Confirmed exact shape — `query/request.py`:
 ```python
 class QueryRequest(BaseModel):
     query: str = Field(min_length=1)
     boundaries: GeoJSONMultiPolygon
 ```
-`dto/geo_json_multi_polygon.py`:
+`shared/geo_json_multi_polygon.py`:
 ```python
 class GeoJSONMultiPolygon(BaseModel):
     type: Literal["MultiPolygon"]
@@ -132,7 +128,7 @@ must wrap it. `coordinates` is untyped (`shapely.geometry.shape()` fails loudly 
 `.to_shapely()` time if malformed). This DTO is reused by `ExecutePlanRequest` and
 `GenerateLayerMetadataRequest.cubes_sample_boundary`.
 
-## Settings secrets handling (`settings_router.py`)
+## Settings secrets handling (`settings/router.py`)
 
 **Read** (`GET /api/settings`): never returns plaintext secrets.
 - `openai_api_key` → `openai_api_key_set: bool` + `openai_api_key_hint` (`mask_key()`:
@@ -150,27 +146,26 @@ must wrap it. `coordinates` is untyped (`shapely.geometry.shape()` fails loudly 
 overwrites). Same pattern for `llm_model`. The patch then goes through
 `store.update(patch)`; a `ValueError` → `HTTPException(422)`.
 
-## DTO modules
+## Feature packages
 
-- **`dto/`** — core query/plan DTOs: `QueryRequest`, `GeoJSONMultiPolygon`,
-  `QueryResponse` (built via `.from_outcome(QueryOutcome)`), `ExecutePlanRequest`,
-  `FeatureCollectionMapper` (GeoDataFrame → GeoJSON, not a DTO), `SelectedLayerDto`.
-- **`agent_dto/`** — `SelectLayersRequest`, `SelectLayersResponse`, `SelectedLayer`
-  (agent call 1 in isolation).
-- **`catalog_dto/`** — `CatalogLayer`, `CreateLayerRequest`, `UpdateLayerRequest`,
+- **`query/`** — query router, event sink, `QueryRequest`, `QueryResponse` (built via
+  `.from_outcome(QueryOutcome)`), and `SelectedLayerDto`.
+- **`plan/`** — execute-plan router and `ExecutePlanRequest`.
+- **`shared/`** — `GeoJSONMultiPolygon` plus `FeatureCollectionMapper`
+  (GeoDataFrame → GeoJSON).
+- **`agent/`** — select-layers router, `SelectLayersRequest`,
+  `SelectLayersResponse`, and `SelectedLayer`.
+- **`catalog/`** — catalog router, `CatalogLayer`, `CreateLayerRequest`, `UpdateLayerRequest`,
   `CubesParameterValues` (mixin: `cubes_parameters` / legacy `cubes_dynamic_parameters`,
   merge helper `.parameter_values()`), `CubesQueryMode` (`Literal["auto","match_not","legacy"]`),
   `CubesAutocompleteRequest`/`Response`/`OptionResponse`, `CubesParameterResponse`,
   `GenerateLayerMetadataRequest`, `GeneratedLayerMetadataResponse`, `LayersResponse`,
   `MqsSyncResponse`, `RemoteMqsLayerResponse`/`RemoteMqsLayersResponse`.
-- **`models_dto/`** — `ModelsProbeRequest`, `ModelsResponse`.
-- **`settings_dto/`** — `CatalogStatus`, `SettingsResponse` (no raw secrets — see
+- **`models/`** — models router, `ModelsProbeRequest`, `ModelsResponse`.
+- **`settings/`** — settings router, `CatalogStatus`, `SettingsResponse` (no raw secrets — see
   above), `SettingsUpdate` (all-`Optional` patch payload, raw secrets accepted but
   never echoed back).
-- **Top-level `service/`** — `feedback_request.py::FeedbackRequest`,
-  `query_event_sink.py::QueryEventSink` (callable, appends to
-  `request.state.pipeline_trace` and logs `query_pipeline`, passed as
-  `orchestrator.run_query(event_sink=...)`).
+- **`feedback/`** — feedback router and `FeedbackRequest`.
 
 ## Zero-logic compliance — know these two exceptions
 
@@ -178,12 +173,12 @@ Most routers are clean delegates. Two carry real domain logic that a new develop
 should expect to find, even though the project convention is "routers translate HTTP
 only":
 
-1. **`catalog_router.py`** — `normalized_source`, `with_cubes_mode`,
+1. **`catalog/router.py`** — `normalized_source`, `with_cubes_mode`,
    `with_parameters`, `clean_tags`: URL-scheme construction/normalization for
    `cubes://`/`tyche://` source URLs and tag dedup/truncation. This is domain-specific
    transformation, not pure delegation — flagged here so it isn't mistaken for an
    accident when you go looking for where a `cubes://` URL gets built.
-2. **`settings_router.py`** — `mask_key`, `mask_db_password`, `_clean_patch`: real
+2. **`settings/router.py`** — `mask_key`, `mask_db_password`, `_clean_patch`: real
    regex/conditional logic for secret masking, isolated into static/classmethods.
 
 If you're adding new logic to either router, prefer extending the existing isolated

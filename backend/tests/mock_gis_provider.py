@@ -7,9 +7,9 @@ from urllib.parse import urlparse
 import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
-from app.bl.ports.layer_field import LayerField
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.layer_schema import LayerSchema
+from app.bl.catalog.models.layer_field import LayerField
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_schema import LayerSchema
 from app.common.utils.geo_utils import WGS84, empty_features_gdf
 
 OFFSET_HOURS_FIELD = "timestamp_offset_hours"

@@ -4,12 +4,15 @@ from fastapi import FastAPI
 
 from app.application_state_wiring import ApplicationStateWiring
 from app.common.config.settings_provider import get_settings
-from app.error_handler_registry import ErrorHandlerRegistry
-from app.health_router import HealthRouter
-from app.service import (
-    agent_router, catalog_router, feedback_router, models_router,
-    plan_router, query_router, settings_router,
-)
+from app.service.errors.registry import ErrorHandlerRegistry
+from app.service.health.router import HealthRouter
+from app.service.agent.router import router as agent_router
+from app.service.catalog.router import router as catalog_router
+from app.service.feedback.router import router as feedback_router
+from app.service.models.router import router as models_router
+from app.service.plan.router import router as plan_router
+from app.service.query.router import router as query_router
+from app.service.settings.router import router as settings_router
 
 _ROUTERS = (
     query_router, plan_router, settings_router, agent_router,
@@ -23,8 +26,8 @@ class ApplicationFactory:
         application = FastAPI(title="AiLocator", version="0.1.0")
         ApplicationStateWiring.wire(application, get_settings())
         ErrorHandlerRegistry.register(application)
-        for module in _ROUTERS:
-            application.include_router(module.router)
+        for router in _ROUTERS:
+            application.include_router(router)
         application.add_api_route("/health", HealthRouter.status, methods=["GET"])
         return application
 

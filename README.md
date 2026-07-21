@@ -87,7 +87,7 @@ The backend follows `service → business logic ← data access`:
 
 - `service/` owns HTTP details only.
 - `bl/` owns the domain contracts and orchestration.
-- `dal/` implements focused interfaces owned by `bl/ports/`.
+- `dal/` implements focused interfaces owned by their BL contexts.
 - `main.py` is the only composition root that creates concrete adapters and connects them.
 
 The frontend follows one-way state flow:

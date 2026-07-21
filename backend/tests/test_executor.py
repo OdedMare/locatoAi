@@ -8,8 +8,8 @@ from shapely.geometry import Point, box
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
-from app.bl.ports.layer_meta import LayerMeta
-from app.bl.ports.layer_schema import LayerSchema
+from app.bl.catalog.models.layer_meta import LayerMeta
+from app.bl.catalog.models.layer_schema import LayerSchema
 from app.common.errors.execution_error import ExecutionError
 from tests.conftest import FIXTURES_DIR
 

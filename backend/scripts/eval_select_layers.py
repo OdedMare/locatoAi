@@ -17,10 +17,12 @@ from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.common.config.settings_provider import get_settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.layers_repository import PostgresLayersRepository
+from app.dal.catalog.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.providers.mqs import MqsProvider
+from app.dal.providers.cubes.provider import CubesProvider
+from app.dal.providers.mqs.provider import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
+from app.dal.providers.tyche.provider import TycheProvider
 
 CLARIFY = "CLARIFY"
 
@@ -78,6 +80,10 @@ CASES = [
      {"כוחותינו"}, set()),
     ("תמצא לי את החייל שהיה על הציר בין תל אביב להרצליה",
      {"כוחותינו", "יישובים"}, {"כבישים"}),
+    ("תמצא לי טנקים ליד בתי ספר",
+     {"כוחותינו", "בתי ספר"}, set()),
+    ("find our forces near train stations",
+     {"כוחותינו", "תחנות רכבת"}, set()),
 ]
 
 
@@ -111,6 +117,8 @@ def main() -> int:
 
     providers = InMemoryProviderRegistry()
     providers.register("mqs", MqsProvider(store))
+    providers.register("cubes", CubesProvider(store))
+    providers.register("tyche", TycheProvider(store))
     catalog = CatalogService(PostgresLayersRepository(store), providers)
     selector = LayerSelector(OpenAIJsonClient(store), catalog)
 

@@ -14,20 +14,20 @@ from app.bl.agent.generate_layer_metadata.layer_metadata_generator import (
 from app.bl.agent.generate_layer_metadata.generated_layer_metadata import (
     GeneratedLayerMetadata,
 )
-from app.bl.ports.layer_field import LayerField
-from app.bl.ports.layer_parameter import LayerParameter
-from app.bl.ports.layer_schema import LayerSchema
+from app.bl.catalog.models.layer_field import LayerField
+from app.bl.catalog.models.layer_parameter import LayerParameter
+from app.bl.catalog.models.layer_schema import LayerSchema
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.mqs import MqsProvider
+from app.dal.providers.mqs.provider import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.main import _register_error_handlers
-from app.service import catalog_router
-from app.service.catalog_dto.generate_layer_metadata_request import (
+from app.service.catalog import router as catalog_router
+from app.service.catalog.generate_layer_metadata_request import (
     GenerateLayerMetadataRequest,
 )
-from app.service.catalog_router import CatalogRouter
+from app.service.catalog.router import CatalogRouter
 from tests.test_cubes_provider import make_provider as make_cubes_provider
 
 

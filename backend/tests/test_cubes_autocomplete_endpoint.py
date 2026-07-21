@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 
 from app.common.config.settings import Settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.cubes import CubesProvider
+from app.dal.providers.cubes.provider import CubesProvider
 from app.main import _register_error_handlers
-from app.service import catalog_router
+from app.service.catalog import router as catalog_router
 
 
 def make_app(handler, tmp_path) -> FastAPI:
