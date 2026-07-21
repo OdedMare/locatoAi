@@ -1,8 +1,4 @@
-"""Catalog service: layer lookup + on-demand schema fetching with TTL cache.
 
-SRP: this module resolves layers and schemas. It does not execute plans,
-talk HTTP, or know Postgres — the repository/provider ports do the I/O.
-"""
 
 import time
 from typing import Dict, List, Tuple
@@ -29,11 +25,9 @@ class CatalogService:
         self._schema_cache: Dict[str, Tuple[LayerSchema, float]] = {}
 
     def list_layers(self) -> List[LayerMeta]:
-        """All layers the agent may choose from (metadata only)."""
         return self._repository.list_layers()
 
     def list_queryable_layers(self) -> List[LayerMeta]:
-        """Catalog layers whose provider adapter is active in this process."""
         return [
             layer for layer in self._repository.list_layers()
             if self._providers.has(layer.provider)
@@ -52,16 +46,12 @@ class CatalogService:
     def update_layer_metadata(
         self, layer_id: str, name: str, description: str, tags: List[str],
     ) -> LayerMeta:
-        """Edit discovery metadata without changing provider/source identity."""
         self.get_layer(layer_id)
         return self._repository.update_layer_metadata(
             layer_id, name, description, tags
         )
 
     def sample_field(self, layer_id: str, field: str, limit: int = 20) -> List[str]:
-        """Distinct example values of one field, straight from the provider
-        (no cache — the agent asks on demand when the schema samples are
-        not enough to grasp a field's meaning)."""
         layer = self.get_layer(layer_id)
         provider = self._providers.get(layer.provider)
         return provider.sample_field_values(layer, field, limit=limit)

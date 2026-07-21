@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir --upgrade "pip<25" \
 
 COPY pyproject.toml ./
 COPY app ./app
+COPY scripts ./scripts
 COPY tests ./tests
 COPY data ./data
 

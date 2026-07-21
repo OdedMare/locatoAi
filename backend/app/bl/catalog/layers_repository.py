@@ -4,7 +4,6 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 
 
 class LayersRepository(Protocol):
-    """Catalog store implemented by the DAL catalog context."""
 
     def list_layers(self) -> List[LayerMeta]: ...
 
@@ -16,7 +15,4 @@ class LayersRepository(Protocol):
         self, layer_id: str, name: str, description: str, tags: List[str],
     ) -> LayerMeta: ...
 
-    def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
-        """Insert or update by (provider, source_url); returns (layer, created).
-        Updates touch name/description only — tags may be LLM-enriched."""
-        ...
+    def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]: ...     
