@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
 
 from app.bl.agent.build_plan.geo_skill_catalog import GeoSkillCatalog
+from app.bl.agent.build_plan.plan_build_result import PlanBuildResult
 from app.bl.agent.build_plan.plan_builder import _FALLBACK_CLARIFY, PlanBuilder
 from app.bl.agent.build_plan.preserves_constraints import preserves_constraints
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
+from scripts.eval_build_plan import PRESENT, check_plan
 from tests.conftest import LAYERS
 
 NOW = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)
@@ -98,6 +100,22 @@ def test_geo_skill_catalog_documents_and_renders_every_operation():
         assert f"# `{operation}`" in full
         assert f'"op":"{operation}"' in full
         assert f'"op":"{operation}"' in diet
+
+
+def test_build_plan_eval_checks_operations_roles_and_constraints():
+    result = PlanBuildResult(plan=GeoQueryPlan.model_validate(VALID_PLAN))
+    case = {
+        "ops": ("load", "near"),
+        "subject": "בתי ספר",
+        "context": ("כיכרות",),
+        "checks": (("near", "distance_m", 300),),
+    }
+
+    assert check_plan(result, case, [SCHOOLS, ROUNDABOUTS])[0]
+    case["checks"] = (("near", "target_field", PRESENT),)
+    ok, detail = check_plan(result, case, [SCHOOLS, ROUNDABOUTS])
+    assert not ok
+    assert "near.target_field must be present" in detail
 
 
 def test_hebrew_multi_reference_query_builds_near_all(catalog):

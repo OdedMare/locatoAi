@@ -300,7 +300,10 @@ npm run lint
 npm run build
 ```
 
-Layer-selection quality is covered by `backend/scripts/eval_select_layers.py`. Prompt changes should be evaluated against its Hebrew/English cases. Real user votes are stored in PostgreSQL and can seed future regression cases.
+Layer selection is covered by `backend/scripts/eval_select_layers.py`; operation planning
+is covered by `backend/scripts/eval_build_plan.py`. Run the relevant scored Hebrew/English
+eval after prompt or geo-skill changes. Real user votes are stored in PostgreSQL and can
+seed future regression cases.
 
 ## Extension map
 

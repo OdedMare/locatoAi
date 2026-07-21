@@ -285,6 +285,9 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 - `scripts/eval_select_layers.py` — SCORED eval (20 Hebrew/English cases with expected
   layer sets, incl. typos/slang/must-clarify; exit 1 on regression). Run after every
   prompt/model change. Add every real-world miss as a case.
+- `scripts/eval_build_plan.py` — SCORED live planner eval with fixed real catalog layers,
+  covering proximity choices, clusters, static vs moving direction, count vs limit,
+  named references, boundaries, typos, clarification, and Tyche mission plans.
 - UI 👍/👎 → `POST /api/feedback` → configurable PostgreSQL feedback table.
 - `scripts/enrich_layer_tags.py` — LLM-generated bilingual alias tags using catalog
   metadata plus MQS `property_list` field names/samples (dry-run by default;
@@ -476,6 +479,7 @@ docker run -d --name ailocator-backend --platform linux/amd64 -p 8000:8000 \
 
 docker run --rm --platform linux/amd64 ailocator-backend:py3.8.10 python -m pytest -q
 docker exec ailocator-backend python scripts/eval_select_layers.py
+docker exec ailocator-backend python scripts/eval_build_plan.py
 ```
 
 Requires: local Postgres `gis` DB with the `public.layers` catalog, and Ollama listening

@@ -98,8 +98,9 @@ Do not rely on prompt wording as the only enforcement for a rule that protects d
 2. Keep JSON field names synchronized with the parsers under `select_layers/` or `build_plan/`.
 3. Run the backend unit tests.
 4. Run `scripts/eval_select_layers.py` after selection-prompt changes.
-5. Inspect Hebrew and English cases, ambiguity/clarification cases, token usage, and behavior with untrusted catalog text.
-6. Turn real downvotes from the PostgreSQL feedback table into regression cases.
+5. Run `scripts/eval_build_plan.py` after build-prompt or operation-skill changes.
+6. Inspect Hebrew and English cases, ambiguity/clarification cases, token usage, and behavior with untrusted catalog text.
+7. Turn real downvotes from the PostgreSQL feedback table into regression cases.
 
 When introducing a new plan operation, add its skill reference and update the Pydantic
 model, validator/executor behavior, frontend plan trace, tests, and architecture
