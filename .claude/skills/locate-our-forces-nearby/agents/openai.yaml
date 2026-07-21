@@ -1,4 +1,0 @@
-interface:
-  display_name: "Locate Our Forces Nearby"
-  short_description: "Guide Tyche-led nearby entity queries"
-  default_prompt: "Use $locate-our-forces-nearby to improve a Tyche-led nearby-entity query."
