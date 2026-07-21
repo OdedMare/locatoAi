@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from app.bl.agent.build_plan.geo_skill_catalog import GeoSkillCatalog
 from app.bl.agent.build_plan.plan_builder import _FALLBACK_CLARIFY, PlanBuilder
 from app.bl.agent.build_plan.preserves_constraints import preserves_constraints
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
@@ -21,6 +22,13 @@ VALID_PLAN = {
     "output": "s2",
     "context_layers": ["roundabouts"],
 }
+
+OPERATIONS = (
+    "load", "within_geometry", "attribute_filter", "near", "nearest_n",
+    "near_all", "cluster", "latest_per_entity", "movement_direction",
+    "directional", "between", "crosses", "touches", "contains",
+    "temporal_filter", "count",
+)
 
 BAD_PLAN_UNKNOWN_LAYER = {
     "explanation": "x",
@@ -71,18 +79,25 @@ def test_diet_plan_prompt_is_short_and_preserves_all_operations(catalog):
     full_prompt = full_llm.calls[0]["system"]
     diet_prompt = diet_llm.calls[0]["system"]
     assert len(diet_prompt) < len(full_prompt) * 0.6
-    for operation in (
-        "load", "within_geometry", "attribute_filter", "near", "nearest_n",
-        "near_all", "cluster", "latest_per_entity", "movement_direction",
-        "directional", "between", "crosses", "touches", "contains",
-        "temporal_filter", "count",
-    ):
+    for operation in OPERATIONS:
         assert f'"op":"{operation}"' in diet_prompt
     assert "city_en:string=" in diet_prompt
     assert "sample_field" in diet_prompt
     assert '"direction":"any|north|south|east|west"' in diet_prompt
     assert "חייל שזז בשעה האחרונה" in diet_prompt
     assert "`tyche` as subject/output" in diet_prompt
+
+
+def test_geo_skill_catalog_documents_and_renders_every_operation():
+    full = GeoSkillCatalog().render()
+    diet = GeoSkillCatalog().render(diet=True)
+
+    assert full.count("**Use when:**") == len(OPERATIONS)
+    assert full.count("**Do not use when:**") == len(OPERATIONS)
+    for operation in OPERATIONS:
+        assert f"# `{operation}`" in full
+        assert f'"op":"{operation}"' in full
+        assert f'"op":"{operation}"' in diet
 
 
 def test_hebrew_multi_reference_query_builds_near_all(catalog):

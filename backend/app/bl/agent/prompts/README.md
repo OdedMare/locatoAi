@@ -5,8 +5,14 @@ The prompt files are the model-facing policy layer for LocatoAI's query pipeline
 `select_layers_diet.md` and `build_plan_diet.md` are the compact production profile.
 `llm_diet_mode` selects them at runtime without restarting the backend. Diet prompts must
 preserve the same output contracts, operation set, safety rules, sampling tool, and
-clarification behavior as their full counterparts. Update and test both profiles whenever
-an operation or invariant changes.
+clarification behavior as their full counterparts.
+
+GeoQueryPlan operation guidance lives in
+`../skills/plan-geo-queries/references/`, one file per operation. `PlanBuilder` injects
+the catalog into both build prompts through `{geo_skills}`. The full profile receives
+each complete skill; diet mode receives the same skill's name, use/avoid rules, and exact
+JSON shape. Update the operation skill instead of duplicating its explanation in both
+prompt files.
 
 The primary mission overlay locates OurForce entities from Tyche and uses matching MQS or
 Cubes layers as nearby spatial context. It is a priority path, not a global provider rule:
@@ -22,6 +28,7 @@ user query
        ├─ known layer IDs + Hebrew reasoning
        └─ or short Hebrew clarification
             └─ build_plan.md + selected provider schemas + current time
+                 ├─ shared plan-geo-queries operation skills
                  ├─ optional sample_field request (maximum three rounds)
                  ├─ typed GeoQueryPlan
                  └─ or short Hebrew clarification
@@ -47,6 +54,7 @@ Used by `PlanBuilder` for model call two. Runtime substitutions are:
 
 - `{now}`: one UTC timestamp shared by planning and execution.
 - `{has_boundaries}`: whether `within_geometry` is legal for this request.
+- `{geo_skills}`: the shared operation catalog rendered for full or diet mode.
 - `{layers}`: selected layer metadata and provider-reported schemas, including safe sample values.
 
 The model may return a `sample_field` tool request to inspect additional distinct values for a selected layer field. The builder allows at most three tool rounds. Tool rounds do not consume the separate validation-retry budget.
@@ -86,14 +94,16 @@ Do not rely on prompt wording as the only enforcement for a rule that protects d
 
 ## Tuning workflow
 
-1. Change the smallest relevant prompt.
+1. Change the smallest relevant prompt or operation skill.
 2. Keep JSON field names synchronized with the parsers under `select_layers/` or `build_plan/`.
 3. Run the backend unit tests.
 4. Run `scripts/eval_select_layers.py` after selection-prompt changes.
 5. Inspect Hebrew and English cases, ambiguity/clarification cases, token usage, and behavior with untrusted catalog text.
 6. Turn real downvotes from the PostgreSQL feedback table into regression cases.
 
-When introducing a new plan operation, update the Pydantic model, validator/executor behavior, this prompt, frontend plan trace, tests, and architecture documentation together.
+When introducing a new plan operation, add its skill reference and update the Pydantic
+model, validator/executor behavior, frontend plan trace, tests, and architecture
+documentation together. Both build prompt templates consume the skill automatically.
 
 Cubes trajectory recipes use `netId` as entity identity and `eventTime` as observation
 time. Apply temporal filtering before `latest_per_entity` or `movement_direction`.

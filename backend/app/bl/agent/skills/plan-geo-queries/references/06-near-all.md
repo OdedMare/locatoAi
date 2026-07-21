@@ -1,6 +1,6 @@
 # `near_all`
 
-**Use when:** Every subject feature must be near every one of 2–5 simultaneous references (AND semantics), including “near A and B”, Hebrew `ו`, or “near A where B is”. Optionally rank by mean reference distance and keep N results.
+**Use when:** Every subject feature must be near every one of 2–5 simultaneous references (AND semantics), including “2 soldiers near the square and the school”, Hebrew `ו`, or “near A where B is”. Optionally rank by mean reference distance and keep N results.
 
 **Do not use when:** Only one reference exists (`near`/`nearest_n`) or features must be near each other within the same subject layer (`cluster`). Never chain `nearest_n` for multi-reference proximity.
 

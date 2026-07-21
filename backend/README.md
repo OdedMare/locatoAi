@@ -58,9 +58,10 @@ app/
 │   ├── agent/
 │   │   ├── llm_client.py    # BL-owned LLM protocol
 │   │   ├── select_layers/   # call 1: catalog → prompt → layer ids
-│   │   ├── build_plan/      # call 2: schemas → plan, tools, constraint preservation
+│   │   ├── build_plan/      # call 2: schemas + geo skills → plan and validation loop
 │   │   ├── generate_layer_metadata/ # provider business fields → editable metadata
-│   │   └── prompts/         # prompts are FILES; tuning ≠ code change
+│   │   ├── prompts/         # prompt shells and stage policy
+│   │   └── skills/          # one model-facing reference per plan operation
 │   ├── plan/
 │   │   ├── models/          # one Pydantic model per plan step + discriminated union
 │   │   └── validators.py    # semantic checks with agent-readable error messages
@@ -254,8 +255,10 @@ Hallucinated ids are dropped; no match → short Hebrew clarify question.
 **Call 2 — plan building (live).** Query + selected layers' schemas (field names/types +
 sample values, so filters match the data's language) → GeoQueryPlan JSON → semantic
 validation → on failure retry once with the error appended → Hebrew clarify fallback.
-Prompt: [`prompts/build_plan.md`](app/bl/agent/prompts/build_plan.md). The orchestrator
-returns per-stage timings (`select`/`plan`/`execute`) and summed token usage.
+Prompt: [`prompts/build_plan.md`](app/bl/agent/prompts/build_plan.md), composed with the
+shared [`plan-geo-queries`](app/bl/agent/skills/plan-geo-queries/SKILL.md) operation
+catalog. The orchestrator returns per-stage timings (`select`/`plan`/`execute`) and
+summed token usage.
 
 **sample_field tool.** Before committing to a plan, the model may answer
 `{"tool": "sample_field", "layer_id": ..., "field": ...}` to receive up to 20 distinct
@@ -269,9 +272,10 @@ the response and listed in the UI agent panel. Backed by `Provider.sample_field_
 compacts catalog descriptions and schema samples, limits sampled tool values, and sends
 `max_tokens=1200` to the OpenAI-compatible completion endpoint. All plan operations,
 validation retries, sampling rounds, and zero-result replanning remain available. The
-fixed build prompt is 4,567 characters instead of 14,773; actual savings vary with the
-catalog and selected schemas. Set `AILOCATOR_LLM_DIET_MODE=false` or clear the UI toggle
-to run the full prompts for quality comparison.
+fixed build prompt remains roughly half the full profile by rendering only each skill's
+use/avoid rules and JSON shape; actual size varies with the catalog and selected schemas.
+Set `AILOCATOR_LLM_DIET_MODE=false` or clear the UI toggle to run the full prompts for
+quality comparison.
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a

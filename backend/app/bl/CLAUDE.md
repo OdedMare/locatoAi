@@ -161,7 +161,8 @@ then add one import line to `ops/__init__.py` — `plan_executor.py` does
 `import app.bl.executor.ops  # noqa: F401` specifically to run every `@register_op`
 decorator at import time. You'll also need: the Pydantic step model, `step.py`'s Union,
 `validators.py` if it needs semantic checks, `preserves_constraints.py`'s
-`_CONSTRAINT_FIELDS` if it's constraint-bearing, and both prompt files.
+`_CONSTRAINT_FIELDS` if it's constraint-bearing, a `plan-geo-queries` operation skill,
+and prompt/trace/tests/docs updates. Both build prompt profiles consume the shared skill.
 
 - **`execution_context.py`** — `ExecutionContext` (`@dataclass`), the state flowing
   between ops: `catalog`, `providers`, `user_geometry`, `now`, `results: Dict[str,
@@ -228,7 +229,9 @@ decorator at import time. You'll also need: the Pydantic step model, `step.py`'s
 
 - **`plan_builder.py`** — `PlanBuilder(llm, catalog, diet_mode=None)`:
   - `build(query, layers, has_boundaries, now) -> PlanBuildResult` — builds the system
-    prompt (`{now}`/`{has_boundaries}`/`{layers}`), delegates to `PlanBuildLoop.run`.
+    prompt (`{now}`/`{has_boundaries}`/`{geo_skills}`/`{layers}`), delegates to
+    `PlanBuildLoop.run`. `GeoSkillCatalog` loads one reference per operation; diet mode
+    keeps each skill's routing contrast and exact JSON shape.
   - `replan_after_empty(query, layers, previous, has_boundaries, now) ->
     PlanBuildResult` — the zero-result diagnosis path: appends "executed successfully
     but returned zero rows... never widen time, distance, geography, counts, targets,
@@ -293,11 +296,16 @@ prompts/
   build_plan_diet.md            compact call-2 system prompt
   generate_layer_metadata.md   call-3 system prompt (no diet variant)
 ```
+Geo operation selection rules live beside these shells under
+`bl/agent/skills/plan-geo-queries/references/`, one reference per operation. The full
+prompt gets complete references; diet mode gets their use/avoid lines and JSON shapes.
+
 `llm_diet_mode` picks the diet files at runtime via a `diet_mode: Callable[[], bool]`
 passed into `LayerSelector`/`PlanBuilder` (default `False` = full prompts when not
 supplied). **Diet and full prompts must preserve the same output contracts, operation
-set, safety rules, sampling tool, and clarification behavior — update and test both
-together.** Code remains authoritative for operation shapes/bounds (Pydantic), catalog
+set, safety rules, sampling tool, and clarification behavior.** Update shared operation
+rules in the skill catalog and profile-specific policy in the prompt shells. Code remains
+authoritative for operation shapes/bounds (Pydantic), catalog
 ID/filter/reference/boundary/output-order/count validation (`validators.py`), spatial
 semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID dropping
 — prompts only express model behavior/format, never enforce safety by themselves.
@@ -363,9 +371,10 @@ semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID d
 
 - **The 16-step Union is the contract surface.** Adding a new plan operation touches:
   the Pydantic model, `step.py`'s Union, `validators.py` (if it needs semantic checks),
-  a new `ops/*.py` handler with `@register_op`, `ops/__init__.py`'s import list, both
-  prompt files (full + diet), `preserves_constraints.py`'s `_CONSTRAINT_FIELDS` (if
-  constraint-bearing), plus frontend/tests/docs.
+  a new `ops/*.py` handler with `@register_op`, `ops/__init__.py`'s import list, one
+  `skills/plan-geo-queries/references/*.md` definition, prompt policy when needed,
+  `preserves_constraints.py`'s `_CONSTRAINT_FIELDS` (if constraint-bearing), plus
+  frontend/tests/docs.
 - **Hebrew strings are pervasive** in `match_reason` columns and clarify fallbacks —
   this is a Hebrew-first product.
 - **ITM (EPSG:2039)** is the fixed metric CRS for all meter-based spatial math (`near`,
