@@ -2,7 +2,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.common.config import Settings
+from app.common.config.settings import Settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.cubes import CubesProvider
 from app.main import _register_error_handlers

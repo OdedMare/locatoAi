@@ -6,7 +6,7 @@ from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
-from app.common.logging import configure_logging
+from app.common.logging.configurator import configure_logging
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.feedback_repository import PostgresFeedbackRepository
 from app.dal.layers_repository import PostgresLayersRepository

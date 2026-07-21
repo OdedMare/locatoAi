@@ -7,7 +7,7 @@ from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.plan.models.movement_direction_step import MovementDirectionStep
 from app.common.errors.execution_error import ExecutionError
-from app.common.geo import metric_crs_for, to_metric
+from app.common.utils.geo_utils import metric_crs_for, to_metric
 
 
 @register_op("movement_direction")

@@ -15,7 +15,7 @@ import time
 
 from app.bl.agent.select_layers.layer_selector import LayerSelector
 from app.bl.catalog.catalog_service import CatalogService
-from app.common.config import get_settings
+from app.common.config.settings_provider import get_settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient

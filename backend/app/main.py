@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from app.application_state_wiring import ApplicationStateWiring
-from app.common.config import get_settings
+from app.common.config.settings_provider import get_settings
 from app.error_handler_registry import ErrorHandlerRegistry
 from app.health_router import HealthRouter
 from app.service import (

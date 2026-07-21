@@ -5,7 +5,7 @@ from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.plan.models.within_geometry_step import WithinGeometryStep
 from app.common.errors.execution_error import ExecutionError
-from app.common.geo import WGS84, require_crs
+from app.common.utils.geo_utils import WGS84, require_crs
 
 
 @register_op("within_geometry")

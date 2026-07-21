@@ -7,7 +7,7 @@ import pytest
 from shapely.geometry import box
 
 from app.bl.ports.layer_meta import LayerMeta
-from app.common.config import Settings
+from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.tyche import TycheProvider

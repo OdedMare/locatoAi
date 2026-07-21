@@ -1,4 +1,4 @@
-from app.common.logging import ConsoleFirstLogger
+from app.common.logging.console_logger import ConsoleFirstLogger
 
 
 class RecordingLogger:

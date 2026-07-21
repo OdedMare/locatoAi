@@ -14,7 +14,7 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.ports.layer_meta import LayerMeta
 from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors.provider_error import ProviderError
-from app.common.geo import empty_features_gdf
+from app.common.utils.geo_utils import empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.tyche_feature_mapper import TycheFeatureMapper
 from app.dal.providers.tyche_gateway import TycheGateway

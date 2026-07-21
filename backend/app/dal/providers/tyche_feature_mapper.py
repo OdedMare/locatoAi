@@ -9,7 +9,7 @@ from shapely import wkt
 from shapely.geometry import Point, shape
 from shapely.geometry.base import BaseGeometry
 
-from app.common.geo import WGS84, empty_features_gdf
+from app.common.utils.geo_utils import WGS84, empty_features_gdf
 
 
 class TycheFeatureMapper:

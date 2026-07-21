@@ -10,7 +10,7 @@ from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_schema import LayerSchema
 from app.common.errors.provider_error import ProviderError
-from app.common.geo import WGS84, empty_features_gdf
+from app.common.utils.geo_utils import WGS84, empty_features_gdf
 
 
 class CubesSchemaMapper:

@@ -112,7 +112,7 @@ def test_within_geometry_reprojects_non_wgs84_features():
     within_geometry silently comparing degrees against meters."""
     from app.bl.executor.ops.within_geometry import WithinGeometryOp
     from app.bl.plan.models.within_geometry_step import WithinGeometryStep
-    from app.common.geo import ISRAEL_TM
+    from app.common.utils.geo_utils import ISRAEL_TM
     import geopandas as gpd
     from shapely.geometry import Point
 

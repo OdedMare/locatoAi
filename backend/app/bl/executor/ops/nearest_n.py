@@ -11,7 +11,7 @@ from app.bl.executor.ops.near import (
     filter_reference_entities,
 )
 from app.bl.plan.models.nearest_n_step import NearestNStep
-from app.common.geo import metric_crs_for, to_metric
+from app.common.utils.geo_utils import metric_crs_for, to_metric
 
 
 @register_op("nearest_n")

@@ -31,11 +31,13 @@ over 16 spatial, filtering, movement, and aggregation operations.
 
 Dependency direction: **service → bl ← dal**. The BL owns its interfaces
 ([`bl/ports/`](app/bl/ports/)); the DAL implements them; only
-[`main.py`](app/main.py) (composition root) knows every tier.
+[`main.py`](app/main.py) / [`application_state_wiring.py`](app/application_state_wiring.py)
+(composition root) know every tier.
 
 ```
 app/
-├── main.py                  # composition root: wiring + error mapping, nothing else
+├── main.py                  # composition root: app factory + error mapping
+├── application_state_wiring.py # composition root: builds the dependency graph onto app.state
 │
 ├── service/                 # ── HTTP tier: routers + DTOs, zero logic ──
 │   ├── dto/                 # query/plan request and response models
@@ -50,7 +52,8 @@ app/
 │
 ├── bl/                      # ── Business logic tier ──
 │   ├── ports/               # one BL-owned protocol/model per focused module
-│   ├── query_orchestrator.py# the select → plan → validate → execute flow + retry policy
+│   ├── query_orchestrator/
+│   │   └── query_orchestrator.py # the select → plan → validate → execute flow + retry policy
 │   ├── agent/
 │   │   ├── select_layers/   # call 1: catalog → prompt → layer ids
 │   │   ├── build_plan/      # call 2: schemas → plan, tools, constraint preservation
@@ -60,11 +63,11 @@ app/
 │   │   ├── models/          # one Pydantic model per plan step + discriminated union
 │   │   └── validators.py    # semantic checks with agent-readable error messages
 │   ├── executor/
-│   │   ├── engine.py        # runs steps in order, dispatches via the op registry
+│   │   ├── engine/          # runs steps in order, dispatches via the op registry
 │   │   └── ops/             # ONE module per op, self-registering (@register_op)
 │   └── catalog/
 │       ├── catalog_service.py # layer lookup + schema cache (TTL; stale beats failed)
-│       └── mqs_sync.py      # MQS layer inventory → catalog upserts (tags preserved)
+│       └── mqs_sync/        # MQS layer inventory → catalog upserts (tags preserved)
 │
 ├── dal/                     # ── Data access tier (implements bl.ports) ──
 │   ├── postgres.py          # shared live-settings PostgreSQL connection factory

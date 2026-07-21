@@ -1,4 +1,4 @@
-from app.common.text_normalize import normalize_text
+from app.common.utils.normalizer import normalize_text
 
 
 def test_strips_niqqud():

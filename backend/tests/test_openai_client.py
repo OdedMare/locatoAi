@@ -1,7 +1,7 @@
 import pytest
 from openai import APIConnectionError, RateLimitError
 
-from app.common.config import Settings
+from app.common.config.settings import Settings
 from app.common.errors.agent_error import AgentError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.llm.openai_client import OpenAIJsonClient

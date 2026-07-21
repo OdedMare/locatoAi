@@ -1,6 +1,6 @@
 import pytest
 
-from app.common.config import Settings
+from app.common.config.settings import Settings
 from app.common.runtime_settings.normalizers import validate_layers_table
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 

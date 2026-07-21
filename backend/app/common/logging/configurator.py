@@ -5,23 +5,25 @@ from pathlib import Path
 
 import structlog
 
+from app.common.logging.console_logger import ConsoleFirstLogger
+
 
 class LoggingConfigurator:
     REQUEST_LOGGER = "ailocator.requests"
     CONSOLE_LOGGER = "ailocator.requests.console"
 
     @classmethod
-    def configure(cls, request_log_path: str):
+    def configure(cls, request_log_path: str) -> ConsoleFirstLogger:
         file_handler, console_handler = cls._handlers(request_log_path)
         file_logger = cls._replace_handlers(cls.REQUEST_LOGGER, file_handler)
         console_logger = cls._replace_handlers(cls.CONSOLE_LOGGER, console_handler)
         cls._replace_handlers("app", console_handler)
         cls._configure_structlog()
-        from app.common.logging import ConsoleFirstLogger
         return ConsoleFirstLogger(
             structlog.wrap_logger(console_logger),
             structlog.wrap_logger(file_logger),
         )
+
 
     @staticmethod
     def _handlers(request_log_path: str):
@@ -53,3 +55,6 @@ class LoggingConfigurator:
             logger_factory=structlog.stdlib.LoggerFactory(),
             wrapper_class=structlog.stdlib.BoundLogger,
         )
+
+
+configure_logging = LoggingConfigurator.configure

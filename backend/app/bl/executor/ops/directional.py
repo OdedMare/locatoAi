@@ -4,7 +4,7 @@ from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.plan.models.directional_step import DirectionalStep
-from app.common.geo import WGS84, require_crs
+from app.common.utils.geo_utils import WGS84, require_crs
 
 
 @register_op("directional")

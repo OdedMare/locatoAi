@@ -7,7 +7,7 @@ from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.plan.models.attribute_filter_step import AttributeFilterStep
 from app.common.errors.execution_error import ExecutionError
-from app.common.text_normalize import normalize_text
+from app.common.utils.normalizer import normalize_text
 
 # Below this rapidfuzz partial_ratio score, two normalized strings are
 # treated as unrelated — chosen to tolerate a handful of typos/spelling

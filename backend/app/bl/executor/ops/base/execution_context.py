@@ -7,7 +7,7 @@ from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.ports.provider_registry import ProviderRegistry
-from app.common.geo import buffer_wgs84_geometry
+from app.common.utils.geo_utils import buffer_wgs84_geometry
 
 
 @dataclass

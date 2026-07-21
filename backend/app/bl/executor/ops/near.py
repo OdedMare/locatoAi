@@ -7,7 +7,7 @@ from app.bl.executor.ops.proximity_result_builder import ProximityResultBuilder
 from app.bl.executor.ops.reference_entity_filter import ReferenceEntityFilter
 from app.bl.plan.models.near_step import NearStep
 from app.common.errors.execution_error import ExecutionError
-from app.common.geo import metric_crs_for, to_metric
+from app.common.utils.geo_utils import metric_crs_for, to_metric
 
 # Computed distance to the nearest target-layer feature, in meters — added
 # as a plain column so it survives every downstream op unchanged and is

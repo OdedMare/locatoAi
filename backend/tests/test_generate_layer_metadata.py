@@ -17,7 +17,7 @@ from app.bl.agent.generate_layer_metadata.generated_layer_metadata import (
 from app.bl.ports.layer_field import LayerField
 from app.bl.ports.layer_parameter import LayerParameter
 from app.bl.ports.layer_schema import LayerSchema
-from app.common.config import Settings
+from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.mqs import MqsProvider

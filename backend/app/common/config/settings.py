@@ -4,7 +4,6 @@ from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from app.common.settings_provider import SettingsProvider
 
 
 class Settings(BaseSettings):
@@ -91,5 +90,3 @@ class Settings(BaseSettings):
     """Provider schemas are cached this long; a stale schema beats a failed request."""
 
     request_log_path: str = "logs/requests.jsonl"
-
-get_settings = SettingsProvider.get

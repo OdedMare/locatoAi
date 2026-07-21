@@ -2,7 +2,7 @@ import json
 from dataclasses import asdict, fields
 from pathlib import Path
 
-from app.common.config import Settings
+from app.common.config.settings import Settings
 from app.common.runtime_settings.normalizers import (
     normalize_cubes_base_url,
     normalize_database_url,

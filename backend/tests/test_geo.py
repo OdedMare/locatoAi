@@ -1,7 +1,7 @@
 import geopandas as gpd
 from shapely.geometry import Point, box
 
-from app.common.geo import buffer_wgs84_geometry, metric_crs_for, to_metric
+from app.common.utils.geo_utils import buffer_wgs84_geometry, metric_crs_for, to_metric
 
 
 def test_metric_crs_is_estimated_for_data_location_not_fixed_to_israel():

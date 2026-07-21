@@ -2,8 +2,6 @@
 
 from typing import Any
 
-from app.common.logging_configurator import LoggingConfigurator
-
 
 class ConsoleFirstLogger:
     """Write every structured event to the console before the JSONL file."""
@@ -33,4 +31,3 @@ class ConsoleFirstLogger:
     def _write(self, level: str, event: str, context: Any) -> None:
         getattr(self._console, level)(event, **context)
         getattr(self._persistent, level)(event, **context)
-configure_logging = LoggingConfigurator.configure

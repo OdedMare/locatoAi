@@ -13,22 +13,25 @@ need to know about plans, providers, or routers.
 
 ```
 app/common/
-├── config.py                       env-driven Settings (defaults)
-├── settings_provider.py            cached Settings() factory
-├── geo.py                          CRS/reprojection helpers
-├── logging.py                      ConsoleFirstLogger
-├── logging_configurator.py         structlog + stdlib logging setup
-├── text_normalize.py               Hebrew-aware text normalization
+├── config/
+│   ├── settings.py                 env-driven Settings (defaults)
+│   └── settings_provider.py        cached Settings() factory
+├── utils/
+│   ├── geo_utils.py                CRS/reprojection helpers
+│   └── normalizer.py               Hebrew-aware text normalization
+├── logging/
+│   ├── console_logger.py           ConsoleFirstLogger
+│   └── configurator.py             structlog + stdlib logging setup
 ├── errors/                         one exception type per file, mapped to HTTP in main.py
 └── runtime_settings/                the live-override settings store
 ```
 
-## Settings: `config.py` + `settings_provider.py` vs. `runtime_settings/`
+## Settings: `config/settings.py` + `config/settings_provider.py` vs. `runtime_settings/`
 
 **Precedence: `runtime-settings.json` (UI-edited) > environment variables (`Settings`
 defaults) > dataclass field defaults.**
 
-- **`class Settings(BaseSettings)`** (`config.py`) — every field reads from an env var
+- **`class Settings(BaseSettings)`** (`config/settings.py`) — every field reads from an env var
   named `AILOCATOR_<FIELD>` (prefix `AILOCATOR_`) or a `.env` file. All fields have
   defaults so the app boots with zero env vars set. Key groups: `database_url` (+
   optional `database_user/password/host/port/name` overrides), `layers_table` /
@@ -38,8 +41,8 @@ defaults) > dataclass field defaults.**
   `cubes_base_url` / `cubes_token` / `cubes_verify_tls`, `tyche_base_url` /
   `tyche_username` / `tyche_token` / `tyche_verify_tls`, `runtime_settings_file`,
   `schema_cache_ttl_seconds`, `request_log_path`.
-  - `SettingsProvider.get()` (`settings_provider.py`, `@lru_cache`) memoizes one
-    `Settings()` instance per process. `config.get_settings = SettingsProvider.get`.
+  - `SettingsProvider.get()` (`config/settings_provider.py`, `@lru_cache`) memoizes one
+    `Settings()` instance per process. `settings_provider.get_settings = SettingsProvider.get`.
   - **`get_settings()` is called exactly once**, at startup in `main.py`, purely to seed
     the `RuntimeSettingsStore`. Nothing else should call it.
 
@@ -104,7 +107,7 @@ typed domain error exposes its real message. Raise the typed error from `bl`/`da
 let this registry do the HTTP mapping — don't `try/except` + `HTTPException` in routers
 for these five types.
 
-## Geo math: `geo.py`
+## Geo math: `utils/geo_utils.py`
 
 **All meters math goes through here — never do distance/buffer math directly in WGS84
 degrees.** `class GeoUtils`:
@@ -121,9 +124,9 @@ degrees.** `class GeoUtils`:
 - `empty_features_gdf()` — a consistent empty `GeoDataFrame` (`geometry` column,
   `crs=WGS84`) for "no results."
 
-Module-level aliases exist for every method (`from app.common.geo import to_metric`).
+Module-level aliases exist for every method (`from app.common.utils.geo_utils import to_metric`).
 
-## Logging: `logging.py` + `logging_configurator.py`
+## Logging: `logging/console_logger.py` + `logging/configurator.py`
 
 Console-first, dual-destination structured logging:
 
@@ -141,7 +144,7 @@ Console-first, dual-destination structured logging:
 Two destinations: stdout (dev visibility) and `backend/logs/requests.jsonl`
 (append-only, durable, configurable via `AILOCATOR_REQUEST_LOG_PATH`).
 
-## Text: `text_normalize.py`
+## Text: `utils/normalizer.py`
 
 `class TextNormalizer` / `normalize_text = TextNormalizer.normalize` — NFKC-normalizes,
 strips Hebrew niqqud and punctuation (`״`/`׳` and ASCII stand-ins), folds Hebrew final
@@ -153,7 +156,7 @@ consumed by `bl`, confirming the dependency direction never reverses.
 
 ## Getting oriented
 
-- Need a new setting? Start in `config.py` + `runtime_settings/runtime_settings.py`.
+- Need a new setting? Start in `config/settings.py` + `runtime_settings/runtime_settings.py`.
 - Need to raise a typed failure? Pick from `errors/` — don't invent a new exception type
   without a good reason; the HTTP mapping lives in `app/error_handler_registry.py`.
 - Doing distance/buffer/reprojection? Everything you need is a `GeoUtils` static method.

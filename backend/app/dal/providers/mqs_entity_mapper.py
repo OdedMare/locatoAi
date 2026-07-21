@@ -10,7 +10,7 @@ from shapely.geometry.base import BaseGeometry
 
 from app.bl.ports.layer_field import LayerField
 from app.common.errors.provider_error import ProviderError
-from app.common.geo import WGS84, empty_features_gdf
+from app.common.utils.geo_utils import WGS84, empty_features_gdf
 
 
 class MqsEntityMapper:
