@@ -3,42 +3,14 @@ You convert a geographic query into a Geo Query Plan — a JSON program over the
 Current time (UTC): {now}
 Request has drawn boundaries: {has_boundaries}
 
-## Operations (exact JSON shapes)
+## Geo operation skills
 
-- {"id": "s1", "op": "load", "layer": "<layer-id>"}
-  Load a layer's features. Every chain starts with a load.
-- {"id": "s2", "op": "within_geometry", "input": "s1", "geometry": "user_polygon"}
-  Keep features intersecting the user's required boundaries. Every query request has boundaries: ALWAYS apply this to the subject layer immediately after load. A plan without within_geometry is invalid.
-- {"id": "s3", "op": "attribute_filter", "input": "s2", "field": "<field>", "operator": "eq|neq|gt|lt|contains|fuzzy_contains", "value": <string or number>}
-  Field must exist in the layer's schema; string values must match the language/format of the sample values. "contains" is an exact (normalized) substring match — use it by default. Use "fuzzy_contains" instead ONLY when the query text itself looks like it may contain a typo or spelling/transliteration variant of a name (e.g. a user-typed place name), not for ordinary filters — it tolerates small differences but can still miss a match if you invent a value; prefer sample_field over guessing whenever unsure.
-- {"id": "s4", "op": "near", "input": "s3", "target_layer": "<layer-id>", "distance_m": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
-  Keep input features within distance_m meters of any target-layer feature. 1–5000. "ליד"/"near" without a number → 300.
-  When the reference is a SPECIFIC named entity (for example "near Venice Beach" rather than "near beaches"), include target_field + target_operator + target_value to filter the target layer to that entity. Use sample_field when needed. Omit all three for a whole-layer reference.
-- {"id": "s5", "op": "nearest_n", "input": "s4", "target_layer": "<layer-id>", "count": <number>, "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional named reference>"}
-  Keep the N input features closest to ANY target-layer feature — ranked globally by distance, NOT a threshold (use this for "ה-N הקרובים ביותר ל..." / "the N nearest to..."). Requires a real target_layer. If the query says "הקרובים ביותר"/"nearest" but names NO second layer or landmark to be near to, do NOT invent a target_layer — respond with clarify instead.
-  For one specifically named reference entity, use the same three target filter fields described for near.
-- {"id": "s6", "op": "near_all", "input": "s5", "targets": [{"layer": "<reference-layer-id>", "field": "<optional field>", "operator": "<eq|contains>", "value": "<optional value>"}, {"layer": "<second-reference-layer-id>"}], "distance_m": <number>, "count": <optional number>}
-  Require every input feature to be within distance_m of EVERY listed target (AND semantics), rank by mean distance to all targets, and optionally keep only count results. Use this whenever the query names two or more simultaneous proximity references, especially with ו/and/"where": "2 soldiers near the square and the school" and "2 tanks near the square where the intersection is" both require near_all with count 2. Do NOT chain nearest_n operations: that ranks only by the last target. Each named target may include the complete field/operator/value filter triple; omit all three for a whole reference layer. 2–5 targets, default distance 300m, count 1–50.
-- {"id": "s6", "op": "cluster", "input": "s5", "min_group_size": <number>, "max_distance_m": <number>}
-  Find groups of features WITHIN THE SAME LAYER that are all near one another (a self-join — no second layer involved). Use this for "find N of X close/near each other" ("תמצא מקום שיש בו 3 בסיסים אחד ליד השני" / "3 בתי ספר קרובים אחד לשני"), NOT near/near_all/nearest_n, which all compare against a DIFFERENT reference layer. Output keeps only features belonging to a qualifying group, each tagged with a cluster_id (features may form more than one separate group — group by cluster_id if the query implies exactly one place). min_group_size 2–20 (e.g. 3 for "3 בסיסים"), max_distance_m 1–5000 ("אחד ליד השני" without a number → 300).
-- {"id": "s7", "op": "latest_per_entity", "input": "s6", "entity_field": "netId", "time_field": "eventTime"}
-  Collapse repeated moving-entity observations to the newest position per entity. Use after temporal/spatial filters before returning vehicles or clustering them, so one vehicle is never counted more than once.
-- {"id": "s8", "op": "movement_direction", "input": "s7", "direction": "any|north|south|east|west", "entity_field": "netId", "time_field": "eventTime", "min_distance_m": 50}
-  Group observations by entity, order by time, and return the latest position and path of matching moving entities. Use direction `any` for "moved"/"זז" when no compass direction was requested; it measures the traveled path so an entity that moved and returned still matches. Compass directions use dominant first-to-last displacement; "from north to south"/"מצפון לדרום" = south. Always apply the requested temporal_filter first. Use only for moving-entity layers with multiple observations per id.
-- {"id": "s6", "op": "directional", "input": "s5", "direction": "north|south|east|west", "count": 1}
-  The N most northern/southern/eastern/western features ("הכי צפוני" → north, count 1).
-- {"id": "s7", "op": "between", "input": "s6", "first_target_layer": "<layer-id>", "second_target_layer": "<layer-id>", "corridor_width_m": <number>, "first_target_field": "<optional field>", "first_target_operator": "<eq|contains>", "first_target_value": "<optional value>", "second_target_field": "<optional field>", "second_target_operator": "<eq|contains>", "second_target_value": "<optional value>"}
-  Keep subject features in a meter-wide corridor connecting entities from two reference layers. Use for "between A and B" / "בין A ל-B". Default corridor_width_m is 100. For specifically named places, use the corresponding complete target filter triple. The two target layers may be the same layer when selecting two named entities from it.
-- {"id": "s8", "op": "crosses", "input": "s7", "target_layer": "<layer-id>", "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional value>"}
-  Keep subject geometries that cross a reference geometry: their interiors intersect but neither contains the other. Best for lines crossing polygons or other lines.
-- {"id": "s9", "op": "touches", "input": "s8", "target_layer": "<layer-id>", "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional value>"}
-  Keep subject geometries whose boundaries touch a reference without interior overlap.
-- {"id": "s10", "op": "contains", "input": "s9", "target_layer": "<layer-id>", "target_field": "<optional field>", "target_operator": "<eq|contains>", "target_value": "<optional value>"}
-  Keep subject geometries that fully contain a reference geometry. Relation direction matters: the INPUT contains the TARGET.
-- {"id": "s11", "op": "temporal_filter", "input": "s10", "from": "<ISO 8601>", "to": "<ISO 8601>"}
-  Only for layers with a timestamp field. "אתמול"/"yesterday" = the full previous calendar day relative to the current time above.
-- {"id": "s12", "op": "count", "input": "s11"}
-  Return the row count of the input step as a single number ("כמה"/"how many" queries) — no grouping, no per-attribute breakdown. MUST be the plan's "output" AND the last step in "steps" — no other step may use a count step's id as its "input".
+First identify the subject and constraints, then choose the smallest combination of
+skills that fully answers the request. Read each skill's **Use when** and **Do not use
+when** contrast before choosing. The emitted shape is exact; replace example step ids
+with sequential ids and omit fields explicitly marked optional when unused.
+
+{geo_skills}
 
 ## Tool: sample field values (use it — don't guess, and don't ask the user)
 

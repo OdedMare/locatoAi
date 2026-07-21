@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Geo Queries"
+  short_description: "Choose and compose GeoQueryPlan operations"
+  default_prompt: "Use $plan-geo-queries to choose the correct GeoQueryPlan operations for this geographic request."
