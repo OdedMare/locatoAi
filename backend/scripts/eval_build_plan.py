@@ -49,7 +49,9 @@ CASES = [
         "query": "מצא כוחותינו שנמצאים ליד בתי ספר וגם ליד תחנות רכבת",
         "layers": ("כוחותינו", "בתי ספר", "תחנות רכבת"),
         "subject": "כוחותינו",
-        "ops": ("load", "within_geometry", "near_all", "latest_per_entity"),
+        "ops": (
+            "load", "within_geometry", "near_all", "latest_per_entity",
+        ),
         "context": ("בתי ספר", "תחנות רכבת"),
         "checks": (("near_all", "distance_m", 300),
                    ("near_all", "count", None)),
@@ -200,7 +202,7 @@ def _check_fields(plan, checks):
     for op, field, expected in checks:
         step = next((item for item in plan.steps if item.op == op), None)
         actual = getattr(step, field, None) if step is not None else None
-        if expected is PRESENT and actual is None:
+        if expected is PRESENT and (actual is None or actual == ""):
             errors.append("{}.{} must be present".format(op, field))
         elif expected is not PRESENT and actual != expected:
             errors.append("{}.{} expected {!r}, got {!r}".format(

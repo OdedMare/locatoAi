@@ -282,7 +282,7 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 `base_url` is set, with a degradation ladder: JSON mode → plain → system-merged-into-user.
 
 **Quality loop:**
-- `scripts/eval_select_layers.py` — SCORED eval (20 Hebrew/English cases with expected
+- `scripts/eval_select_layers.py` — SCORED eval (Hebrew/English cases with expected
   layer sets, incl. typos/slang/must-clarify; exit 1 on regression). Run after every
   prompt/model change. Add every real-world miss as a case.
 - `scripts/eval_build_plan.py` — SCORED live planner eval with fixed real catalog layers,
