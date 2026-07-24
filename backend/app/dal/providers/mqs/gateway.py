@@ -218,8 +218,8 @@ class MqsGateway:
 
     def _safe_detail(self, client, layer_id: str, entity_id: str) -> object:
         path = (
-            f"/MoriaProject/{quote(layer_id, safe='')}/EntityInfo/"
-            f"{quote(entity_id, safe='')}"
+            f"/MoriaProject/{quote(layer_id.lstrip('/'), safe='')}/EntityInfo/"
+            f"{quote(entity_id.lstrip('/'), safe='')}"
         )
         try:
             return self.get_json(client, path)

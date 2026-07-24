@@ -228,6 +228,29 @@ def test_entity_detail_url_encodes_reserved_entity_id_characters(tmp_path):
     )
 
 
+def test_entity_detail_removes_leading_slash_from_ids(tmp_path):
+    listed = entity("/614")
+    detailed = entity("/614", property_list={"name": "normalized"})
+
+    def responses(request):
+        if "/EntityInfo/" in request.url.path:
+            return detailed
+        return {"next_page": None, "entities_list": [listed]}
+
+    provider, handler = make_provider(tmp_path, responses)
+
+    features = provider.fetch_features(mqs_layer("/42"))
+
+    assert features.iloc[0]["name"] == "normalized"
+    detail_request = next(
+        request for request in handler.requests
+        if "/EntityInfo/" in request.url.path
+    )
+    assert detail_request.url.raw_path.decode().endswith(
+        "/MoriaProject/42/EntityInfo/614"
+    )
+
+
 def test_entityinfo_502_falls_back_to_list_entity(tmp_path):
     listed = entity("{G1}")
 
