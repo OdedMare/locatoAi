@@ -18,10 +18,12 @@ class TycheQueryBuilder:
         temporal_range: Optional[Tuple[str, str]],
         size: int,
         page_tracker: Optional[str] = None,
+        time_field: str = "eventTime",
+        geo_query_field: str = "location",
     ) -> dict:
-        body = self._base_body(now, temporal_range, size)
+        body = self._base_body(now, temporal_range, size, time_field)
         if geometry is not None:
-            body["location"] = {"match": geometry.wkt}
+            body[geo_query_field] = {"match": geometry.wkt}
         if page_tracker:
             body["pageTracker"] = page_tracker
         return body
@@ -31,9 +33,10 @@ class TycheQueryBuilder:
         now: Optional[datetime],
         temporal_range: Optional[Tuple[str, str]],
         size: int,
+        time_field: str,
     ) -> dict:
         return {
-            "eventTime": {"match": self._time_window(now, temporal_range)},
+            time_field: {"match": self._time_window(now, temporal_range)},
             "size": size,
             "fetchPaging": True,
         }

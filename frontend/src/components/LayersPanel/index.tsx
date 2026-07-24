@@ -65,6 +65,9 @@ export default function LayersPanel({
   const [tagDraft, setTagDraft] = useState("");
   const [provider, setProvider] = useState("mqs");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [tycheGeometryField, setTycheGeometryField] = useState("geometry");
+  const [tycheGeoQueryField, setTycheGeoQueryField] = useState("location");
+  const [tycheTimeField, setTycheTimeField] = useState("eventTime");
   const [flapiResourceType, setFlapiResourceType] =
     useState<FlapiResourceType>("cube");
   const [packageQuery, setPackageQuery] = useState("");
@@ -103,6 +106,11 @@ export default function LayersPanel({
   const isFlowPackage = providerName === "flapi" && flapiResourceType === "package";
   const isCubeResource = providerName === "cubes"
     || (providerName === "flapi" && flapiResourceType === "cube");
+  const tycheFieldsConfigured = providerName !== "tyche" || Boolean(
+    tycheGeometryField.trim()
+    && tycheGeoQueryField.trim()
+    && tycheTimeField.trim()
+  );
 
   useEffect(() => {
     getLayers()
@@ -200,6 +208,9 @@ export default function LayersPanel({
         cubes_parameters: dynamicParameterValues,
         package_parameters: isFlowPackage ? dynamicParameterValues : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
+        tyche_geometry_field: tycheGeometryField.trim(),
+        tyche_geo_query_field: tycheGeoQueryField.trim(),
+        tyche_time_field: tycheTimeField.trim(),
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -207,6 +218,9 @@ export default function LayersPanel({
       setTags([]);
       setTagDraft("");
       setSourceUrl("");
+      setTycheGeometryField("geometry");
+      setTycheGeoQueryField("location");
+      setTycheTimeField("eventTime");
       setFlapiResourceType("cube");
       setPackageQuery("");
       setCubesQueryMode("auto");
@@ -287,6 +301,9 @@ export default function LayersPanel({
       package_parameters: isFlowPackage ? selectedDynamicValues : {},
       package_query: isFlowPackage ? packageQuery.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
+      tyche_geometry_field: tycheGeometryField.trim(),
+      tyche_geo_query_field: tycheGeoQueryField.trim(),
+      tyche_time_field: tycheTimeField.trim(),
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
@@ -482,6 +499,9 @@ export default function LayersPanel({
     setTagDraft("");
     setProvider(layer.provider);
     setSourceUrl(layer.source_url);
+    setTycheGeometryField("geometry");
+    setTycheGeoQueryField("location");
+    setTycheTimeField("eventTime");
     setFlapiResourceType("cube");
     setPackageQuery("");
     setCubesQueryMode("auto");
@@ -504,6 +524,9 @@ export default function LayersPanel({
     setFlapiResourceType("cube");
     setPackageQuery("");
     setSourceUrl("");
+    setTycheGeometryField("geometry");
+    setTycheGeoQueryField("location");
+    setTycheTimeField("eventTime");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
@@ -525,6 +548,9 @@ export default function LayersPanel({
     setFlapiResourceType("package");
     setPackageQuery("");
     setSourceUrl("");
+    setTycheGeometryField("geometry");
+    setTycheGeoQueryField("location");
+    setTycheTimeField("eventTime");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
@@ -538,6 +564,33 @@ export default function LayersPanel({
     setTags([]);
     setFormMessage(
       "הזינו שם ו-ID של Flow Package, ואז טענו את הגדרות הפרמטרים."
+    );
+    setShowAddForm(true);
+  };
+
+  const startTycheLayer = () => {
+    setProvider("tyche");
+    setSourceUrl("");
+    setTycheGeometryField("geometry");
+    setTycheGeoQueryField("location");
+    setTycheTimeField("eventTime");
+    setFlapiResourceType("cube");
+    setPackageQuery("");
+    setCubesQueryMode("auto");
+    setDynamicParameterNames([]);
+    setParameterDefinitions([]);
+    setManualDynamicParameterNames([]);
+    setDynamicParameterOptions({});
+    setDynamicParameterValues({});
+    setRequiresSamplePolygon(false);
+    setCubesSampleBoundary(null);
+    setCubesSampleBoundarySource(null);
+    setName("");
+    setDescription("");
+    setTags([]);
+    setTagDraft("");
+    setFormMessage(
+      "הזינו שם, נתיב API ושמות שדות; אפשר לדגום את השכבה לפני השמירה."
     );
     setShowAddForm(true);
   };
@@ -603,13 +656,17 @@ export default function LayersPanel({
           + הוספת Flow Package
         </button>
 
+        <button type="button" className="add-layer-toggle" onClick={startTycheLayer}>
+          + הוספת שכבת Tyche
+        </button>
+
         <button
           type="button"
           className="add-layer-toggle"
           onClick={() => void handleActivateTyche()}
           disabled={activatingTyche}
         >
-          {activatingTyche ? "מפעיל שכבת Tyche…" : "+ הפעלת שכבת Tyche"}
+          {activatingTyche ? "מפעיל שכבת כוחותינו…" : "+ הפעלת שכבת כוחותינו"}
         </button>
         {tycheMessage && <p className="settings-message" dir="auto">{tycheMessage}</p>}
 
@@ -657,6 +714,9 @@ export default function LayersPanel({
                   value={provider}
                   onChange={(e) => {
                     setProvider(e.target.value);
+                    setTycheGeometryField("geometry");
+                    setTycheGeoQueryField("location");
+                    setTycheTimeField("eventTime");
                     setFlapiResourceType("cube");
                     setPackageQuery("");
                     setDynamicParameterNames([]);
@@ -711,7 +771,7 @@ export default function LayersPanel({
                 : isCubeResource
                 ? "שם Cube / database"
                 : providerName === "tyche"
-                  ? "מקור Tyche"
+                  ? "נתיב Tyche"
                   : "כתובת המקור"}
             </label>
             <input
@@ -730,11 +790,55 @@ export default function LayersPanel({
                   : isCubeResource
                     ? "transport (or flapi://cube/transport)"
                     : providerName === "tyche"
-                      ? "ourforces (or tyche://ourforces)"
+                      ? "alerts (או /coordinate/v1/alerts)"
                       : "https://provider.example/layer"
               }
               dir="ltr"
             />
+            {providerName === "tyche" && (
+              <fieldset className="cubes-query-mode">
+                <legend>מיפוי שדות Tyche</legend>
+                <div className="settings-input-row">
+                  <div>
+                    <label className="field-label" htmlFor="tyche-geometry-field">
+                      שדה גאומטריה בתוצאה
+                    </label>
+                    <input
+                      id="tyche-geometry-field"
+                      className="settings-input"
+                      value={tycheGeometryField}
+                      onChange={(event) => setTycheGeometryField(event.target.value)}
+                      placeholder="geometry"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label" htmlFor="tyche-time-field">
+                      שדה זמן האירוע
+                    </label>
+                    <input
+                      id="tyche-time-field"
+                      className="settings-input"
+                      value={tycheTimeField}
+                      onChange={(event) => setTycheTimeField(event.target.value)}
+                      placeholder="eventTime"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                <label className="field-label" htmlFor="tyche-geo-query-field">
+                  שדה הסינון הגאוגרפי בבקשה
+                </label>
+                <input
+                  id="tyche-geo-query-field"
+                  className="settings-input"
+                  value={tycheGeoQueryField}
+                  onChange={(event) => setTycheGeoQueryField(event.target.value)}
+                  placeholder="location"
+                  dir="ltr"
+                />
+              </fieldset>
+            )}
             {isFlowPackage && (
               <>
                 <label className="field-label" htmlFor="package-query">
@@ -848,7 +952,10 @@ export default function LayersPanel({
               type="button"
               className="add-layer-toggle"
               onClick={() => void handleGenerateMetadata()}
-              disabled={!name.trim() || !provider.trim() || !sourceUrl.trim() || generatingMetadata}
+              disabled={
+                !name.trim() || !provider.trim() || !sourceUrl.trim()
+                || !tycheFieldsConfigured || generatingMetadata
+              }
             >
               {generatingMetadata ? "מייצר תיאור ותגיות…" : "✨ יצירת תיאור ותגיות באמצעות AI"}
             </button>
@@ -857,7 +964,7 @@ export default function LayersPanel({
               className="run-query-button"
               onClick={handleAddLayer}
               disabled={
-                !name.trim() || !sourceUrl.trim() || saving ||
+                !name.trim() || !sourceUrl.trim() || !tycheFieldsConfigured || saving ||
                 parameterDefinitions.some(
                   (definition) =>
                     definition.required

@@ -111,6 +111,12 @@ class TrajectoryRelationOp(OpHandler):
             candidates = self._time_candidates(
                 data, left_index, right["indices"], tolerance
             )
+            candidates = [
+                index for index in candidates
+                if data.geometry.loc[index].distance(
+                    data.geometry.loc[left_index]
+                ) <= step.max_distance_m
+            ]
             if not candidates:
                 continue
             right_index = min(candidates, key=lambda index: (
@@ -120,10 +126,9 @@ class TrajectoryRelationOp(OpHandler):
             distance = data.geometry.loc[left_index].distance(
                 data.geometry.loc[right_index]
             )
-            if distance <= step.max_distance_m:
-                matches.append(self._aligned_match(
-                    data, left_index, right_index, distance
-                ))
+            matches.append(self._aligned_match(
+                data, left_index, right_index, distance
+            ))
         return matches
 
     @staticmethod

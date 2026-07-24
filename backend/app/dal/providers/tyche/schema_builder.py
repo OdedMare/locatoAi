@@ -23,16 +23,29 @@ class TycheSchemaBuilder:
         ("locationType", "string", "Polygon/location type"),
     )
 
-    def build(self, layer: LayerMeta, rows: List[dict]) -> LayerSchema:
-        declared = [self._declared_field(item, rows) for item in self._FIELDS]
-        fields = declared + self._extra_fields(declared, rows)
+    def build(
+        self, layer: LayerMeta, rows: List[dict],
+        temporal_field: str = "eventTime", geometry_field: str = "geometry",
+        our_forces: bool = True,
+    ) -> LayerSchema:
+        definitions = (
+            self._FIELDS if our_forces
+            else ((temporal_field, "date", "Event occurrence time"),)
+        )
+        declared = [self._declared_field(item, rows) for item in definitions]
+        fields = declared + self._extra_fields(
+            declared, rows, geometry_field, temporal_field
+        )
         return LayerSchema(
             layer_id=layer.id,
             geometry_type="Geometry",
             fields=fields,
-            source_name="Our Forces",
-            source_description="Tyche own-force events and geographic positions",
-            temporal_field="eventTime",
+            source_name="Our Forces" if our_forces else layer.name,
+            source_description=(
+                "Tyche own-force events and geographic positions"
+                if our_forces else layer.description
+            ),
+            temporal_field=temporal_field,
         )
 
     def _declared_field(self, item: tuple, rows: List[dict]) -> LayerField:
@@ -45,14 +58,19 @@ class TycheSchemaBuilder:
         )
 
     def _extra_fields(
-        self, declared: List[LayerField], rows: List[dict]
+        self, declared: List[LayerField], rows: List[dict],
+        geometry_field: str, temporal_field: str,
     ) -> List[LayerField]:
         known = {field.name for field in declared}
         names = dict.fromkeys(
-            str(key) for row in rows for key in row if key != "geometry"
+            str(key) for row in rows for key in row if key != geometry_field
         )
         return [
-            LayerField(name=name, type="string", samples=self._samples(rows, name))
+            LayerField(
+                name=name,
+                type="date" if name == temporal_field else "string",
+                samples=self._samples(rows, name),
+            )
             for name in names
             if name not in known
         ]

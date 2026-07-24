@@ -10,7 +10,6 @@ from app.dal.providers.tyche.feature_mapper import TycheFeatureMapper
 
 
 class TycheGateway:
-    _PATH = "/coordinate/v1/ourforces"
     _PAGE_SIZE = 10000
     _MAX_ROWS = 100000
 
@@ -24,14 +23,17 @@ class TycheGateway:
         self._mapper = mapper
         self._transport = transport
 
-    def fetch(self, body_factory, limit: Optional[int]) -> List[dict]:
+    def fetch(self, path: str, body_factory, limit: Optional[int]) -> List[dict]:
         rows: List[dict] = []
         tracker = None
         seen: Set[str] = set()
         has_more = False
         with self._client() as client:
             while self._can_fetch(rows, limit):
-                payload = self._post(client, body_factory(self._page_size(rows, limit), tracker))
+                payload = self._post(
+                    client, path,
+                    body_factory(self._page_size(rows, limit), tracker),
+                )
                 rows = self._mapper.deduplicate(rows + self._page_rows(payload))
                 has_more = bool(payload.get("hasMoreResults"))
                 if not has_more or self._limit_reached(rows, limit):
@@ -69,15 +71,15 @@ class TycheGateway:
             "Authorization": token,
         }
 
-    def _post(self, client: httpx.Client, body: dict) -> dict:
+    def _post(self, client: httpx.Client, path: str, body: dict) -> dict:
         try:
-            response = client.post(self._PATH, json=body)
+            response = client.post(path, json=body)
             response.raise_for_status()
             payload = response.json()
         except httpx.HTTPError as exc:
-            raise ProviderError(f"Tyche request failed ({self._PATH}): {exc}") from exc
+            raise ProviderError(f"Tyche request failed ({path}): {exc}") from exc
         except ValueError as exc:
-            raise ProviderError(f"Tyche returned invalid JSON ({self._PATH}): {exc}") from exc
+            raise ProviderError(f"Tyche returned invalid JSON ({path}): {exc}") from exc
         if not isinstance(payload, dict):
             raise ProviderError("Tyche response must be a JSON object")
         return payload

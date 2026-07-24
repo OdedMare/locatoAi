@@ -30,6 +30,11 @@ from app.service.catalog.update_layer_request import UpdateLayerRequest
 router = APIRouter()
 _PARAMETER_PREFIX = "param_"
 _PACKAGE_INPUT_PREFIX = "input_"
+_TYCHE_FIELDS = {
+    "geometry_field": "geometry",
+    "geo_query_field": "location",
+    "time_field": "eventTime",
+}
 
 
 class CatalogRouter:
@@ -108,6 +113,9 @@ class CatalogRouter:
                 flapi_resource_type=body.flapi_resource_type,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
+                tyche_geometry_field=body.tyche_geometry_field,
+                tyche_geo_query_field=body.tyche_geo_query_field,
+                tyche_time_field=body.tyche_time_field,
             ),
             sample_geometry=cls._sample_geometry(body),
         )
@@ -180,6 +188,9 @@ class CatalogRouter:
         flapi_resource_type: str = "cube",
         package_parameters: Optional[Dict[str, Any]] = None,
         package_query: Optional[str] = None,
+        tyche_geometry_field: Optional[str] = None,
+        tyche_geo_query_field: Optional[str] = None,
+        tyche_time_field: Optional[str] = None,
     ) -> str:
         source = source_url.strip()
         if provider.strip().lower() == "cubes":
@@ -197,8 +208,12 @@ class CatalogRouter:
             return cls.with_parameters(
                 source, cubes_parameters or cubes_dynamic_parameters or {}
             )
-        if provider.strip().lower() == "tyche" and "://" not in source:
-            return f"tyche://{source.strip('/')}"
+        if provider.strip().lower() == "tyche":
+            source = source if "://" in source else f"tyche://{source.strip('/')}"
+            return cls.with_tyche_fields(
+                source, tyche_geometry_field,
+                tyche_geo_query_field, tyche_time_field,
+            )
         return source
 
     @staticmethod
@@ -220,6 +235,23 @@ class CatalogRouter:
         for name, value in parameters.items():
             if name and value:
                 query[f"{_PARAMETER_PREFIX}{name}"] = [value]
+        return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
+
+    @staticmethod
+    def with_tyche_fields(
+        source: str, geometry_field: Optional[str],
+        geo_query_field: Optional[str], time_field: Optional[str],
+    ) -> str:
+        parsed = urlsplit(source)
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        values = (geometry_field, geo_query_field, time_field)
+        for (key, default), value in zip(_TYCHE_FIELDS.items(), values):
+            if value is None:
+                continue
+            query.pop(key, None)
+            cleaned = value.strip()
+            if cleaned and cleaned != default:
+                query[key] = [cleaned]
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @staticmethod
@@ -283,6 +315,9 @@ class CatalogRouter:
                 flapi_resource_type=body.flapi_resource_type,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
+                tyche_geometry_field=body.tyche_geometry_field,
+                tyche_geo_query_field=body.tyche_geo_query_field,
+                tyche_time_field=body.tyche_time_field,
             ),
         )
 
@@ -305,6 +340,7 @@ autocomplete_cubes_parameter = CatalogRouter.autocomplete
 _with_cubes_mode = CatalogRouter.with_cubes_mode
 _with_cubes_parameters = CatalogRouter.with_parameters
 _with_cubes_dynamic_parameters = CatalogRouter.with_parameters
+_with_tyche_fields = CatalogRouter.with_tyche_fields
 _normalized_source = CatalogRouter.normalized_source
 _clean_tags = CatalogRouter.clean_tags
 _catalog_layer = CatalogRouter.catalog_layer

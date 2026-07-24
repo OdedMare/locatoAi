@@ -19,3 +19,12 @@ class GenerateLayerMetadataRequest(CubesParameterValues):
     )
     package_query: Optional[str] = Field(default=None, max_length=200)
     cubes_sample_boundary: Optional[GeoJSONMultiPolygon] = None
+    tyche_geometry_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )
+    tyche_geo_query_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )
+    tyche_time_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )

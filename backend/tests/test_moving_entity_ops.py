@@ -131,6 +131,28 @@ def test_trajectory_relation_finds_friends_moving_together_with_buffers():
     assert all(result["movement_distance_m"] > 100)
 
 
+def test_together_prefers_spatial_match_inside_the_time_buffer():
+    data = gpd.GeoDataFrame({
+        "friendId": ["alice", "alice", "bob", "bob", "bob", "bob"],
+        "seenAt": [
+            "2026-07-15T09:00:00Z", "2026-07-15T09:10:00Z",
+            "2026-07-15T09:00:00Z", "2026-07-15T09:01:00Z",
+            "2026-07-15T09:10:00Z", "2026-07-15T09:11:00Z",
+        ],
+    }, geometry=[
+        Point(34.7800, 32.1000), Point(34.7820, 32.1000),
+        Point(34.8000, 32.1200), Point(34.7801, 32.1001),
+        Point(34.8000, 32.1200), Point(34.7821, 32.1001),
+    ], crs="EPSG:4326")
+
+    result = run_relation(
+        data, "together", max_distance_m=30,
+        time_tolerance_minutes=2, min_duration_minutes=5,
+    )
+
+    assert set(result["friendId"]) == {"alice", "bob"}
+
+
 def test_trajectory_relation_finds_same_destination_with_arrival_buffer():
     data = gpd.GeoDataFrame({
         "friendId": ["alice", "alice", "bob", "bob", "late", "late"],

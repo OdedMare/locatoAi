@@ -16,14 +16,16 @@ class TycheFeatureMapper:
     def __init__(self) -> None:
         self._logger = logging.getLogger(__name__)
 
-    def to_gdf(self, rows: List[dict]) -> gpd.GeoDataFrame:
-        parsed = [(row, self._parse(row.get("geometry"))) for row in rows]
+    def to_gdf(
+        self, rows: List[dict], geometry_field: str = "geometry"
+    ) -> gpd.GeoDataFrame:
+        parsed = [(row, self._parse(row.get(geometry_field))) for row in rows]
         valid = [(row, geometry) for row, geometry in parsed
                  if geometry is not None and not geometry.is_empty]
         self._log_invalid_count(len(rows) - len(valid))
         if not valid:
             return empty_features_gdf()
-        return self._build_gdf(valid)
+        return self._build_gdf(valid, geometry_field)
 
     def deduplicate(self, rows: List[dict]) -> List[dict]:
         unique: Dict[str, dict] = {}
@@ -109,9 +111,11 @@ class TycheFeatureMapper:
             self._logger.warning("Tyche skipped %s rows with invalid geometry", count)
 
     @staticmethod
-    def _build_gdf(valid: List[tuple]) -> gpd.GeoDataFrame:
+    def _build_gdf(
+        valid: List[tuple], geometry_field: str
+    ) -> gpd.GeoDataFrame:
         attributes = [
-            {key: value for key, value in row.items() if key != "geometry"}
+            {key: value for key, value in row.items() if key != geometry_field}
             for row, _ in valid
         ]
         geometries = [geometry for _, geometry in valid]

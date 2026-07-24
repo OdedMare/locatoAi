@@ -100,6 +100,38 @@ def test_fetch_pushes_time_polygon_and_parses_wkt_geometry(tmp_path):
     assert "noGeoQuery" not in body
 
 
+def test_custom_layer_uses_its_route_and_field_mapping(tmp_path):
+    provider, handler = make_provider(tmp_path, [{
+        "results": [{
+            "id": "alert-1",
+            "observedAt": "2026-06-06 06:35:12.000",
+            "geo": "POINT (34.78 32.08)",
+            "severity": "high",
+        }],
+        "hasMoreResults": False,
+    }])
+    custom = layer(
+        "tyche://alerts?geometry_field=geo"
+        "&geo_query_field=area&time_field=observedAt"
+    )
+    boundary = box(34.7, 32.0, 34.9, 32.2)
+
+    features = provider.fetch_features(custom, geometry=boundary)
+    schema = provider.describe_schema(custom)
+
+    assert list(features["id"]) == ["alert-1"]
+    assert "geo" not in features.columns
+    assert handler.requests[0].url.path == "/coordinate/v1/alerts"
+    body = request_body(handler.requests[0])
+    assert "eventTime" not in body
+    assert body["area"] == {"match": boundary.wkt}
+    assert "observedAt" in body
+    assert schema.temporal_field == "observedAt"
+    assert {field.name for field in schema.fields} == {
+        "observedAt", "id", "severity",
+    }
+
+
 def test_default_event_window_is_one_hour_ending_at_now(tmp_path):
     provider, handler = make_provider(tmp_path, [{
         "results": [record()], "hasMoreResults": False,
@@ -231,8 +263,8 @@ def test_rejects_invalid_response_and_missing_configuration(tmp_path):
         provider.fetch_features(layer())
 
 
-def test_rejects_noncanonical_catalog_source(tmp_path):
+def test_rejects_invalid_catalog_source(tmp_path):
     provider, _ = make_provider(tmp_path, [])
 
-    with pytest.raises(ProviderError, match="tyche://ourforces"):
-        provider.fetch_features(layer("tyche://something-else"))
+    with pytest.raises(ProviderError, match="tyche:// scheme"):
+        provider.fetch_features(layer("https://tyche.test/alerts"))

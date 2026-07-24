@@ -139,6 +139,101 @@ CASES = [
                    ("between", "second_target_field", PRESENT),
                    ("between", "corridor_width_m", 100)),
     },
+    {
+        "name": "trajectory-together-en",
+        "query": (
+            "Find our forces that moved together in the last hour, within "
+            "100 meters and a 5 minute time buffer"
+        ),
+        "layers": ("כוחותינו",),
+        "subject": "כוחותינו",
+        "ops": ("load", "within_geometry", "temporal_filter",
+                "trajectory_relation"),
+        "context": (),
+        "checks": (("trajectory_relation", "relation", "together"),
+                   ("trajectory_relation", "max_distance_m", 100),
+                   ("trajectory_relation", "time_tolerance_minutes", 5),
+                   ("trajectory_relation", "entity_field", PRESENT),
+                   ("trajectory_relation", "time_field", PRESENT)),
+    },
+    {
+        "name": "trajectory-same-destination-en",
+        "query": (
+            "Find our forces that drove to the same destination in the last "
+            "hour, arriving within 10 minutes and 150 meters"
+        ),
+        "layers": ("כוחותינו",),
+        "subject": "כוחותינו",
+        "ops": ("load", "within_geometry", "temporal_filter",
+                "trajectory_relation"),
+        "context": (),
+        "checks": (("trajectory_relation", "relation", "same_destination"),
+                   ("trajectory_relation", "max_distance_m", 150),
+                   ("trajectory_relation", "time_tolerance_minutes", 10)),
+    },
+    {
+        "name": "trajectory-same-time-en",
+        "query": (
+            "Find our forces that moved at the same time in the last hour "
+            "with a 7 minute time buffer; their locations may differ"
+        ),
+        "layers": ("כוחותינו",),
+        "subject": "כוחותינו",
+        "ops": ("load", "within_geometry", "temporal_filter",
+                "trajectory_relation"),
+        "context": (),
+        "checks": (("trajectory_relation", "relation", "same_time"),
+                   ("trajectory_relation", "time_tolerance_minutes", 7)),
+    },
+    {
+        "name": "trajectory-same-place-different-times-en",
+        "query": (
+            "Find our forces that passed within 100 meters of the same place "
+            "at least 30 minutes apart during the last hour"
+        ),
+        "layers": ("כוחותינו",),
+        "subject": "כוחותינו",
+        "ops": ("load", "within_geometry", "temporal_filter",
+                "trajectory_relation"),
+        "context": (),
+        "checks": (("trajectory_relation", "relation",
+                    "same_place_different_times"),
+                   ("trajectory_relation", "max_distance_m", 100),
+                   ("trajectory_relation", "min_time_separation_minutes", 30)),
+    },
+    {
+        "name": "origin-round-trip-en",
+        "query": (
+            "Find our forces that left at 2026-07-24T16:00:00Z, traveled at "
+            "least 500 meters, and returned by 2026-07-24T17:00:00Z within "
+            "100 meters of their starting point"
+        ),
+        "layers": ("כוחותינו",),
+        "subject": "כוחותינו",
+        "ops": ("load", "within_geometry", "temporal_filter",
+                "origin_movement"),
+        "context": (),
+        "checks": (("origin_movement", "pattern", "round_trip"),
+                   ("origin_movement", "entity_field", PRESENT),
+                   ("origin_movement", "time_field", PRESENT),
+                   ("origin_movement", "min_departure_distance_m", 500),
+                   ("origin_movement", "max_return_distance_m", 100)),
+    },
+    {
+        "name": "origin-night-departure-en",
+        "query": (
+            "Using each first track point as an inferred origin, find our "
+            "forces that left it by at least 500 meters during the UTC night "
+            "from 2026-07-24T20:00:00Z to 2026-07-25T05:00:00Z"
+        ),
+        "layers": ("כוחותינו",),
+        "subject": "כוחותינו",
+        "ops": ("load", "within_geometry", "temporal_filter",
+                "origin_movement"),
+        "context": (),
+        "checks": (("origin_movement", "pattern", "departed"),
+                   ("origin_movement", "min_departure_distance_m", 500)),
+    },
 ]
 
 

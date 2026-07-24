@@ -161,15 +161,17 @@ partial-success trace IDs and query result-limit warnings are logged.
 
 ## Tyche provider — `providers/tyche/`
 
-Simpler single-source provider (`tyche://ourforces` only).
+Tyche coordinate-layer provider. `tyche://ourforces` remains the canonical layer;
+additional catalog rows carry their route and field mapping in `source_url`.
 
 | File | Class | Role |
 |---|---|---|
-| `provider.py` | `TycheProvider` | Orchestrator; validates `source_url == tyche://ourforces` |
-| `gateway.py` | `TycheGateway` | `POST /coordinate/v1/ourforces`, `pageTracker` pagination, dedup, safety cap |
-| `query_builder.py` | `TycheQueryBuilder` | Builds `eventTime.match` window, `location.match` WKT, `pageTracker` |
-| `feature_mapper.py` | `TycheFeatureMapper` | Parses varied geometry encodings; row dedup by `id` |
-| `schema_builder.py` | `TycheSchemaBuilder` | Fixed field list (`eventTime`, `callSign`, `forceType`, `unit`, `netId`, ...) + discovered extras |
+| `provider.py` | `TycheProvider` | Orchestrates configured Tyche catalog layers |
+| `source.py` | `TycheSource` | Parses route plus geometry/geography/time field overrides |
+| `gateway.py` | `TycheGateway` | Posts to the configured route; `pageTracker` pagination, dedup, safety cap |
+| `query_builder.py` | `TycheQueryBuilder` | Builds the configured time/geography match fields and `pageTracker` |
+| `feature_mapper.py` | `TycheFeatureMapper` | Parses the configured geometry field; row dedup by `id` |
+| `schema_builder.py` | `TycheSchemaBuilder` | Fixed Our Forces fields or sampled custom-layer fields |
 
 `TycheProvider` caches the last 100 fetched rows per layer for schema description.
 `TycheGateway._MAX_ROWS = 100000` safety cap; repeated `pageTracker` raises

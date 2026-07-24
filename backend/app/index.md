@@ -11,7 +11,7 @@ Dependency direction: **`service` → `bl` ← `dal`**, both resting on **`commo
 |---|---|---|
 | `common/` | [`common/CLAUDE.md`](common/CLAUDE.md) | Env config vs. live runtime settings and their precedence, the 5-type error hierarchy and its HTTP mapping, CRS/meters-math helpers (`geo.py`), console-first dual-destination logging, Hebrew-aware text normalization. Dependency-free foundation — nothing here imports `bl`/`dal`/`service`. |
 | `dal/` | [`dal/CLAUDE.md`](dal/CLAUDE.md) | Implementations of BL interfaces: context-packaged MQS, Cubes, and Tyche adapters, the provider registry, the OpenAI-compatible LLM client, and Postgres-backed catalog/feedback repositories. |
-| `bl/` | [`bl/CLAUDE.md`](bl/CLAUDE.md) | The business logic core: context-owned interfaces/models, the 16-step `GeoQueryPlan` contract + validators, self-registering executor ops, the three-call agent pipeline, query orchestration, and catalog workflows. |
+| `bl/` | [`bl/CLAUDE.md`](bl/CLAUDE.md) | The business logic core: context-owned interfaces/models, the 18-step `GeoQueryPlan` contract + validators, self-registering executor ops, the three-call agent pipeline, query orchestration, and catalog workflows. |
 | `service/` | [`service/CLAUDE.md`](service/CLAUDE.md) | Every HTTP endpoint (full table), request/response DTOs per router, the composition root (`main.py` / `application_state_wiring.py`) and its `app.state` wiring, the domain-error → HTTP-status mapping, the exact `{query, boundaries}` wire contract, settings secret-masking rules, and the two routers that carry more logic than the "zero-logic router" convention implies. |
 
 ## Typical navigation paths

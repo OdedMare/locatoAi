@@ -29,6 +29,9 @@ export interface CreateLayerRequest {
   cubes_dynamic_parameters?: Record<string, string>;
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
+  tyche_geometry_field?: string;
+  tyche_geo_query_field?: string;
+  tyche_time_field?: string;
 }
 
 export interface UpdateLayerRequest {
@@ -48,6 +51,9 @@ export interface GenerateLayerMetadataRequest {
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
   cubes_sample_boundary?: GeoJSONMultiPolygon | null;
+  tyche_geometry_field?: string;
+  tyche_geo_query_field?: string;
+  tyche_time_field?: string;
 }
 
 export interface CubesAutocompleteRequest {

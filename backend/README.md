@@ -433,9 +433,11 @@ provider behavior belongs in the collaborator that owns that single responsibili
   and a 100,000-row safety ceiling prevents an unbounded response from exhausting the
   process.
 
-- **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): the Our Forces API at
-  `POST /coordinate/v1/ourforces`. Catalog rows use
-  `source_url="tyche://ourforces"`; the live base URL, `username` header,
+- **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): Tyche coordinate
+  APIs, including Our Forces at `POST /coordinate/v1/ourforces`. The canonical row uses
+  `source_url="tyche://ourforces"`. Additional rows can select another route and store
+  `geometry_field`, `geo_query_field`, and `time_field` query parameters in that URL;
+  omitted mappings retain the Our Forces defaults. The live base URL, `username` header,
   write-only `Authorization` token, and TLS verification setting are read on
   every request. The adapter is request-scoped and stores no entity mirror.
   Every fetch sends Tyche's required `eventTime.match.gte/lte` values in
@@ -448,7 +450,9 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `TycheQueryBuilder` for a local adjustment against the full OpenAPI schema.
   Responses accept WKT, GeoJSON objects/strings, nested geometry values, and
   longitude/latitude objects, preserving the parsed value as the GeoDataFrame
-  geometry. The provider follows `hasMoreResults`/`pageTracker`, requests only
+  geometry using the configured response field. Custom schemas are inferred from a
+  bounded sample, while the canonical Our Forces schema retains its documented fields.
+  The provider follows `hasMoreResults`/`pageTracker`, requests only
   the remaining rows for bounded samples, deduplicates event IDs, rejects broken
   or repeated paging tokens, and stops at a 100,000-row safety ceiling.
   `POST /api/layers/activate-tyche` (the Layers UI's Tyche activation button)

@@ -19,3 +19,12 @@ class CreateLayerRequest(CubesParameterValues):
         default_factory=dict, max_length=50
     )
     package_query: Optional[str] = Field(default=None, max_length=200)
+    tyche_geometry_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )
+    tyche_geo_query_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )
+    tyche_time_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )

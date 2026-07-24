@@ -18,7 +18,7 @@ provider, adding a setting, debugging an error's HTTP status).
 |---|---|---|
 | `app/common/` | [`app/common/CLAUDE.md`](app/common/CLAUDE.md) | Dependency-free foundation: env vs. live settings precedence, error hierarchy, CRS/meters math, logging, text normalization. |
 | `app/dal/` | [`app/dal/CLAUDE.md`](app/dal/CLAUDE.md) | Implements context-owned BL interfaces: MQS/Cubes/Tyche adapters, provider registry, LLM client, and Postgres repositories. |
-| `app/bl/` | [`app/bl/CLAUDE.md`](app/bl/CLAUDE.md) | The business core: context-owned interfaces/models, the 16-step `GeoQueryPlan` + validators, executor ops, agent pipeline, query orchestrator, and catalog service. |
+| `app/bl/` | [`app/bl/CLAUDE.md`](app/bl/CLAUDE.md) | The business core: context-owned interfaces/models, the 18-step `GeoQueryPlan` + validators, executor ops, agent pipeline, query orchestrator, and catalog service. |
 | `app/service/` | [`app/service/CLAUDE.md`](app/service/CLAUDE.md) | Every HTTP endpoint, DTOs, the composition root (`main.py`), error→HTTP mapping, the `{query, boundaries}` contract, settings secret masking. |
 
 For architecture-level narrative (request lifecycle stage-by-stage, provider deep

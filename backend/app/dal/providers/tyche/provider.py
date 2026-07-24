@@ -13,17 +13,16 @@ from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
-from app.common.errors.provider_error import ProviderError
 from app.common.utils.geo_utils import empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.tyche.feature_mapper import TycheFeatureMapper
 from app.dal.providers.tyche.gateway import TycheGateway
 from app.dal.providers.tyche.query_builder import TycheQueryBuilder
 from app.dal.providers.tyche.schema_builder import TycheSchemaBuilder
+from app.dal.providers.tyche.source import TycheSource
 
 
 class TycheProvider:
-    _SOURCE_URL = "tyche://ourforces"
     _MAX_SAMPLE_CHARS = 80
 
     def __init__(
@@ -38,8 +37,15 @@ class TycheProvider:
         self._samples: Dict[str, List[dict]] = {}
 
     def describe_schema(self, layer: LayerMeta) -> LayerSchema:
-        self._validate_source(layer)
-        return self._schema_builder.build(layer, self._samples.get(layer.id, []))
+        source = TycheSource.parse(layer.source_url)
+        rows = self._samples.get(layer.id)
+        if rows is None and not source.is_our_forces:
+            rows = self._fetch_rows(source, None, None, 100, None)
+            self._samples[layer.id] = rows
+        return self._schema_builder.build(
+            layer, rows or [], source.time_field, source.geometry_field,
+            source.is_our_forces,
+        )
 
     def fetch_features(
         self,
@@ -49,12 +55,16 @@ class TycheProvider:
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
-        self._validate_source(layer)
+        source = TycheSource.parse(layer.source_url)
         if limit is not None and limit < 1:
             return empty_features_gdf()
-        rows = self._fetch_rows(now, geometry, limit, temporal_range)
+        rows = self._fetch_rows(
+            source, now, geometry, limit, temporal_range
+        )
         self._samples[layer.id] = rows[:100]
-        return self._features_in_boundary(rows, geometry)
+        return self._features_in_boundary(
+            rows, geometry, source.geometry_field
+        )
 
     def sample_field_values(
         self, layer: LayerMeta, field: str, limit: int = 20,
@@ -68,26 +78,26 @@ class TycheProvider:
 
     def _fetch_rows(
         self,
+        source: TycheSource,
         now: Optional[datetime],
         geometry: Optional[BaseGeometry],
         limit: Optional[int],
         temporal_range: Optional[Tuple[str, str]],
     ) -> List[dict]:
         return self._gateway.fetch(
+            source.route,
             lambda size, tracker: self._query_builder.build(
-                now, geometry, temporal_range, size, tracker
+                now, geometry, temporal_range, size, tracker,
+                source.time_field, source.geo_query_field,
             ),
             limit,
         )
 
     def _features_in_boundary(
-        self, rows: List[dict], geometry: Optional[BaseGeometry]
+        self, rows: List[dict], geometry: Optional[BaseGeometry],
+        geometry_field: str,
     ) -> gpd.GeoDataFrame:
-        features = self._mapper.to_gdf(rows)
+        features = self._mapper.to_gdf(rows, geometry_field)
         if geometry is not None and not features.empty:
             features = features[features.geometry.intersects(geometry)]
         return features.reset_index(drop=True)
-
-    def _validate_source(self, layer: LayerMeta) -> None:
-        if layer.source_url.strip().rstrip("/").lower() != self._SOURCE_URL:
-            raise ProviderError("Tyche supports only source_url=tyche://ourforces")
