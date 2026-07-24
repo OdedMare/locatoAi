@@ -95,13 +95,8 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
   }, [loadAttempt]);
 
   useEffect(() => {
-    if (!fieldLayerId) {
-      setLayerFields([]);
-      setFieldName("");
-      return;
-    }
+    if (!fieldLayerId) return;
     let active = true;
-    setFieldsLoading(true);
     getLayerFields(fieldLayerId)
       .then((result) => {
         if (!active) return;
@@ -304,7 +299,12 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                     <select
                       className="settings-input"
                       value={fieldLayerId}
-                      onChange={(event) => setFieldLayerId(event.target.value)}
+                      onChange={(event) => {
+                        setFieldLayerId(event.target.value);
+                        setLayerFields([]);
+                        setFieldName("");
+                        setFieldsLoading(Boolean(event.target.value));
+                      }}
                       aria-label="בחירת שכבה לקישור שדה"
                     >
                       <option value="">בחירת שכבה…</option>

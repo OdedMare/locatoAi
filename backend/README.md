@@ -289,12 +289,16 @@ custom skills persist in `runtime-settings.json`; the selector, planner, and met
 generator read them on every call, so the next agent request uses the edit without a
 backend restart. The prompt receives only a compact custom-skill index; the planner may
 load at most two relevant bodies through `load_skill`. Required prompt placeholders are
-validated before saving. These skills compose existing typed plan operations; adding a
+validated before saving. Custom skills can bind a field selected from a live catalog
+schema; the binding is validated on save, contributes its required layer to selection,
+and resolves to the current layer/field names when loaded. These skills compose existing typed plan operations; adding a
 new executable operation still requires its model, validator, executor, trace, and tests.
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
-`base_url` is set, with a degradation ladder: JSON mode → plain → system-merged-into-user.
+`base_url` is set. Plan responses first use a generated JSON Schema covering plans,
+tool calls, and clarification, then degrade through JSON mode → plain →
+system-merged-into-user when a compatible server rejects schema guidance.
 
 **Quality loop:**
 - `scripts/eval_select_layers.py` — SCORED eval (Hebrew/English cases with expected
@@ -303,6 +307,8 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 - `scripts/eval_build_plan.py` — SCORED live planner eval with fixed real catalog layers,
   covering proximity choices, clusters, static vs moving direction, count vs limit,
   named references, boundaries, typos, clarification, and Tyche mission plans.
+- `scripts/eval_geo_genericity.py` — live provider-neutral planner eval with synthetic
+  provider names and renamed identity/time/display fields; needs no catalog database.
 - UI 👍/👎 → `POST /api/feedback` → configurable PostgreSQL feedback table.
 - `scripts/enrich_layer_tags.py` — LLM-generated bilingual alias tags using catalog
   metadata plus MQS `property_list` field names/samples (dry-run by default;

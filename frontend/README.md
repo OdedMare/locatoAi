@@ -18,7 +18,8 @@ The frontend:
 - Keeps up to eight completed turns in memory and carries direct clarification replies forward as context.
 - Copies map-center coordinates in four formats and exports complete request/response debug bundles.
 - Provides searchable layer catalog and remote MQS browsing workflows.
-- Provides Agent Studio for live prompt and planner-skill creation/editing.
+- Provides Agent Studio for live prompt and planner-skill creation/editing, including
+  schema-backed layer/field insertion for custom skills.
 - Provides live-editable LLM, MQS, Cubes, PostgreSQL, and table settings.
 - Persists light/dark theme preference in browser local storage.
 - Sends thumbs-up/down feedback to backend PostgreSQL persistence.
@@ -104,7 +105,7 @@ Leaflet reads `window` during import, so `MapWorkspace` loads `LeafletMap` with 
 
 - `ViewReporter` listens for `moveend` and reports `[minLng, minLat, maxLng, maxLat]` to `AppShell`.
 - `MapGeoms` imperatively activates the correct Leaflet Draw tool when geography mode changes. Only one drawn boundary is retained.
-- `MapResults` uses an imperative `L.geoJSON` layer because React Leaflet's GeoJSON component does not reliably update when data changes. It styles points and shapes, binds a popup when a feature has `properties.name`, and removes the old result layer during effect cleanup.
+- `MapResults` uses an imperative `L.geoJSON` layer because React Leaflet's GeoJSON component does not reliably update when data changes. It styles points and shapes, labels result popups with the provider-declared `display_field`, and removes the old result layer during effect cleanup.
 - `MapLayers` renders the selected base tile layer.
 - `LayerPicker` switches between Esri World Imagery and OpenStreetMap.
 - `MapWorkspace` overlays a live status HUD and a top-center coordinate console that does not overlap the layer picker. The current map center can be copied as latitude/longitude, longitude/latitude, DMS, or WKT.
@@ -131,7 +132,17 @@ Handles every response state. Feature results become a dynamic property table ca
 
 ### `LayersPanel`
 
-Loads and searches catalog metadata. It supports manual layer creation, inline editing of names/descriptions/tags, and browsing remote MQS inventory before copying a remote layer into the creation form. Provider and source identity remain read-only during edits. Selecting a remote layer automatically asks the backend to sample up to 10 random entities and generate a description and tags; the suggestions populate normal editable fields and are not saved until the user submits the form. The Tyche activation button probes the configured Our Forces API before idempotently adding or refreshing `provider=tyche` / `tyche://ourforces`. A separate Tyche creation flow accepts a route plus response geometry, request geography, and event-time field names for other coordinate layers. Catalog writes go through backend endpoints; this component never talks to PostgreSQL or providers itself.
+Loads and searches catalog metadata. It supports manual layer creation, inline editing
+of names/descriptions/tags plus typed entity/display/profile metadata, and browsing
+remote MQS inventory before copying a remote layer into the creation form. Provider and
+source identity remain read-only during edits. Selecting a remote layer automatically
+asks the backend to sample up to 10 random entities and generate a description and tags;
+the suggestions populate normal editable fields and are not saved until the user submits
+the form. The Tyche activation button probes the configured Our Forces API before
+idempotently adding or refreshing `provider=tyche` / `tyche://ourforces`. A separate
+Tyche creation flow accepts a route plus response geometry, request geography, and
+event-time field names for other coordinate layers. Catalog writes go through backend
+endpoints; this component never talks to PostgreSQL or providers itself.
 
 “Add Cube from FLAPI” presets `provider=flapi` with resource type `cube`. The user
 supplies a display name and a cube/database name; the backend normalizes it, executes

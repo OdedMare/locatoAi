@@ -14,12 +14,13 @@ clarification behavior as their full counterparts.
 GeoQueryPlan operation guidance lives in
 `../skills/plan-geo-queries/references/`, one file per operation. `PlanBuilder` injects
 the catalog into both build prompts through `{geo_skills}`. The full profile receives
-each complete skill; diet mode receives the same skill's name and use/avoid rules.
+each complete skill; diet mode receives the same skill's name, use/avoid rules, and
+compact `Compose` rule.
 Required fields, optional fields, defaults, and numeric bounds are rendered directly
 from the Pydantic step models instead of being duplicated in Markdown.
 
 Domain profiles live under `../skills/plan-geo-queries/profiles/` and are injected only
-when a selected layer has the matching `profile:<id>` tag. The OurForce profile is
+when a selected layer declares the matching typed profile id. The OurForce profile is
 therefore metadata-activated rather than a global provider/name rule.
 
 ## Pipeline position
@@ -58,15 +59,18 @@ Used by `PlanBuilder` for model call two. Runtime substitutions are:
 - `{now}`: one UTC timestamp shared by planning and execution.
 - `{has_boundaries}`: whether `within_geometry` is legal for this request.
 - `{geo_skills}`: code-derived contracts, routing guidance, active profiles, and the custom-skill index.
-- `{layers}`: selected layer metadata and provider-reported schemas, including safe sample values and declared entity/time roles.
+- `{layers}`: selected layer metadata and provider-reported schemas, including safe sample values and declared entity/time/display roles.
 
 The model may return a `sample_field` tool request to inspect additional distinct values for a selected layer field. The builder allows at most three tool rounds. Tool rounds do not consume the separate validation-retry budget.
 
 The model may also request a custom skill body by id from the injected index. At most two
 different skill bodies are loaded, each with a bounded length; they are not placed in
-every planning prompt.
+every planning prompt. Agent Studio field bindings are validated against the selected
+catalog schema and resolved to readable layer/field references on load.
 
-The final response must be either a plan matching `GeoQueryPlan` or a short Hebrew clarification. Invalid plans receive one correction attempt containing a bounded validation error and the rejected JSON.
+The client supplies a generated JSON Schema covering `GeoQueryPlan`, both bounded tool
+calls, and clarification when the model server supports it. Invalid plans still receive
+one correction attempt containing a bounded validation error and the rejected JSON.
 
 After deterministic execution, zero rows may invoke the planner once more with the
 previous plan. The revision must pass normal validation and the code-level

@@ -83,16 +83,27 @@ def main() -> int:
     )
     passed = 0
     for query, layers, expected_ops, role_check in CASES:
-        result = builder.build(
-            query, layers, has_boundaries=False,
-            now=datetime.now(timezone.utc),
-        )
-        actual = tuple(step.op for step in result.plan.steps) if result.plan else ()
-        ok = actual == expected_ops
-        if ok and role_check:
-            operation, entity, temporal = role_check
-            step = next(item for item in result.plan.steps if item.op == operation)
-            ok = step.entity_field == entity and step.time_field == temporal
+        try:
+            result = builder.build(
+                query, layers, has_boundaries=False,
+                now=datetime.now(timezone.utc),
+            )
+            actual = (
+                tuple(step.op for step in result.plan.steps)
+                if result.plan else ()
+            )
+            ok = actual == expected_ops
+            if ok and role_check:
+                operation, entity, temporal = role_check
+                step = next(
+                    item for item in result.plan.steps if item.op == operation
+                )
+                ok = (
+                    step.entity_field == entity
+                    and step.time_field == temporal
+                )
+        except Exception as exc:
+            actual, ok = "ERROR: " + str(exc), False
         passed += int(ok)
         print("{} {} → {}".format("✓" if ok else "✗", query, actual))
     print("score: {}/{}".format(passed, len(CASES)))

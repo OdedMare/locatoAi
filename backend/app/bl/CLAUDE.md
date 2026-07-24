@@ -49,7 +49,7 @@ here — `dal/` supplies it structurally (duck-typed, no explicit inheritance ne
 |---|---|---|---|
 | `catalog/layers_repository.py` | `LayersRepository(Protocol)` | `list_layers()`, `get_layer(id)`, `add_layer(layer)`, `update_layer_metadata(id, name, description, tags)`, `upsert_layer(layer) -> (layer, created)` | `dal/catalog/layers_repository.py::PostgresLayersRepository` |
 | `agent/llm_client.py` | `LLMClient(Protocol)` | `complete_json(system, user) -> dict`, `list_models() -> List[str]` | `dal/llm/openai_client.py::OpenAIJsonClient` |
-| `providers/provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | `describe_schema(layer) -> LayerSchema`; `fetch_features(layer, now=None, geometry=None, limit=None, attribute_filters=None) -> gpd.GeoDataFrame` (geometry/limit/attribute_filters are pushdown *hints* — correctness never depends on the provider honoring them); `sample_field_values(layer, field, limit=20) -> List[str]` | `CubesProvider`, `MqsProvider`, `TycheProvider` |
+| `providers/provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | declares pushdown `capabilities`; `describe_schema(layer) -> LayerSchema`; `fetch_features(..., attribute_filters=None, temporal_range=None)` (all are hints — correctness never depends on them); `sample_field_values(...)` | `FlapiProvider`, `MqsProvider`, `TycheProvider` |
 | `providers/registry.py` | `ProviderRegistry(Protocol)` | `get(provider_name) -> Provider`, `has(provider_name) -> bool` | `InMemoryProviderRegistry` |
 | `catalog/models/layer_meta.py` | `LayerMeta(BaseModel)` | data only — one catalog row: `id, name, description="", tags=[], provider, source_url` | n/a |
 | `catalog/models/layer_schema.py` | `LayerSchema(BaseModel)` | data only: `layer_id, geometry_type, fields: List[LayerField], parameters: List[LayerParameter]=[], source_name="", source_description="", entity_field: Optional[str], temporal_field: Optional[str]` | n/a |
@@ -172,9 +172,9 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
   `input` references), `feature_cache` (memoizes `load_layer_features` by
   `(layer_id, geometry_wkb, temporal_range, attribute_filters)`),
   `load_temporal_ranges`/`load_attribute_filters` (precomputed pushdown hints). Key
-  method `load_layer_features(...)` resolves the layer, decides which pushdowns the
-  specific provider honors (Cubes/Tyche get temporal pushdown, MQS gets attribute
-  pushdown), calls `provider.fetch_features`, tags `gdf.attrs["temporal_field"]`,
+  method `load_layer_features(...)` resolves the layer, reads the adapter's semantic
+  capabilities (not its registered name), forwards supported temporal/attribute
+  pushdowns, calls `provider.fetch_features`, tags `gdf.attrs["temporal_field"]`,
   caches. `proximity_geometry(distance_m)` buffers `user_geometry` (WGS84-safe, via
   `common/geo.py`) for proximity ops' target-layer pushdown hints.
 
@@ -236,7 +236,8 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
     prompt (`{now}`/`{has_boundaries}`/`{geo_skills}`/`{layers}`), delegates to
     `PlanBuildLoop.run`. `GeoSkillCatalog` combines Pydantic-derived compact operation
     contracts, one provider-neutral routing reference per operation, profiles activated
-    by selected-layer `profile:<id>` tags, and a compact custom-skill index.
+    by selected-layer typed `profiles`, and a compact custom-skill index. Custom
+    `@field[...]` bindings are validated against live schemas and resolved on load.
   - `replan_after_empty(query, layers, previous, has_boundaries, now) ->
     PlanBuildResult` — the zero-result diagnosis path: appends "executed successfully
     but returned zero rows... never widen time, distance, geography, counts, targets,
@@ -248,7 +249,8 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
   LLM/tool/validation loop: each turn either (a) handles a field sample or indexed
   custom-skill load and loops
   again (doesn't count against `_MAX_ATTEMPTS`), (b) accepts a `clarify`, or (c)
-  validates the JSON via `GeoQueryPlan.model_validate` + `validate_plan` — failure
+  requests the generated plan/tool/clarify JSON Schema when supported, then validates
+  via `GeoQueryPlan.model_validate` + `validate_plan` — failure
   appends a correction message and retries up to `_MAX_ATTEMPTS`; exhaustion returns a
   fixed fallback clarify.
 - **`plan_build_state.py`** — `PlanBuildState(query)`: `query`, `user`,
