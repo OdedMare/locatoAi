@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2, FileText, LoaderCircle, Plus, RefreshCw, Save, Sparkles,
-  TriangleAlert, Wrench, X,
+  CheckCircle2, FileText, LoaderCircle, MapPinned, Plus, RefreshCw, Save,
+  Sparkles, TriangleAlert, Wrench, X,
 } from "lucide-react";
 import {
   createAgentSkill,
@@ -29,6 +29,14 @@ const SKILL_TEMPLATE = `# \`new-skill\`
 Describe semantic constraints using layer/schema roles. Do not hard-code layer ids,
 step ids, provider names, field names, or operation defaults.
 `;
+
+const AREA_SUMMARY_NAME = /סיכום\s+(?:של\s+)?תא\s+שטח|summari[sz]e[-_ ]area|area[-_ ]summary/i;
+const AREA_SUMMARY_EXAMPLES = [
+  { text: "נמצאו 2 מבנים מסוג בניין.", source: "שכבת מבנים" },
+  { text: "עודד ביקר כאן במהלך 24 השעות האחרונות.", source: "שכבת חברים" },
+  { text: "נמצאה כאן המלצת Google Maps ששמר עודד.", source: "שכבת המלצות" },
+  { text: "בשעה 14:00 עודד ומשה שהו כאן יחד.", source: "שכבת חברים" },
+];
 
 const itemKey = (item: AgentContent) => `${item.kind}:${item.id}`;
 const kindLabel = (kind: AgentContent["kind"] | undefined) => (
@@ -68,6 +76,9 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
   );
   const activeItem = allItems.find((item) => itemKey(item) === activeKey) ?? null;
   const canBindField = creating || Boolean(activeItem?.is_custom);
+  const showAreaSummaryExamples = canBindField && AREA_SUMMARY_NAME.test(
+    `${skillTitle} ${activeItem?.title ?? ""} ${draft}`
+  );
   const dirty = creating
     ? draft !== SKILL_TEMPLATE || skillTitle.trim().length > 0
     : activeItem !== null && draft !== activeItem.content;
@@ -345,6 +356,32 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                   spellCheck={false}
                   aria-label="תוכן ההוראה"
                 />
+                {showAreaSummaryExamples && (
+                  <section
+                    className="agent-summary-examples"
+                    aria-labelledby="agent-summary-examples-title"
+                  >
+                    <header>
+                      <span className="agent-summary-examples-icon" aria-hidden="true">
+                        <MapPinned size={18} />
+                      </span>
+                      <div>
+                        <strong id="agent-summary-examples-title">
+                          כך ייראה סיכום תא השטח
+                        </strong>
+                        <small>דוגמת פלט למשתמש, כולל שכבת המקור</small>
+                      </div>
+                    </header>
+                    <ul>
+                      {AREA_SUMMARY_EXAMPLES.map((example) => (
+                        <li key={example.text}>
+                          <span>{example.text}</span>
+                          <small>{example.source}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 <p className="agent-editor-note">
                   מיומנות מותאמת נטענת רק כאשר בונה התוכנית מזהה שהיא מתאימה לבקשה.
                   קישור ‎@שדה נשמר לפי מזהה שכבה ושם שדה ונבדק מול ה־schema בעת השמירה.

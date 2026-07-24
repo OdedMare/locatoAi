@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle, Box, CheckCircle2, Database, Layers3, LoaderCircle, Pencil,
+  PlusCircle, RefreshCw, Save, Search, ShieldCheck, WandSparkles, Workflow, X,
+} from "lucide-react";
+import {
   activateTycheLayer,
   createLayer,
   fetchCubesAutocompleteOptions,
@@ -27,6 +31,18 @@ interface LayersPanelProps {
   drawnSampleBoundary: GeoJSONMultiPolygon | null;
   viewportSampleBoundary: GeoJSONMultiPolygon;
 }
+
+type LayersSection = "catalog" | "new" | "mqs" | "cube" | "flow" | "tyche";
+type LayerFormSection = Exclude<LayersSection, "catalog" | "mqs">;
+
+const LAYERS_SECTIONS = [
+  { id: "catalog" as const, label: "קטלוג שכבות", description: "חיפוש ועריכת שכבות", icon: Layers3 },
+  { id: "new" as const, label: "שכבה חדשה", description: "חיבור מקור נתונים ידני", icon: PlusCircle },
+  { id: "mqs" as const, label: "מאגר MQS", description: "ייבוא שכבות ממוריה", icon: Database },
+  { id: "cube" as const, label: "FLAPI Cube", description: "קובייה ופרמטרים דינמיים", icon: Box },
+  { id: "flow" as const, label: "Flow Package", description: "חבילת תהליך מ־FLAPI", icon: Workflow },
+  { id: "tyche" as const, label: "שכבת Tyche", description: "מקורות מיקום וכוחותינו", icon: ShieldCheck },
+];
 
 function mergeTags(current: string[], value: string, limit: number): string[] {
   const additions = value.split(",").map((tag) => tag.trim()).filter(Boolean);
@@ -55,10 +71,11 @@ export default function LayersPanel({
   drawnSampleBoundary,
   viewportSampleBoundary,
 }: LayersPanelProps) {
+  const [activeSection, setActiveSection] = useState<LayersSection>("catalog");
+  const [draftSection, setDraftSection] = useState<LayerFormSection>("new");
   const [layers, setLayers] = useState<CatalogLayer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -94,8 +111,8 @@ export default function LayersPanel({
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [activatingTyche, setActivatingTyche] = useState(false);
   const [tycheMessage, setTycheMessage] = useState<string | null>(null);
-  const [showMqsBrowser, setShowMqsBrowser] = useState(false);
   const [mqsLayers, setMqsLayers] = useState<RemoteMqsLayer[] | null>(null);
+  const [mqsLoading, setMqsLoading] = useState(false);
   const [mqsSearch, setMqsSearch] = useState("");
   const [mqsMessage, setMqsMessage] = useState<string | null>(null);
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
@@ -261,9 +278,9 @@ export default function LayersPanel({
   };
 
   const handleBrowseMqs = async () => {
-    const opening = !showMqsBrowser;
-    setShowMqsBrowser(opening);
-    if (!opening || mqsLayers) return;
+    setActiveSection("mqs");
+    if (mqsLayers || mqsLoading) return;
+    setMqsLoading(true);
     setMqsMessage(null);
     try {
       const result = await getMqsLayers();
@@ -272,6 +289,8 @@ export default function LayersPanel({
     } catch (err) {
       console.error("MQS layer browsing failed", err);
       setMqsMessage(err instanceof Error ? err.message : "טעינת שכבות MQS נכשלה");
+    } finally {
+      setMqsLoading(false);
     }
   };
 
@@ -537,9 +556,38 @@ export default function LayersPanel({
     setCubesSampleBoundary(null);
     setCubesSampleBoundarySource(null);
     setFormMessage(null);
-    setShowAddForm(true);
-    setShowMqsBrowser(false);
+    setDraftSection("new");
+    setActiveSection("new");
     void handleGenerateMetadata(layer, {}, null);
+  };
+
+  const startManualLayer = () => {
+    setProvider("mqs");
+    setSourceUrl("");
+    setTycheGeometryField("geometry");
+    setTycheGeoQueryField("location");
+    setTycheTimeField("eventTime");
+    setTycheEntityField("");
+    setDisplayField("");
+    setProfiles("");
+    setFlapiResourceType("cube");
+    setPackageQuery("");
+    setCubesQueryMode("auto");
+    setDynamicParameterNames([]);
+    setParameterDefinitions([]);
+    setManualDynamicParameterNames([]);
+    setDynamicParameterOptions({});
+    setDynamicParameterValues({});
+    setRequiresSamplePolygon(false);
+    setCubesSampleBoundary(null);
+    setCubesSampleBoundarySource(null);
+    setName("");
+    setDescription("");
+    setTags([]);
+    setTagDraft("");
+    setFormMessage("הזינו את פרטי המקור והמטא־דאטה של השכבה.");
+    setDraftSection("new");
+    setActiveSection("new");
   };
 
   const startCubesLayer = () => {
@@ -564,9 +612,11 @@ export default function LayersPanel({
     setName("");
     setDescription("");
     setTags([]);
+    setTagDraft("");
     setCubesQueryMode("auto");
     setFormMessage("הזינו שם שכבה ושם Cube, ואז הפעילו יצירת תיאור ותגיות.");
-    setShowAddForm(true);
+    setDraftSection("cube");
+    setActiveSection("cube");
   };
 
   const startFlowPackage = () => {
@@ -591,10 +641,12 @@ export default function LayersPanel({
     setName("");
     setDescription("");
     setTags([]);
+    setTagDraft("");
     setFormMessage(
       "הזינו שם ו-ID של Flow Package, ואז טענו את הגדרות הפרמטרים."
     );
-    setShowAddForm(true);
+    setDraftSection("flow");
+    setActiveSection("flow");
   };
 
   const startTycheLayer = () => {
@@ -624,7 +676,26 @@ export default function LayersPanel({
     setFormMessage(
       "הזינו שם, נתיב API ושמות שדות; אפשר לדגום את השכבה לפני השמירה."
     );
-    setShowAddForm(true);
+    setDraftSection("tyche");
+    setActiveSection("tyche");
+  };
+
+  const selectSection = (section: LayersSection) => {
+    if (section === "catalog") {
+      setActiveSection("catalog");
+    } else if (section === "mqs") {
+      void handleBrowseMqs();
+    } else if (section === draftSection) {
+      setActiveSection(section);
+    } else if (section === "new") {
+      startManualLayer();
+    } else if (section === "cube") {
+      startCubesLayer();
+    } else if (section === "flow") {
+      startFlowPackage();
+    } else {
+      startTycheLayer();
+    }
   };
 
   const handleActivateTyche = async () => {
@@ -637,7 +708,7 @@ export default function LayersPanel({
         const remaining = (current ?? []).filter((item) => item.id !== activated.id);
         return [...remaining, activated];
       });
-      setTycheMessage("שכבת כוחותינו פעילה בקטלוג ✓");
+      setTycheMessage("שכבת כוחותינו פעילה בקטלוג.");
     } catch (err) {
       console.error("Tyche layer activation failed", err);
       setTycheMessage(err instanceof Error ? err.message : "הפעלת Tyche נכשלה");
@@ -645,6 +716,11 @@ export default function LayersPanel({
       setActivatingTyche(false);
     }
   };
+
+  const activeSectionConfig = LAYERS_SECTIONS.find(({ id }) => id === activeSection)
+    ?? LAYERS_SECTIONS[0];
+  const ActiveSectionIcon = activeSectionConfig.icon;
+  const isFormSection = activeSection !== "catalog" && activeSection !== "mqs";
 
   return (
     <div className="settings-overlay" onClick={onClose}>

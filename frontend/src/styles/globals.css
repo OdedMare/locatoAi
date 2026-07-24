@@ -1247,6 +1247,81 @@ button {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+.agent-summary-examples {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.agent-summary-examples header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.agent-summary-examples header strong,
+.agent-summary-examples header small,
+.agent-summary-examples li span,
+.agent-summary-examples li small {
+  display: block;
+}
+
+.agent-summary-examples header strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.agent-summary-examples header small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.agent-summary-examples-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid var(--accent-strong);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.agent-summary-examples ul {
+  margin: 11px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  list-style: none;
+}
+
+.agent-summary-examples li {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 60%, transparent);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.agent-summary-examples li span {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.agent-summary-examples li small {
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 650;
+}
+
 .agent-editor-note {
   margin-top: 11px;
   color: var(--text-muted);
@@ -2065,6 +2140,10 @@ button {
     min-height: 0;
     flex: 1;
     padding: 18px;
+  }
+
+  .agent-summary-examples ul {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .agent-studio-header-actions .agent-draft-state {
