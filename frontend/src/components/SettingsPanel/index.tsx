@@ -31,6 +31,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [mqsVerifyTls, setMqsVerifyTls] = useState(true);
   const [cubesBaseUrl, setCubesBaseUrl] = useState("");
   const [cubesToken, setCubesToken] = useState("");
+  const [flapiUsername, setFlapiUsername] = useState("");
   const [cubesVerifyTls, setCubesVerifyTls] = useState(true);
   const [tycheBaseUrl, setTycheBaseUrl] = useState("");
   const [tycheUsername, setTycheUsername] = useState("");
@@ -75,6 +76,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setMqsUserId(s.mqs_user_id ?? "");
         setMqsVerifyTls(s.mqs_verify_tls);
         setCubesBaseUrl(s.cubes_base_url ?? "");
+        setFlapiUsername(s.flapi_username ?? "");
         setCubesVerifyTls(s.cubes_verify_tls);
         setTycheBaseUrl(s.tyche_base_url ?? "");
         setTycheUsername(s.tyche_username ?? "");
@@ -108,6 +110,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         mqs_verify_tls: mqsVerifyTls,
         cubes_base_url: (cubesBaseUrl ?? "").trim() === "" ? null : (cubesBaseUrl ?? "").trim(),
         cubes_token: cubesToken, // backend ignores empty
+        flapi_username: (flapiUsername ?? "").trim() === "" ? null : flapiUsername.trim(),
         cubes_verify_tls: cubesVerifyTls,
         tyche_base_url: (tycheBaseUrl ?? "").trim() === "" ? null : (tycheBaseUrl ?? "").trim(),
         tyche_username: (tycheUsername ?? "").trim() === "" ? null : (tycheUsername ?? "").trim(),
@@ -215,10 +218,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </section>
 
         <section className="settings-section">
-          <h3>שרת Cubes</h3>
+          <h3>שרת FLAPI</h3>
           <label className="field-label" htmlFor="set-cubes-url">
-            כתובת בסיס Cubes{" "}
-            <span className="optional">(ללא ‎/cube/v1; ריק = ספק לא פעיל)</span>
+            כתובת בסיס FLAPI{" "}
+            <span className="optional">(ללא ‎/cube או ‎/package; ריק = ספק לא פעיל)</span>
           </label>
           <input
             id="set-cubes-url"
@@ -241,13 +244,24 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={cubesToken}
             onChange={(e) => setCubesToken(e.target.value)}
           />
+          <label className="field-label" htmlFor="set-flapi-username">
+            username header
+          </label>
+          <input
+            id="set-flapi-username"
+            dir="ltr"
+            className="settings-input"
+            placeholder="network username"
+            value={flapiUsername}
+            onChange={(e) => setFlapiUsername(e.target.value)}
+          />
           <label className="field-label">
             <input type="checkbox" checked={cubesVerifyTls}
               onChange={(e) => setCubesVerifyTls(e.target.checked)} />
             אימות תעודת TLS
           </label>
           <p className="models-status" dir="auto">
-            שכבת קטלוג: provider=cubes, source_url=cubes://db/&lt;dbname&gt;
+            FLAPI: flapi://cube/&lt;name&gt; או flapi://package/&lt;id&gt;
           </p>
         </section>
 

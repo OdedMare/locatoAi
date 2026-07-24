@@ -62,6 +62,7 @@ class SettingsRouter:
             "mqs_verify_tls": settings.mqs_verify_tls,
             "cubes_base_url": settings.cubes_base_url,
             "cubes_token_set": bool(settings.cubes_token),
+            "flapi_username": settings.flapi_username,
             "cubes_verify_tls": settings.cubes_verify_tls,
             "tyche_base_url": settings.tyche_base_url,
             "tyche_username": settings.tyche_username,

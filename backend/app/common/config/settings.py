@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     cubes_token: str = ""
     """Authorization header value for the Cubes API. Never returned by the API."""
 
+    flapi_username: Optional[str] = None
+    """Value of FLAPI's ``username`` header for Cubes and Flow Packages."""
+
     cubes_verify_tls: bool = True
 
     tyche_base_url: Optional[str] = None

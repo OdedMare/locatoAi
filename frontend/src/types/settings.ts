@@ -18,6 +18,7 @@ export interface AppSettings {
   mqs_verify_tls: boolean;
   cubes_base_url: string | null;
   cubes_token_set: boolean;
+  flapi_username: string | null;
   cubes_verify_tls: boolean;
   tyche_base_url: string | null;
   tyche_username: string | null;
@@ -45,6 +46,7 @@ export interface SettingsUpdate {
   mqs_verify_tls?: boolean;
   cubes_base_url?: string | null;
   cubes_token?: string;
+  flapi_username?: string | null;
   cubes_verify_tls?: boolean;
   tyche_base_url?: string | null;
   tyche_username?: string | null;

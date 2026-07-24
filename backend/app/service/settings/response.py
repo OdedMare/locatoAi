@@ -16,6 +16,7 @@ class SettingsResponse(BaseModel):
     mqs_verify_tls: bool
     cubes_base_url: Optional[str]
     cubes_token_set: bool
+    flapi_username: Optional[str]
     cubes_verify_tls: bool
     tyche_base_url: Optional[str]
     tyche_username: Optional[str]

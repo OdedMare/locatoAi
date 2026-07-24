@@ -12,9 +12,10 @@ class LayerParameter(BaseModel):
     description: str = ""
     required: bool = False
     single_value: bool = True
+    ontology_type: str = ""
     options: List[str] = []
     is_dynamic: bool = False
-    resolved_value: Optional[str] = None
+    resolved_value: Optional[Any] = None
     """Value chosen at layer-add time for a configurable Cubes parameter;
     None means the catalog workflow has not resolved it."""
     configured_value: Any = Field(default=None, exclude=True, repr=False)

@@ -49,7 +49,9 @@ class ExecutionContext:
 
     @staticmethod
     def _pushdowns(provider: str, temporal_range, attribute_filters):
-        provider_range = temporal_range if provider in ("cubes", "tyche") else None
+        provider_range = (
+            temporal_range if provider in ("cubes", "flapi", "tyche") else None
+        )
         provider_filters = attribute_filters if provider == "mqs" else None
         return provider_range, provider_filters
 

@@ -37,7 +37,12 @@ class LayerMetadataGenerator:
         parameters = self._configurable_parameters(layer, provider)
         requires_polygon = self._requires_sample_polygon(layer, provider)
         if (
-            any(item.resolved_value is None for item in parameters)
+            any(
+                item.required
+                and item.resolved_value is None
+                and item.configured_value in (None, "", [], {})
+                for item in parameters
+            )
             or (requires_polygon and sample_geometry is None)
         ):
             return self._unresolved(parameters, requires_polygon)
@@ -59,7 +64,7 @@ class LayerMetadataGenerator:
         try:
             metadata_sampler = getattr(provider, "sample_for_metadata", None)
             if callable(metadata_sampler):
-                if layer.provider == "cubes":
+                if layer.provider in ("cubes", "flapi"):
                     features, schema = metadata_sampler(
                         layer, limit=self._FETCH_LIMIT,
                         geometry=sample_geometry,
@@ -92,19 +97,18 @@ class LayerMetadataGenerator:
     def _configurable_parameters(
         layer: LayerMeta, provider
     ) -> List[LayerParameter]:
-        if layer.provider != "cubes":
+        loader = getattr(provider, "list_configurable_parameters", None)
+        if not callable(loader):
             return []
         # Catalog metadata is editable upstream. A fresh generation attempt
         # must see newly-required parameters instead of an old process-local
         # Cubes metadata cache entry.
-        return provider.list_configurable_parameters(layer, refresh=True)
+        return loader(layer, refresh=True)
 
     @staticmethod
     def _requires_sample_polygon(layer: LayerMeta, provider) -> bool:
-        return (
-            layer.provider == "cubes"
-            and provider.requires_geometry(layer)
-        )
+        checker = getattr(provider, "requires_geometry", None)
+        return callable(checker) and checker(layer)
 
     @staticmethod
     def _unresolved(

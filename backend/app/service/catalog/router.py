@@ -1,6 +1,7 @@
 """Layer-catalog HTTP controller."""
 
-from typing import Dict, List, Optional
+import json
+from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from uuid import uuid4
 
@@ -28,6 +29,7 @@ from app.service.catalog.update_layer_request import UpdateLayerRequest
 
 router = APIRouter()
 _PARAMETER_PREFIX = "param_"
+_PACKAGE_INPUT_PREFIX = "input_"
 
 
 class CatalogRouter:
@@ -103,6 +105,9 @@ class CatalogRouter:
             source_url=cls.normalized_source(
                 body.provider, body.source_url, body.cubes_query_mode,
                 body.parameter_values(),
+                flapi_resource_type=body.flapi_resource_type,
+                package_parameters=body.package_parameters,
+                package_query=body.package_query,
             ),
             sample_geometry=cls._sample_geometry(body),
         )
@@ -114,7 +119,12 @@ class CatalogRouter:
                 CubesParameterResponse(
                     name=item.name,
                     display_name=item.display_name,
+                    description=item.description,
+                    type=item.type,
                     required=item.required,
+                    single_value=item.single_value,
+                    ontology_type=item.ontology_type,
+                    has_default=item.configured_value not in (None, "", [], {}),
                     dynamic=item.is_dynamic,
                     options=item.options,
                 )
@@ -125,7 +135,7 @@ class CatalogRouter:
 
     @staticmethod
     def _sample_geometry(body: GenerateLayerMetadataRequest):
-        if body.provider.strip().lower() != "cubes":
+        if body.provider.strip().lower() not in ("cubes", "flapi"):
             return None
         boundary = body.cubes_sample_boundary
         if boundary is None:
@@ -167,6 +177,9 @@ class CatalogRouter:
         cls, provider: str, source_url: str, cubes_query_mode: str = "auto",
         cubes_parameters: Optional[Dict[str, str]] = None,
         cubes_dynamic_parameters: Optional[Dict[str, str]] = None,
+        flapi_resource_type: str = "cube",
+        package_parameters: Optional[Dict[str, Any]] = None,
+        package_query: Optional[str] = None,
     ) -> str:
         source = source_url.strip()
         if provider.strip().lower() == "cubes":
@@ -174,6 +187,16 @@ class CatalogRouter:
             source = cls.with_cubes_mode(source, cubes_query_mode)
             values = cubes_parameters or cubes_dynamic_parameters or {}
             return cls.with_parameters(source, values)
+        if provider.strip().lower() == "flapi":
+            source = cls._flapi_source(source, flapi_resource_type)
+            if cls._flapi_type(source) == "package":
+                return cls.with_package_config(
+                    source, package_parameters or {}, package_query
+                )
+            source = cls.with_cubes_mode(source, cubes_query_mode)
+            return cls.with_parameters(
+                source, cubes_parameters or cubes_dynamic_parameters or {}
+            )
         if provider.strip().lower() == "tyche" and "://" not in source:
             return f"tyche://{source.strip('/')}"
         return source
@@ -200,6 +223,43 @@ class CatalogRouter:
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @staticmethod
+    def with_package_config(
+        source: str, parameters: Dict[str, Any],
+        selected_query: Optional[str] = None,
+    ) -> str:
+        parsed = urlsplit(source)
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        for key in [key for key in query if key.startswith(_PACKAGE_INPUT_PREFIX)]:
+            query.pop(key)
+        query.pop("query", None)
+        for name, value in parameters.items():
+            if name and value not in (None, ""):
+                query[f"{_PACKAGE_INPUT_PREFIX}{name}"] = [
+                    json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+                ]
+        if selected_query:
+            query["query"] = [selected_query.strip()]
+        return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
+
+    @classmethod
+    def _flapi_source(cls, source: str, resource_type: str) -> str:
+        if "://" in source:
+            return source
+        return f"flapi://{resource_type}/{source.strip('/')}"
+
+    @staticmethod
+    def _flapi_type(source: str) -> str:
+        parsed = urlsplit(source)
+        if parsed.scheme.casefold() == "package":
+            return "package"
+        return (
+            "package"
+            if parsed.scheme.casefold() == "flapi"
+            and parsed.netloc.casefold() == "package"
+            else "cube"
+        )
+
+    @staticmethod
     def clean_tags(tags: List[str], limit: int) -> List[str]:
         cleaned = (str(tag).strip()[:60] for tag in tags)
         return list(dict.fromkeys(tag for tag in cleaned if tag))[:limit]
@@ -220,6 +280,9 @@ class CatalogRouter:
             source_url=cls.normalized_source(
                 body.provider, body.source_url, body.cubes_query_mode,
                 body.parameter_values(),
+                flapi_resource_type=body.flapi_resource_type,
+                package_parameters=body.package_parameters,
+                package_query=body.package_query,
             ),
         )
 

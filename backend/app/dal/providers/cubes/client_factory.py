@@ -34,19 +34,24 @@ class CubesClientFactory:
             )
         return httpx.Client(
             base_url=settings.cubes_base_url,
-            headers=self._headers(settings.cubes_token),
+            headers=self._headers(
+                settings.cubes_token, settings.flapi_username
+            ),
             timeout=None,  # explicit: omitting it would apply httpx's 5s default
             verify=settings.cubes_verify_tls,
             transport=self._transport,
         )
 
     @staticmethod
-    def _headers(token: str) -> dict:
+    def _headers(token: str, username: Optional[str] = None) -> dict:
         authorization = token.strip()
         if not authorization.casefold().startswith("bearer "):
             authorization = f"Bearer {authorization}"
-        return {
+        headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "Authorization": authorization,
         }
+        if username:
+            headers["username"] = username
+        return headers

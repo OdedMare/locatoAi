@@ -12,7 +12,7 @@ from app.dal.feedback.feedback_repository import PostgresFeedbackRepository
 from app.dal.agent_content.repository import AgentContentRepository
 from app.dal.catalog.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.providers.cubes.provider import CubesProvider
+from app.dal.providers.flapi.provider import FlapiProvider
 from app.dal.providers.mqs.provider import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.dal.providers.tyche.provider import TycheProvider
@@ -37,12 +37,14 @@ class ApplicationStateWiring:
     def _providers(store, settings):
         registry = InMemoryProviderRegistry()
         mqs = MqsProvider(store, detail_concurrency=settings.mqs_detail_concurrency)
-        cubes = CubesProvider(store)
+        flapi = FlapiProvider(store)
+        cubes = flapi.cubes
         tyche = TycheProvider(store)
         registry.register("mqs", mqs)
         registry.register("cubes", cubes)
+        registry.register("flapi", flapi)
         registry.register("tyche", tyche)
-        return registry, mqs, cubes, tyche
+        return registry, mqs, flapi, cubes, tyche
 
     @staticmethod
     def _services(
@@ -77,13 +79,14 @@ class ApplicationStateWiring:
         app, store, repository, provider_bundle, services, settings,
         agent_content,
     ) -> None:
-        providers, mqs, cubes, tyche = provider_bundle
+        providers, mqs, flapi, cubes, tyche = provider_bundle
         catalog, llm, selector, metadata, orchestrator = services
         app.state.settings_store = store
         app.state.agent_content = agent_content
         app.state.repository = repository
         app.state.feedback_repository = PostgresFeedbackRepository(store)
         app.state.mqs_provider = mqs
+        app.state.flapi_provider = flapi
         app.state.cubes_provider = cubes
         app.state.tyche_provider = tyche
         app.state.catalog = catalog

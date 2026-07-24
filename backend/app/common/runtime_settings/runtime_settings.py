@@ -13,6 +13,7 @@ class RuntimeSettings:
     mqs_verify_tls: bool
     cubes_base_url: Optional[str]
     cubes_token: str
+    flapi_username: Optional[str]
     cubes_verify_tls: bool
     tyche_base_url: Optional[str]
     tyche_username: Optional[str]

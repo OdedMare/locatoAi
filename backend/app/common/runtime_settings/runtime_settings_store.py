@@ -16,7 +16,7 @@ from app.common.runtime_settings.runtime_settings import RuntimeSettings
 # Fields where None/empty means "clear the value", not "keep current".
 _NULLABLE = (
     "database_port", "llm_base_url", "mqs_base_url", "mqs_user_id",
-    "cubes_base_url", "tyche_base_url", "tyche_username",
+    "cubes_base_url", "flapi_username", "tyche_base_url", "tyche_username",
 )
 
 
@@ -33,6 +33,7 @@ class RuntimeSettingsStore:
             mqs_verify_tls=env.mqs_verify_tls,
             cubes_base_url=env.cubes_base_url,
             cubes_token=env.cubes_token,
+            flapi_username=env.flapi_username,
             cubes_verify_tls=env.cubes_verify_tls,
             tyche_base_url=env.tyche_base_url,
             tyche_username=env.tyche_username,

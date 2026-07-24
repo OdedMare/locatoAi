@@ -15,6 +15,7 @@ class SettingsUpdate(BaseModel):
     mqs_verify_tls: Optional[bool] = None
     cubes_base_url: Optional[str] = None
     cubes_token: Optional[str] = None  # empty/omitted = keep current
+    flapi_username: Optional[str] = None
     cubes_verify_tls: Optional[bool] = None
     tyche_base_url: Optional[str] = None
     tyche_username: Optional[str] = None
