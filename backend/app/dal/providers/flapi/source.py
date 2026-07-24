@@ -56,3 +56,26 @@ class FlapiSource:
     def package_queries(layer: LayerMeta) -> List[str]:
         query = parse_qs(urlsplit(layer.source_url).query)
         return [value for value in query.get("query", []) if value]
+
+    def execution_params(self, layer: LayerMeta):
+        query = parse_qs(urlsplit(layer.source_url).query)
+        params = [
+            ("queries", value)
+            for value in query.get("query", [])
+            if value
+        ]
+        for name in (
+            "allQueries", "lastQueries", "executeContinuedProcess",
+            "isPartialSuccess",
+        ):
+            if name not in query:
+                continue
+            value = query[name][0].casefold()
+            if value not in ("true", "false"):
+                raise ProviderError(
+                    f"FLAPI package option '{name}' must be true or false"
+                )
+            params.append((name, value))
+        if not params:
+            params.append(("lastQueries", "true"))
+        return params

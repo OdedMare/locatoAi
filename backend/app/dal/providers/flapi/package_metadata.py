@@ -51,6 +51,8 @@ class FlowPackageMetadata:
                     found = self._find_definitions(payload[key])
                     if found:
                         return found
+            if self._is_definition(payload):
+                return [payload]
             return self._from_children(list(payload.values()))
         return []
 

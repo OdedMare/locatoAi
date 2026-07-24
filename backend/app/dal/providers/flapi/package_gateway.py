@@ -35,18 +35,15 @@ class FlowPackageGateway:
     def execute(self, layer: LayerMeta, body: dict) -> List[dict]:
         package_id = quote(self._source.package_id(layer), safe="")
         queries = self._source.package_queries(layer)
-        params = (
-            [("queries", query) for query in queries]
-            if queries else [("lastQueries", "true")]
-        )
         payload = self._request(
-            "POST", f"/package/v3/{package_id}", body, params
+            "POST", f"/package/v3/{package_id}", body,
+            self._source.execution_params(layer),
         )
         return self._records(payload, queries)
 
     def _request(self, method, path, body=None, params=None):
         try:
-            with self._clients.create() as client:
+            with self._clients.create(require_username=True) as client:
                 response = client.request(
                     method, path, json=body, params=params,
                     timeout=self._REQUEST_TIMEOUT_SECONDS,
@@ -54,6 +51,7 @@ class FlowPackageGateway:
                 response.raise_for_status()
                 return response.json()
         except httpx.HTTPStatusError as exc:
+            self._log_failure_trace(exc.response)
             detail = exc.response.text[:500]
             raise ProviderError(
                 f"FLAPI package request failed ({path}): "
@@ -74,6 +72,12 @@ class FlowPackageGateway:
         ):
             raise ProviderError("FLAPI package response has no results object")
         self._inspect_metadata(payload.get("metadata"))
+        missing = [query for query in selected if query not in payload["results"]]
+        if missing:
+            raise ProviderError(
+                "FLAPI package did not return selected queries: "
+                + ", ".join(missing)
+            )
         rows: List[dict] = []
         for query, result in payload["results"].items():
             if selected and query not in selected:
@@ -115,4 +119,22 @@ class FlowPackageGateway:
             self._logger.warning(
                 "FLAPI package queries reached their result limit",
                 extra={"trace_id": trace_id, "queries": limited},
+            )
+
+    def _log_failure_trace(self, response: httpx.Response) -> None:
+        try:
+            payload = response.json()
+        except ValueError:
+            return
+        if not isinstance(payload, dict):
+            return
+        metadata = payload.get("metadata")
+        trace_id = (
+            metadata.get("traceId")
+            if isinstance(metadata, dict) else payload.get("traceId")
+        )
+        if trace_id:
+            self._logger.error(
+                "FLAPI package request failed",
+                extra={"trace_id": trace_id},
             )

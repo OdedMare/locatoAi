@@ -100,7 +100,7 @@ class FlowPackageSerializer:
         unit, value = raw.get("TimeBackUnit"), raw.get("TimeBackValue")
         if unit not in self._TIME_UNITS:
             raise ProviderError(f"Unsupported Flow Package time unit '{unit}'")
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
             raise ProviderError("Flow Package TimeBackValue must be a positive number")
         return {"TimeBackUnit": unit, "TimeBackValue": value}
 
@@ -132,7 +132,7 @@ class FlowPackageSerializer:
         result = []
         for value in values:
             if isinstance(value, dict) and "Value" in value:
-                result.append(value)
+                result.append(self._number(value) if numeric else value)
                 continue
             actual = self._number(value) if numeric else value
             result.append({"Name": str(actual), "Value": actual})

@@ -24,13 +24,17 @@ class CubesClientFactory:
     def set_transport(self, transport: Optional[httpx.BaseTransport]) -> None:
         self._transport = transport
 
-    def create(self) -> httpx.Client:
+    def create(self, require_username: bool = False) -> httpx.Client:
         settings = self._store.get()
         if not settings.cubes_base_url:
             raise ProviderError("FLAPI base URL is not configured — set cubes_base_url")
         if not settings.cubes_token:
             raise ProviderError(
                 "FLAPI authorization token is not configured — set cubes_token"
+            )
+        if require_username and not settings.flapi_username:
+            raise ProviderError(
+                "FLAPI username is not configured — set flapi_username"
             )
         return httpx.Client(
             base_url=settings.cubes_base_url,
