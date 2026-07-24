@@ -111,7 +111,7 @@ def test_custom_layer_uses_its_route_and_field_mapping(tmp_path):
         "hasMoreResults": False,
     }])
     custom = layer(
-        "tyche://alerts?geometry_field=geo"
+        "tyche://coordinate/v1/alerts?geometry_field=geo"
         "&geo_query_field=area&time_field=observedAt"
     )
     boundary = box(34.7, 32.0, 34.9, 32.2)
@@ -268,3 +268,8 @@ def test_rejects_invalid_catalog_source(tmp_path):
 
     with pytest.raises(ProviderError, match="tyche:// scheme"):
         provider.fetch_features(layer("https://tyche.test/alerts"))
+    with pytest.raises(ProviderError, match="must be distinct"):
+        provider.fetch_features(layer(
+            "tyche://alerts?time_field=observedAt"
+            "&geo_query_field=observedAt"
+        ))

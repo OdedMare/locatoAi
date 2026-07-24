@@ -25,7 +25,7 @@ class TycheSource:
             raise ProviderError("Tyche source_url must use the tyche:// scheme")
         route = cls._route(parsed.netloc, parsed.path)
         query = parse_qs(parsed.query, keep_blank_values=True)
-        return cls(
+        source = cls(
             route=route,
             geometry_field=cls._field(
                 query, "geometry_field", cls.DEFAULT_GEOMETRY_FIELD
@@ -35,6 +35,8 @@ class TycheSource:
             ),
             time_field=cls._field(query, "time_field", cls.DEFAULT_TIME_FIELD),
         )
+        source._validate_query_fields()
+        return source
 
     @classmethod
     def _route(cls, host: str, path: str) -> str:
@@ -54,6 +56,15 @@ class TycheSource:
         if not value or len(value) > 200 or any(ord(char) < 32 for char in value):
             raise ProviderError(f"Tyche {name} must be a valid field name")
         return value
+
+    def _validate_query_fields(self) -> None:
+        reserved = {"size", "fetchPaging", "pageTracker"}
+        fields = {self.geo_query_field, self.time_field}
+        if len(fields) != 2 or fields & reserved:
+            raise ProviderError(
+                "Tyche geography and time request fields must be distinct "
+                "and cannot use paging field names"
+            )
 
     @property
     def is_our_forces(self) -> bool:
