@@ -13,6 +13,7 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 from app.dal.providers.flapi.package_metadata import FlowPackageMetadata
 from app.dal.providers.flapi.package_serializer import FlowPackageSerializer
 from app.dal.providers.flapi.provider import FlapiProvider
+from app.dal.providers.flapi.source import FlapiSource
 from app.service.catalog.router import CatalogRouter
 
 
@@ -201,3 +202,49 @@ def test_package_validates_absolute_time_and_unknown_types():
         [{"Name": "Custom", "Type": "FutureType"}],
         {"Custom": custom},
     ) == {"Custom": custom}
+
+
+def test_package_execution_options_are_validated():
+    source = FlapiSource()
+    layer = package_layer(
+        "flapi://package/466192?"
+        "allQueries=true&executeContinuedProcess=false&isPartialSuccess=true"
+    )
+
+    assert source.execution_params(layer) == [
+        ("allQueries", "true"),
+        ("executeContinuedProcess", "false"),
+        ("isPartialSuccess", "true"),
+    ]
+
+    with pytest.raises(ProviderError, match="allQueries.*true or false"):
+        source.execution_params(package_layer(
+            "flapi://package/466192?allQueries=yes"
+        ))
+
+
+def test_package_metadata_accepts_identifier_to_definition_map():
+    metadata = FlowPackageMetadata()
+    payload = {"466192": {
+        "first": {"Name": "Tenant", "Type": "String"},
+        "second": {"Name": "Window", "OntologyType": "Time"},
+    }}
+
+    assert [item["Name"] for item in metadata.definitions(payload)] == [
+        "Tenant", "Window",
+    ]
+
+
+def test_package_requires_flapi_username(tmp_path):
+    store = RuntimeSettingsStore(Settings(
+        _env_file=None,
+        runtime_settings_file=str(tmp_path / "runtime-settings.json"),
+        cubes_base_url="https://flapi.test",
+        cubes_token="jwt",
+    ))
+    provider = FlapiProvider(
+        store, httpx.MockTransport(PackageHandler([]))
+    )
+
+    with pytest.raises(ProviderError, match="flapi_username"):
+        provider.fetch_features(package_layer("flapi://package/466192"))

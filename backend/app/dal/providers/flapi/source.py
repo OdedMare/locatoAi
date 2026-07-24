@@ -76,6 +76,9 @@ class FlapiSource:
                     f"FLAPI package option '{name}' must be true or false"
                 )
             params.append((name, value))
-        if not params:
+        selects_results = bool(query.get("query")) or any(
+            name in query for name in ("allQueries", "lastQueries")
+        )
+        if not selects_results:
             params.append(("lastQueries", "true"))
         return params
