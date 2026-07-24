@@ -6,8 +6,8 @@ import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
 import {
-  Activity, Bot, Clock3, Layers, MessageSquarePlus, Moon, PanelLeft, Radar,
-  Settings, Sparkles, Sun,
+  Activity, ArrowUp, Bot, Clock3, Layers, LoaderCircle, MessageSquarePlus, Moon,
+  Radar, Settings, Sparkles, Sun,
 } from "lucide-react";
 import type {
   GeographyMode,
@@ -71,7 +71,6 @@ export default function QueryPanel({
         <div className="chat-brand">
           <span className="chat-brand-mark"><Radar size={18} /></span>
           <span>LOCATO<span className="brand-ai">AI</span></span>
-          <PanelLeft size={17} className="chat-sidebar-collapse" />
         </div>
         <div className="workspace-chip"><span /> מרחב מבצעי חי</div>
         <button type="button" className="new-chat-button" onClick={onNewChat}>
@@ -121,22 +120,40 @@ export default function QueryPanel({
         </button>
       </nav>
 
-      <section className="chat-main">
+      <section className="chat-main" aria-busy={isSubmitting}>
         <header className="query-panel-header">
           <div className="header-row">
             <div>
               <h1>מרכז חקירה <span className="model-pill"><Activity size={10} /> LIVE</span></h1>
               <p className="header-context">מודיעין גיאוגרפי מבוסס סוכן</p>
             </div>
-          <button
-            type="button"
-            className="settings-button"
-            onClick={onOpenSettings}
-            aria-label="פתיחת הגדרות"
-            title="הגדרות"
-          >
-            <Settings size={18} />
-          </button>
+            <div className="header-actions">
+              <div className="mobile-header-actions">
+                <button type="button" onClick={onOpenAgentStudio} aria-label="פתיחת Agent Studio" title="Agent Studio">
+                  <Bot size={18} />
+                </button>
+                <button type="button" onClick={onOpenLayers} aria-label="פתיחת שכבות זמינות" title="שכבות זמינות">
+                  <Layers size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  aria-label={isDarkMode ? "מעבר למצב בהיר" : "מעבר למצב כהה"}
+                  title={isDarkMode ? "מצב בהיר" : "מצב כהה"}
+                >
+                  {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+              </div>
+              <button
+                type="button"
+                className="settings-button"
+                onClick={onOpenSettings}
+                aria-label="פתיחת הגדרות"
+                title="הגדרות"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -212,7 +229,9 @@ export default function QueryPanel({
               disabled={!canRun}
               aria-label="שליחת שאילתה"
             >
-              {isSubmitting ? "…" : "↑"}
+              {isSubmitting
+                ? <LoaderCircle className="submit-spinner" size={18} />
+                : <ArrowUp size={18} />}
             </button>
           </div>
           <p className="composer-disclaimer">LocatoAI עלול לטעות. מומלץ לבדוק תוצאות גיאוגרפיות חשובות.</p>
