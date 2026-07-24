@@ -43,11 +43,11 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
     case "near":
       return `בקרבת ${layerName(step.target_layer)} (עד ${step.distance_m} מ')`;
     case "nearest_n":
-      return `${step.count ?? 1} הקרובים ביותר ל${layerName(step.target_layer)}`;
+      return `${step.count ?? "—"} הקרובים ביותר ל${layerName(step.target_layer)}`;
     case "near_all":
-      return `${step.count ? `${step.count} הטובים ביותר ` : ""}בקרבת כל השכבות: ${(step.targets ?? []).map((target) => layerName(target.layer)).join(", ")} (עד ${step.distance_m ?? 300} מ')`;
+      return `${step.count ? `${step.count} הטובים ביותר ` : ""}בקרבת כל השכבות: ${(step.targets ?? []).map((target) => layerName(target.layer)).join(", ")} (עד ${step.distance_m ?? "—"} מ')`;
     case "between":
-      return `בין ${layerName(step.first_target_layer)} ל${layerName(step.second_target_layer)} (מסדרון ${step.corridor_width_m ?? 100} מ')`;
+      return `בין ${layerName(step.first_target_layer)} ל${layerName(step.second_target_layer)} (מסדרון ${step.corridor_width_m ?? "—"} מ')`;
     case "crosses":
       return `חוצה את ${layerName(step.target_layer)}`;
     case "touches":
@@ -59,13 +59,13 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
     case "temporal_filter":
       return `סינון זמן: ${step.from} עד ${step.to}`;
     case "cluster":
-      return `איתור קבוצות של ${step.min_group_size ?? 2}+ ישויות קרובות זו לזו (עד ${step.max_distance_m ?? 300} מ')`;
+      return `איתור קבוצות של ${step.min_group_size ?? "—"}+ ישויות קרובות זו לזו (עד ${step.max_distance_m ?? "—"} מ')`;
     case "latest_per_entity":
       return `המיקום האחרון לכל ישות לפי ${step.entity_field ?? "תפקיד הזהות בסכמה"}`;
     case "movement_direction":
-      return `ישויות שנעו ${MOVEMENT_DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? 50} מ'`;
+      return `ישויות שנעו ${MOVEMENT_DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? "—"} מ'`;
     case "trajectory_relation":
-      return `${TRAJECTORY_RELATION_HE[step.relation ?? ""] ?? step.relation} (מרחק עד ${step.max_distance_m ?? 100} מ', מרווח זמן ${step.time_tolerance_minutes ?? 5} דק')`;
+      return `${TRAJECTORY_RELATION_HE[step.relation ?? ""] ?? step.relation} (מרחק עד ${step.max_distance_m ?? "—"} מ', מרווח זמן ${step.time_tolerance_minutes ?? "—"} דק')`;
     case "origin_movement":
       return `${ORIGIN_MOVEMENT_HE[step.pattern ?? ""] ?? step.pattern} בין ${step.start_at} ל-${step.end_at}`;
     case "count":

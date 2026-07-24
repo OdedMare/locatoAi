@@ -47,9 +47,11 @@ class CatalogService:
         self, layer_id: str, name: str, description: str, tags: List[str],
     ) -> LayerMeta:
         self.get_layer(layer_id)
-        return self._repository.update_layer_metadata(
+        updated = self._repository.update_layer_metadata(
             layer_id, name, description, tags
         )
+        self._schema_cache.pop(layer_id, None)
+        return updated
 
     def sample_field(self, layer_id: str, field: str, limit: int = 20) -> List[str]:
         layer = self.get_layer(layer_id)
