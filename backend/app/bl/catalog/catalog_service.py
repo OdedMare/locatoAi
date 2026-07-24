@@ -59,6 +59,13 @@ class CatalogService:
         self._schema_cache.pop(layer_id, None)
         return updated
 
+    def delete_layer(self, layer_id: str) -> LayerMeta:
+        deleted = self._repository.delete_layer(layer_id)
+        if deleted is None:
+            raise LayerNotFoundError(layer_id)
+        self._schema_cache.pop(layer_id, None)
+        return deleted
+
     def sample_field(self, layer_id: str, field: str, limit: int = 20) -> List[str]:
         layer = self.get_layer(layer_id)
         provider = self._providers.get(layer.provider)

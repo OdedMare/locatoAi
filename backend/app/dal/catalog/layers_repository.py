@@ -75,6 +75,15 @@ class PostgresLayersRepository:
             raise ValueError(f"Layer '{layer.id}' does not exist")
         return self._to_meta(row)
 
+    def delete_layer(self, layer_id: str) -> Optional[LayerMeta]:
+        table = self._store.get().quoted_layers_table()
+        with connect(self._store) as conn:
+            row = conn.execute(
+                f"DELETE FROM {table} WHERE id = %s RETURNING {_COLUMNS}",
+                (layer_id,),
+            ).fetchone()
+        return self._to_meta(row) if row else None
+
     def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
         """Insert or update keyed on (provider, source_url) — the stable
         identity of an externally synced layer. Updates preserve tags

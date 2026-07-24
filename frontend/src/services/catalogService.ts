@@ -72,6 +72,16 @@ export async function updateLayer(
   return res.json();
 }
 
+export async function deleteLayer(layerId: string): Promise<void> {
+  const res = await fetch(`/api/layers/${encodeURIComponent(layerId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `מחיקת השכבה נכשלה (${res.status})`);
+  }
+}
+
 /** Probe Tyche and idempotently add/refresh the Our Forces catalog layer. */
 export async function activateTycheLayer(): Promise<CatalogLayer> {
   const res = await fetch("/api/layers/activate-tyche", { method: "POST" });

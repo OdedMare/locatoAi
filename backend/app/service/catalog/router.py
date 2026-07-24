@@ -124,6 +124,13 @@ class CatalogRouter:
         )
         return cls.catalog_layer(updated)
 
+    @staticmethod
+    def delete_layer(layer_id: str, request: Request) -> None:
+        deleted = request.app.state.catalog.delete_layer(layer_id)
+        request.app.state.request_log.info(
+            "catalog_layer_deleted", layer_id=deleted.id, name=deleted.name,
+        )
+
     @classmethod
     def generate_metadata(
         cls, body: GenerateLayerMetadataRequest, request: Request
@@ -376,6 +383,7 @@ list_remote_mqs_layers = CatalogRouter.list_remote_mqs_layers
 activate_tyche = CatalogRouter.activate_tyche
 create_layer = CatalogRouter.create_layer
 update_layer = CatalogRouter.update_layer
+delete_layer = CatalogRouter.delete_layer
 generate_layer_metadata = CatalogRouter.generate_metadata
 autocomplete_cubes_parameter = CatalogRouter.autocomplete
 _with_cubes_mode = CatalogRouter.with_cubes_mode
@@ -396,5 +404,8 @@ router.add_api_route("/api/layers/mqs", list_remote_mqs_layers, methods=["GET"],
 router.add_api_route("/api/layers/activate-tyche", activate_tyche, methods=["POST"], response_model=CatalogLayer)
 router.add_api_route("/api/layers", create_layer, methods=["POST"], response_model=CatalogLayer, status_code=201)
 router.add_api_route("/api/layers/{layer_id}", update_layer, methods=["PUT"], response_model=CatalogLayer)
+router.add_api_route(
+    "/api/layers/{layer_id}", delete_layer, methods=["DELETE"], status_code=204,
+)
 router.add_api_route("/api/layers/generate-metadata", generate_layer_metadata, methods=["POST"], response_model=GeneratedLayerMetadataResponse)
 router.add_api_route("/api/layers/autocomplete-parameter", autocomplete_cubes_parameter, methods=["POST"], response_model=CubesAutocompleteResponse)

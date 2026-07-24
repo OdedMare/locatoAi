@@ -37,7 +37,8 @@ app/dal/
 - `ProviderRegistry` — `get(provider_name) -> Provider`, `has(provider_name) -> bool`.
 - `LLMClient` — `complete_json(system, user) -> dict`, `list_models() -> List[str]`.
 - `LayersRepository` — `list_layers()`, `get_layer(id)`, `add_layer(layer)`,
-  `update_layer_metadata(id, name, description, tags)`, `upsert_layer(layer) -> (layer, created)`.
+  `update_layer_metadata(layer)`, `delete_layer(id)`,
+  `upsert_layer(layer) -> (layer, created)`.
 
 **Every provider constructor takes a `RuntimeSettingsStore`** (plus an optional
 `httpx.BaseTransport` test seam, never used in production wiring) and re-reads
@@ -224,6 +225,7 @@ description, tags, provider, source_url`.
 - `add_layer(layer)` — INSERT; raises `ValueError` on `UniqueViolation`.
 - `update_layer_metadata(layer)` — UPDATE; raises
   `ValueError` if the row doesn't exist.
+- `delete_layer(layer_id)` — DELETE returning the removed layer, or `None`.
 - `upsert_layer(layer) -> (layer, created)` — keyed on `(provider, source_url)`; on
   update **only `name`/`description` are touched — tags are preserved** because they
   may be LLM-enriched post-sync.

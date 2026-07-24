@@ -63,6 +63,9 @@ class FakeLayersRepository:
         self._layers[layer.id] = layer
         return layer
 
+    def delete_layer(self, layer_id: str) -> Optional[LayerMeta]:
+        return self._layers.pop(layer_id, None)
+
     def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
         for existing in self._layers.values():
             if (

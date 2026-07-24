@@ -54,6 +54,28 @@ def test_edit_unknown_layer_returns_404():
     assert response.status_code == 404
 
 
+def test_delete_layer_removes_it_from_the_catalog():
+    layer = LayerMeta(
+        id="layer-1", name="Delete me", provider="mqs",
+        source_url="mqs://layer/delete-me",
+    )
+    repository = FakeLayersRepository([layer])
+
+    response = TestClient(make_app(repository)).delete("/api/layers/layer-1")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert repository.get_layer("layer-1") is None
+
+
+def test_delete_unknown_layer_returns_404():
+    response = TestClient(
+        make_app(FakeLayersRepository([])), raise_server_exceptions=False,
+    ).delete("/api/layers/missing")
+
+    assert response.status_code == 404
+
+
 def test_create_layer_persists_declared_entity_role_as_metadata():
     repository = FakeLayersRepository([])
     response = TestClient(make_app(repository)).post(

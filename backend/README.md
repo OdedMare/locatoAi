@@ -108,6 +108,7 @@ The service tier exposes these routes:
 | `GET /api/layers` | Return local catalog metadata. |
 | `POST /api/layers` | Create one catalog record. |
 | `PUT /api/layers/{id}` | Edit layer name, description, and tags without changing its provider/source. |
+| `DELETE /api/layers/{id}` | Remove one layer from the catalog. |
 | `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities; also reports any Cubes dynamic (autocomplete-backed) parameter names. |
 | `POST /api/layers/autocomplete-parameter` | Fetch live values for a Cubes dynamic parameter (never cached — the source cube can change schema). |
 | `POST /api/layers/activate-tyche` | Probe Tyche and idempotently activate the Our Forces layer. |

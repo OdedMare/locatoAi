@@ -21,6 +21,7 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 | GET | `/api/layers` | — | `LayersResponse` | List catalog layers |
 | POST | `/api/layers` | `CreateLayerRequest` | `CatalogLayer` (201) | Create a catalog layer; 409 on duplicate/invalid |
 | PUT | `/api/layers/{layer_id}` | `UpdateLayerRequest` | `CatalogLayer` | Update name/description/tags |
+| DELETE | `/api/layers/{layer_id}` | — | 204 | Remove a catalog layer; 404 if absent |
 | GET | `/api/layers/mqs` | — | `RemoteMqsLayersResponse` | Browse remote MQS inventory (not yet imported) |
 | POST | `/api/layers/sync-mqs` | — | `MqsSyncResponse` | Upsert MQS inventory into the catalog |
 | POST | `/api/layers/activate-tyche` | — | `CatalogLayer` | Probe + idempotently activate the Tyche "כוחותינו" layer |

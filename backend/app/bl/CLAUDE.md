@@ -47,7 +47,7 @@ here — `dal/` supplies it structurally (duck-typed, no explicit inheritance ne
 
 | File | Type | Abstract methods | Implemented by |
 |---|---|---|---|
-| `catalog/layers_repository.py` | `LayersRepository(Protocol)` | `list_layers()`, `get_layer(id)`, `add_layer(layer)`, `update_layer_metadata(id, name, description, tags)`, `upsert_layer(layer) -> (layer, created)` | `dal/catalog/layers_repository.py::PostgresLayersRepository` |
+| `catalog/layers_repository.py` | `LayersRepository(Protocol)` | `list_layers()`, `get_layer(id)`, `add_layer(layer)`, `update_layer_metadata(layer)`, `delete_layer(id)`, `upsert_layer(layer) -> (layer, created)` | `dal/catalog/layers_repository.py::PostgresLayersRepository` |
 | `agent/llm_client.py` | `LLMClient(Protocol)` | `complete_json(system, user) -> dict`, `list_models() -> List[str]` | `dal/llm/openai_client.py::OpenAIJsonClient` |
 | `providers/provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | declares pushdown `capabilities`; `describe_schema(layer) -> LayerSchema`; `fetch_features(..., attribute_filters=None, temporal_range=None)` (all are hints — correctness never depends on them); `sample_field_values(...)` | `FlapiProvider`, `MqsProvider`, `TycheProvider` |
 | `providers/registry.py` | `ProviderRegistry(Protocol)` | `get(provider_name) -> Provider`, `has(provider_name) -> bool` | `InMemoryProviderRegistry` |
@@ -353,7 +353,8 @@ semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID d
   talk HTTP, or know Postgres.
   - `list_layers()`, `list_queryable_layers()` (catalog rows whose provider is
     currently active — `providers.has(...)`), `get_layer(layer_id)` (raises
-    `LayerNotFoundError` if missing), `add_layer`, `update_layer_metadata`.
+    `LayerNotFoundError` if missing), `add_layer`, `update_layer_metadata`,
+    `delete_layer` (also clears the schema cache).
   - `sample_field(layer_id, field, limit=20)` — always live, no cache (the agent's
     on-demand tool).
   - `get_schema(layer_id)` — TTL-cached in-memory (default 1h); on provider failure,

@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, Box, CheckCircle2, Database, Layers3, LoaderCircle, Pencil,
-  PlusCircle, RefreshCw, Save, Search, ShieldCheck, WandSparkles, Workflow, X,
+  PlusCircle, RefreshCw, Save, Search, ShieldCheck, Trash2, WandSparkles,
+  Workflow, X,
 } from "lucide-react";
 import {
   activateTycheLayer,
   createLayer,
+  deleteLayer,
   fetchCubesAutocompleteOptions,
   generateLayerMetadata,
   getLayers,
@@ -60,6 +62,23 @@ function isGeometryParameter(definition: FlapiParameterDefinition): boolean {
     .join(" ")
     .toLowerCase()
     .match(/geometry|polygon|wkt/) !== null;
+}
+
+function layerErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error) || !error.message.trim()) return fallback;
+  const normalized = error.message.toLowerCase();
+  if (normalized.includes("not found") || normalized.includes("(404)")) {
+    return `${fallback} (404)`;
+  }
+  if (
+    normalized.includes("unauthorized")
+    || normalized.includes("forbidden")
+    || normalized.includes("(401)")
+    || normalized.includes("(403)")
+  ) {
+    return "אין הרשאה לבצע את הפעולה. בדקו את פרטי החיבור בהגדרות.";
+  }
+  return error.message;
 }
 
 /**
@@ -115,6 +134,7 @@ export default function LayersPanel({
   const [mqsLoading, setMqsLoading] = useState(false);
   const [mqsSearch, setMqsSearch] = useState("");
   const [mqsMessage, setMqsMessage] = useState<string | null>(null);
+  const [mqsError, setMqsError] = useState(false);
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -125,6 +145,7 @@ export default function LayersPanel({
   const [editTagDraft, setEditTagDraft] = useState("");
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [deletingLayerId, setDeletingLayerId] = useState<string | null>(null);
   const providerName = provider.trim().toLowerCase();
   const isFlowPackage = providerName === "flapi" && flapiResourceType === "package";
   const isCubeResource = providerName === "cubes"
@@ -140,7 +161,7 @@ export default function LayersPanel({
       .then((data) => setLayers(data.layers))
       .catch((err) => {
         console.error("Layer loading failed", err);
-        setError(err instanceof Error ? err.message : "לא ניתן לטעון שכבות");
+        setError(layerErrorMessage(err, "לא ניתן לטעון את קטלוג השכבות."));
       });
   }, []);
 
@@ -215,9 +236,32 @@ export default function LayersPanel({
       setEditingLayerId(null);
     } catch (err) {
       console.error("Catalog layer update failed", err);
-      setEditMessage(err instanceof Error ? err.message : "עדכון השכבה נכשל");
+      setEditMessage(layerErrorMessage(err, "עדכון השכבה נכשל."));
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleDeleteLayer = async (layer: CatalogLayer) => {
+    if (editSaving || deletingLayerId) return;
+    const confirmed = window.confirm(
+      `למחוק את השכבה ״${layer.name}״?\n\n`
+      + "השכבה תוסר מהקטלוג ולא תהיה זמינה לסוכן. לא ניתן לבטל פעולה זו."
+    );
+    if (!confirmed) return;
+    setDeletingLayerId(layer.id);
+    setEditMessage(null);
+    try {
+      await deleteLayer(layer.id);
+      setLayers((current) => (current ?? []).filter(
+        (item) => item.id !== layer.id
+      ));
+      cancelEditing();
+    } catch (err) {
+      console.error("Catalog layer deletion failed", err);
+      setEditMessage(layerErrorMessage(err, "מחיקת השכבה נכשלה."));
+    } finally {
+      setDeletingLayerId(null);
     }
   };
 
@@ -268,10 +312,10 @@ export default function LayersPanel({
       setRequiresSamplePolygon(false);
       setCubesSampleBoundary(null);
       setCubesSampleBoundarySource(null);
-      setFormMessage("השכבה נוספה ל-PostgreSQL ✓");
+      setFormMessage("השכבה נוספה לקטלוג בהצלחה.");
     } catch (err) {
       console.error("Layer creation failed", err);
-      setFormMessage(err instanceof Error ? err.message : "לא ניתן להוסיף את השכבה");
+      setFormMessage(layerErrorMessage(err, "לא ניתן להוסיף את השכבה."));
     } finally {
       setSaving(false);
     }
@@ -282,13 +326,15 @@ export default function LayersPanel({
     if (mqsLayers || mqsLoading) return;
     setMqsLoading(true);
     setMqsMessage(null);
+    setMqsError(false);
     try {
       const result = await getMqsLayers();
       setMqsLayers(result.layers);
       if (result.skipped) setMqsMessage(`${result.skipped} רשומות לא תקינות דולגו`);
     } catch (err) {
       console.error("MQS layer browsing failed", err);
-      setMqsMessage(err instanceof Error ? err.message : "טעינת שכבות MQS נכשלה");
+      setMqsError(true);
+      setMqsMessage(layerErrorMessage(err, "טעינת שכבות MQS נכשלה."));
     } finally {
       setMqsLoading(false);
     }
@@ -312,9 +358,10 @@ export default function LayersPanel({
         }));
       } catch (err) {
         console.error(`Cubes ${parameterName} autocomplete fetch failed`, err);
-        optionsError = err instanceof Error
-          ? err.message
-          : `טעינת אפשרויות ${parameterName} נכשלה`;
+        optionsError = layerErrorMessage(
+          err,
+          `טעינת אפשרויות ${parameterName} נכשלה.`,
+        );
       } finally {
         setLoadingDynamicParameter(null);
       }
@@ -413,8 +460,8 @@ export default function LayersPanel({
           : missingParameters
           ? "נמצאו פרמטרים נדרשים — יש לבחור ערכים לפני טעינת התוצאות."
           : parameterNames.length > 0
-          ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות ✓`
-          : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
+          ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות.`
+          : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה.`
       );
       const dynamicNames = isCubeResource ? definitions
         .filter((item) => item.dynamic)
@@ -429,7 +476,7 @@ export default function LayersPanel({
       }
     } catch (err) {
       console.error("Layer metadata generation failed", err);
-      setFormMessage(err instanceof Error ? err.message : "יצירת התיאור והתגיות נכשלה");
+      setFormMessage(layerErrorMessage(err, "יצירת התיאור והתגיות נכשלה."));
     } finally {
       setGeneratingMetadata(false);
     }
@@ -446,7 +493,7 @@ export default function LayersPanel({
       setDynamicParameterOptions((current) => ({ ...current, [parameterName]: result.options }));
     } catch (err) {
       console.error("Cubes autocomplete fetch failed", err);
-      setFormMessage(err instanceof Error ? err.message : "טעינת אפשרויות הפרמטר נכשלה");
+      setFormMessage(layerErrorMessage(err, "טעינת אפשרויות הפרמטר נכשלה."));
     } finally {
       setLoadingDynamicParameter(null);
     }
@@ -711,7 +758,7 @@ export default function LayersPanel({
       setTycheMessage("שכבת כוחותינו פעילה בקטלוג.");
     } catch (err) {
       console.error("Tyche layer activation failed", err);
-      setTycheMessage(err instanceof Error ? err.message : "הפעלת Tyche נכשלה");
+      setTycheMessage(layerErrorMessage(err, "הפעלת Tyche נכשלה."));
     } finally {
       setActivatingTyche(false);
     }
@@ -725,90 +772,147 @@ export default function LayersPanel({
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div
-        className="settings-card layers-card"
+        className="settings-card layers-card layers-workspace-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="שכבות זמינות"
+        aria-modal="true"
+        aria-labelledby="layers-title"
       >
-        <header className="settings-header">
-          <h2>
-            שכבות זמינות
-            {layers && <span className="layers-count"> · {layers.length}</span>}
-          </h2>
-          <button type="button" className="settings-close" onClick={onClose}>
-            ✕
-          </button>
+        <header className="settings-header layers-workspace-header">
+          <div className="settings-title">
+            <span className="settings-title-icon"><Layers3 size={20} /></span>
+            <div>
+              <h2 id="layers-title">ניהול שכבות</h2>
+              <p>קטלוג מקורות המידע שהסוכן יכול לחפש ולנתח</p>
+            </div>
+          </div>
+          <div className="layers-header-actions">
+            <span className={`layers-count${error ? " bad" : ""}`}>
+              {error ? <AlertTriangle size={14} /> : <Layers3 size={14} />}
+              {error ? "לא זמין" : layers ? `${layers.length} שכבות` : "טוען…"}
+            </span>
+            <button type="button" className="settings-close" onClick={onClose} aria-label="סגירת ניהול שכבות">
+              <X size={20} />
+            </button>
+          </div>
         </header>
 
-        <input
-          className="settings-input"
-          placeholder="חיפוש שכבות… (שם, תגיות, תיאור)"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          dir="auto"
-        />
+        <div className="layers-workspace-layout">
+          <nav className="layers-nav" aria-label="קטגוריות ניהול שכבות">
+            <p className="settings-nav-label">קטגוריות</p>
+            {LAYERS_SECTIONS.map(({ id, label, description, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={activeSection === id ? "active" : ""}
+                onClick={() => selectSection(id)}
+                aria-current={activeSection === id ? "page" : undefined}
+              >
+                <Icon size={18} />
+                <span>
+                  <strong>{label}</strong>
+                  <small>{description}</small>
+                </span>
+              </button>
+            ))}
+            <div className={`layers-connection ${error ? "bad" : layers ? "ok" : "loading"}`}>
+              {error
+                ? <AlertTriangle size={17} />
+                : layers
+                  ? <CheckCircle2 size={17} />
+                  : <LoaderCircle className="submit-spinner" size={17} />}
+              <span>
+                <strong>{error ? "הקטלוג לא זמין" : layers ? "הקטלוג מחובר" : "מתחבר לקטלוג"}</strong>
+                <small>{error ? "בדקו את חיבור מסד הנתונים" : layers ? `${layers.length} שכבות זמינות` : "טוען נתונים…"}</small>
+              </span>
+            </div>
+          </nav>
 
-        <button
-          type="button"
-          className="add-layer-toggle"
-          onClick={() => setShowAddForm((open) => !open)}
-        >
-          {showAddForm ? "ביטול" : "+ הוספת שכבה"}
-        </button>
+          <main className="layers-content">
+            <div className="layers-section-heading">
+              <span><ActiveSectionIcon size={19} /></span>
+              <div>
+                <h3>{activeSectionConfig.label}</h3>
+                <p>{activeSectionConfig.description}</p>
+              </div>
+            </div>
 
-        <button type="button" className="add-layer-toggle" onClick={startCubesLayer}>
-          + הוספת Cube מ-FLAPI
-        </button>
+            {activeSection === "mqs" && (
+              <section className="mqs-browser layers-section" aria-label="בחירת שכבת MQS">
+                <div className="layers-search">
+                  <Search size={17} />
+                  <input
+                    value={mqsSearch}
+                    onChange={(e) => setMqsSearch(e.target.value)}
+                    placeholder="חיפוש במאגר MQS…"
+                    aria-label="חיפוש במאגר MQS"
+                    dir="auto"
+                  />
+                </div>
+                {mqsLoading && (
+                  <div className="layers-state" role="status">
+                    <LoaderCircle className="submit-spinner" size={18} />
+                    <span>שכבות MQS נטענות…</span>
+                  </div>
+                )}
+                {mqsMessage && (
+                  <div className={`layers-state ${mqsError ? "error" : "info"}`} role={mqsError ? "alert" : "status"} dir="auto">
+                    <AlertTriangle size={18} />
+                    <span>{mqsMessage}</span>
+                  </div>
+                )}
+                <ul className="mqs-picker-list">
+                  {filteredMqs.map((layer) => (
+                    <li key={layer.id}>
+                      <button type="button" className="mqs-picker-item" onClick={() => selectMqsLayer(layer)}>
+                        <span className="mqs-picker-icon"><PlusCircle size={17} /></span>
+                        <span>
+                          <strong dir="auto">{layer.name}</strong>
+                          {layer.description && <span dir="auto">{layer.description}</span>}
+                          <small dir="auto">{layer.tags.join(" · ")}</small>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {mqsLayers !== null && filteredMqs.length === 0 && (
+                  <div className="layers-empty-state">
+                    <Search size={22} />
+                    <strong>לא נמצאו שכבות מתאימות</strong>
+                    <p>נסו חיפוש קצר יותר או מונח אחר.</p>
+                  </div>
+                )}
+              </section>
+            )}
 
-        <button type="button" className="add-layer-toggle" onClick={startFlowPackage}>
-          + הוספת Flow Package
-        </button>
-
-        <button type="button" className="add-layer-toggle" onClick={startTycheLayer}>
-          + הוספת שכבת Tyche
-        </button>
-
-        <button
-          type="button"
-          className="add-layer-toggle"
-          onClick={() => void handleActivateTyche()}
-          disabled={activatingTyche}
-        >
-          {activatingTyche ? "מפעיל שכבת כוחותינו…" : "+ הפעלת שכבת כוחותינו"}
-        </button>
-        {tycheMessage && <p className="settings-message" dir="auto">{tycheMessage}</p>}
-
-        <button
-          type="button"
-          className="add-layer-toggle"
-          onClick={handleBrowseMqs}
-        >
-          {showMqsBrowser ? "סגירת מאגר MQS" : "בחירת שכבה מ-MQS"}
-        </button>
-        {mqsMessage && <p className="settings-message" dir="auto">{mqsMessage}</p>}
-
-        {showMqsBrowser && (
-          <section className="mqs-browser" aria-label="בחירת שכבת MQS">
-            <input className="settings-input" value={mqsSearch} onChange={(e) => setMqsSearch(e.target.value)} placeholder="חיפוש במאגר MQS…" dir="auto" />
-            {mqsLayers === null && !mqsMessage && <p className="panel-placeholder">שכבות MQS נטענות…</p>}
-            <ul className="mqs-picker-list">
-              {filteredMqs.map((layer) => (
-                <li key={layer.id}>
-                  <button type="button" className="mqs-picker-item" onClick={() => selectMqsLayer(layer)}>
-                    <strong dir="auto">{layer.name}</strong>
-                    {layer.description && <span dir="auto">{layer.description}</span>}
-                    <small dir="auto">{layer.tags.join(" · ")}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {mqsLayers !== null && filteredMqs.length === 0 && <p className="panel-placeholder">לא נמצאו שכבות MQS מתאימות.</p>}
-          </section>
-        )}
-
-        {showAddForm && (
-          <section className="add-layer-form" aria-label="הוספת שכבה לקטלוג">
-            <h3>הוספת שכבה ל-PostgreSQL</h3>
+            {isFormSection && (
+              <section className="add-layer-form layers-section" aria-label="הוספת שכבה לקטלוג">
+                {activeSection === "tyche" && (
+                  <div className="tyche-activation-card">
+                    <span><ShieldCheck size={20} /></span>
+                    <div>
+                      <strong>שכבת כוחותינו המובנית</strong>
+                      <small>בדיקת החיבור והפעלה מיידית בקטלוג</small>
+                    </div>
+                    <button
+                      type="button"
+                      className="catalog-edit-button"
+                      onClick={() => void handleActivateTyche()}
+                      disabled={activatingTyche}
+                    >
+                      {activatingTyche
+                        ? <LoaderCircle className="submit-spinner" size={15} />
+                        : <RefreshCw size={15} />}
+                      {activatingTyche ? "מפעיל…" : "הפעלה"}
+                    </button>
+                  </div>
+                )}
+                {tycheMessage && activeSection === "tyche" && (
+                  <div className="layers-state info" role="status" dir="auto">
+                    <CheckCircle2 size={18} />
+                    <span>{tycheMessage}</span>
+                  </div>
+                )}
             <div className="settings-input-row">
               <div>
                 <label className="field-label" htmlFor="layer-name">שם</label>
@@ -851,7 +955,9 @@ export default function LayersPanel({
               {tags.map((tag) => (
                 <span key={tag} className="tag-editor-chip" dir="auto">
                   {tag}
-                  <button type="button" onClick={(e) => { e.stopPropagation(); removeTag(tag); }} aria-label={`הסרת התגית ${tag}`}>×</button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); removeTag(tag); }} aria-label={`הסרת התגית ${tag}`}>
+                    <X size={13} />
+                  </button>
                 </span>
               ))}
               <input
@@ -1097,44 +1203,75 @@ export default function LayersPanel({
                 </div>
               </fieldset>
             )}
-            {formMessage && <p className="settings-message">{formMessage}</p>}
-            <button
-              type="button"
-              className="add-layer-toggle"
-              onClick={() => void handleGenerateMetadata()}
-              disabled={
-                !name.trim() || !provider.trim() || !sourceUrl.trim()
-                || !tycheFieldsConfigured || generatingMetadata
-              }
-            >
-              {generatingMetadata ? "מייצר תיאור ותגיות…" : "✨ יצירת תיאור ותגיות באמצעות AI"}
-            </button>
-            <button
-              type="button"
-              className="run-query-button"
-              onClick={handleAddLayer}
-              disabled={
-                !name.trim() || !sourceUrl.trim() || !tycheFieldsConfigured || saving ||
-                parameterDefinitions.some(
-                  (definition) =>
-                    definition.required
-                    && !definition.has_default
-                    && !isGeometryParameter(definition)
-                    && !dynamicParameterValues[definition.name]
-                )
-              }
-            >
-              {saving ? "מוסיף…" : "הוספת שכבה"}
-            </button>
+            <div className="layers-form-actions">
+              {formMessage && <p className="settings-message" role="status" dir="auto">{formMessage}</p>}
+              <button
+                type="button"
+                className="layers-metadata-button"
+                onClick={() => void handleGenerateMetadata()}
+                disabled={
+                  !name.trim() || !provider.trim() || !sourceUrl.trim()
+                  || !tycheFieldsConfigured || generatingMetadata
+                }
+              >
+                {generatingMetadata
+                  ? <LoaderCircle className="submit-spinner" size={16} />
+                  : <WandSparkles size={16} />}
+                {generatingMetadata ? "מייצר מטא־דאטה…" : "יצירת תיאור ותגיות"}
+              </button>
+              <button
+                type="button"
+                className="run-query-button layers-save-button"
+                onClick={handleAddLayer}
+                disabled={
+                  !name.trim() || !sourceUrl.trim() || !tycheFieldsConfigured || saving ||
+                  parameterDefinitions.some(
+                    (definition) =>
+                      definition.required
+                      && !definition.has_default
+                      && !isGeometryParameter(definition)
+                      && !dynamicParameterValues[definition.name]
+                  )
+                }
+              >
+                {saving
+                  ? <LoaderCircle className="submit-spinner" size={16} />
+                  : <Save size={16} />}
+                {saving ? "מוסיף…" : "הוספת שכבה"}
+              </button>
+            </div>
           </section>
         )}
 
-        {error && <p className="panel-placeholder">⚠️ {error}</p>}
-        {layers === null && !error && (
-          <p className="panel-placeholder">השכבות נטענות…</p>
-        )}
+        {activeSection === "catalog" && (
+          <section className="layers-section layers-catalog-section" aria-label="קטלוג שכבות">
+            <div className="layers-catalog-toolbar">
+              <div className="layers-search">
+                <Search size={17} />
+                <input
+                  placeholder="חיפוש לפי שם, תגית או תיאור…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="חיפוש בקטלוג השכבות"
+                  dir="auto"
+                />
+              </div>
+              {layers && <span>{filtered.length} מתוך {layers.length}</span>}
+            </div>
+            {error && (
+              <div className="layers-state error" role="alert" dir="auto">
+                <AlertTriangle size={19} />
+                <span>{error}</span>
+              </div>
+            )}
+            {layers === null && !error && (
+              <div className="layers-state" role="status">
+                <LoaderCircle className="submit-spinner" size={19} />
+                <span>השכבות נטענות…</span>
+              </div>
+            )}
 
-        <ul className="layers-list">
+            <ul className="layers-list">
           {filtered.map((layer) => (
             <li key={layer.id} className="layers-item" dir="auto">
               <div className="layers-item-head">
@@ -1144,7 +1281,9 @@ export default function LayersPanel({
                     type="button"
                     className="catalog-edit-button"
                     onClick={() => startEditing(layer)}
+                    aria-label={`עריכת השכבה ${layer.name}`}
                   >
+                    <Pencil size={14} />
                     עריכה
                   </button>
                 )}
@@ -1176,7 +1315,7 @@ export default function LayersPanel({
                           type="button"
                           onClick={() => setEditTags((current) => current.filter((item) => item !== tag))}
                           aria-label={`הסרת התגית ${tag}`}
-                        >×</button>
+                        ><X size={13} /></button>
                       </span>
                     ))}
                     <input
@@ -1238,23 +1377,42 @@ export default function LayersPanel({
                     placeholder="friends, our-force"
                     dir="ltr"
                   />
-                  {editMessage && <p className="settings-message" dir="auto">{editMessage}</p>}
+                  {editMessage && (
+                    <p className="settings-message" role="alert" dir="auto">
+                      {editMessage}
+                    </p>
+                  )}
                   <div className="catalog-edit-actions">
                     <button
                       type="button"
                       className="run-query-button"
                       onClick={() => void handleSaveEdit()}
-                      disabled={!editName.trim() || editSaving}
+                      disabled={!editName.trim() || editSaving || Boolean(deletingLayerId)}
                     >
+                      {editSaving
+                        ? <LoaderCircle className="submit-spinner" size={15} />
+                        : <Save size={15} />}
                       {editSaving ? "שומר…" : "שמירה"}
                     </button>
                     <button
                       type="button"
                       className="catalog-edit-button"
                       onClick={cancelEditing}
-                      disabled={editSaving}
+                      disabled={editSaving || Boolean(deletingLayerId)}
                     >
                       ביטול
+                    </button>
+                    <button
+                      type="button"
+                      className="catalog-delete-button"
+                      onClick={() => void handleDeleteLayer(layer)}
+                      disabled={editSaving || Boolean(deletingLayerId)}
+                      aria-label={`מחיקת השכבה ${layer.name}`}
+                    >
+                      {deletingLayerId === layer.id
+                        ? <LoaderCircle className="submit-spinner" size={15} />
+                        : <Trash2 size={15} />}
+                      {deletingLayerId === layer.id ? "מוחק…" : "מחיקת שכבה"}
                     </button>
                   </div>
                 </div>
@@ -1263,15 +1421,28 @@ export default function LayersPanel({
                   {layer.description && (
                     <p className="layers-item-description">{layer.description}</p>
                   )}
-                  <p className="layers-item-tags">{layer.tags.join(" · ")}</p>
+                  {layer.tags.length > 0 && (
+                    <div className="layers-item-tags">
+                      {layer.tags.slice(0, 6).map((tag) => <span key={tag}>{tag}</span>)}
+                      {layer.tags.length > 6 && <small>+{layer.tags.length - 6}</small>}
+                    </div>
+                  )}
                 </>
               )}
             </li>
           ))}
           {layers !== null && filtered.length === 0 && (
-            <p className="panel-placeholder">לא נמצאו שכבות התואמות ל״{search}״.</p>
+            <li className="layers-empty-state">
+              <Search size={22} />
+              <strong>לא נמצאו שכבות</strong>
+              <p>אין התאמה לחיפוש ״{search}״.</p>
+            </li>
           )}
-        </ul>
+            </ul>
+          </section>
+        )}
+          </main>
+        </div>
       </div>
     </div>
   );
