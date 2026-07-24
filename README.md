@@ -180,7 +180,10 @@ the request boundary expanded by their requested distance.
 
 ### Cubes
 
-Cubes provides time-varying point locations such as buses. Catalog entries use `provider="cubes"` and `source_url="cubes://db/<dbname>"`. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Name-only entries are hydrated through `GET /cube/v1/<dbname>/parameters/<parameterName>` before required values are resolved. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, supports declared `polygon`/`date` request shapes, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect movement in any/north/south/east/west direction with `movement_direction`.
+FLAPI is the top-level provider for Cubes and Flow Packages. New cube catalog entries
+use `provider="flapi"` and `source_url="flapi://cube/<dbname>"`; existing
+`provider="cubes"` / `cubes://db/<dbname>` rows remain supported as a compatibility
+alias. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Name-only entries are hydrated through `GET /cube/v1/<dbname>/parameters/<parameterName>` before required values are resolved. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, supports declared `polygon`/`date` request shapes, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect movement in any/north/south/east/west direction with `movement_direction`.
 
 Fixed parameter values declared by Cubes metadata are sent unchanged with every cube
 request. For example, a required parameter with `"Name": "environment"` and
@@ -200,7 +203,7 @@ still saturated at maximum depth, fail clearly instead of returning silent trunc
 
 The Layers UI has a dedicated first-version Cubes workflow. Enter the cube/database
 name, run metadata generation, review the LLM-generated description/tags, then save.
-A bare database name is normalized to `cubes://db/<dbname>`. Metadata generation uses
+A bare database name is normalized to `flapi://cube/<dbname>`. Metadata generation uses
 the cube's official name, description, fields, parameters and options together with a
 small entity sample. The executor supports both legacy relative-time and declared
 `.match`/`.not` request formats.
@@ -208,6 +211,19 @@ Required selectors such as `fl:dynamic` and `environment` are resolved before th
 request and stored as exact `param_<name>` values in the layer source URL. Dynamic values
 come from live autocomplete; ordinary required selectors use metadata options or free
 text. New clients send `cubes_parameters`; `cubes_dynamic_parameters` remains accepted.
+
+### Flow Packages
+
+Flow Packages are FLAPI workflows composed of Cubes. Catalog entries use
+`provider="flapi"` and `source_url="flapi://package/<packageId>"`. Before execution,
+the provider fetches definitions from `GET /package/v1/quick/<packageId>`, validates
+required parameters, and serializes text, multi-value, number, boolean, WKT geometry,
+relative-time, and absolute-time values according to their metadata. Execution uses
+`POST /package/v3/<packageId>` and defaults to `lastQueries=true`; an optional query
+name is persisted when only one package result is wanted. Every returned query is
+processed independently, tagged with `_package_query`, and converted by the same
+dynamic schema/WKT dataframe mapper used for Cubes. Partial-success trace IDs, failed
+queries, and result-limit warnings are logged.
 
 ### LLM provider
 

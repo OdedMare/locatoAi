@@ -141,10 +141,12 @@ def test_cubes_settings_normalize_persist_and_clear(tmp_path):
     store.update({
         "cubes_base_url": "https://cubes.example/api/cube/v1/",
         "cubes_token": "secret-jwt",
+        "flapi_username": "oded",
     })
     reloaded = make_store(tmp_path)
     assert reloaded.get().cubes_base_url == "https://cubes.example/api"
     assert reloaded.get().cubes_token == "secret-jwt"
+    assert reloaded.get().flapi_username == "oded"
     reloaded.update({"cubes_base_url": None})
     assert reloaded.get().cubes_base_url is None
 
