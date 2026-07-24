@@ -337,5 +337,7 @@ seed future regression cases.
 - MQS pushes geometry and `eq`-operator attribute filters down server-side, but always re-filters locally too; other operators (`neq`/`gt`/`lt`/`contains`/`fuzzy_contains`) are fetch-then-filter only. Safety caps: 10,000 features per layer load, 50,000 per query overall.
 - Runtime settings persist to a local JSON file and are not multi-user settings.
 - There is no streaming progress channel; the UI shows a single loading phase.
-- The production provider registry registers MQS and Cubes only. Test providers and fixtures live outside `backend/app` and are excluded from the image.
+- The production provider registry registers MQS, FLAPI (Cube and Flow Package), the
+  legacy Cubes alias, and Tyche. Test providers and fixtures live outside `backend/app`
+  and are excluded from the image.
 - MQS replication diff is not wired yet, so refresh still traverses full-data pages even though it no longer normally performs per-entity detail calls.

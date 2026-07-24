@@ -144,6 +144,21 @@ workflow" / "Cubes dynamic parameters" / "Cubes result cap" sections):
   `_split_unbounded` → `_temporal_chunks`; dedup via `CubesSchemaMapper.deduplicate`.
 - 100,000-row safety ceiling: `CubesGateway._MAX_ROWS = 100000`.
 
+## FLAPI provider — `providers/flapi/`
+
+`FlapiProvider` is the main provider facade for both Cube and Flow Package resources.
+It dispatches `flapi://cube/<name>` to `CubesProvider` and
+`flapi://package/<packageId>` to `FlowPackageProvider`; the registry keeps the legacy
+`cubes` alias for existing catalog rows.
+
+Flow Package pipeline: `FlapiSource` parses persisted typed inputs and selected queries
+→ `FlowPackageGateway` fetches `/package/v1/quick/{id}` and executes
+`/package/v3/{id}` → `FlowPackageMetadata` normalizes grouped definitions →
+`FlowPackageSerializer` validates exact text/number/boolean/WKT/time shapes →
+`FlowPackageProvider` maps each query result with `CubesSchemaMapper`. With no selected
+query execution requests `lastQueries=true`. Each row carries `_package_query`;
+partial-success trace IDs and query result-limit warnings are logged.
+
 ## Tyche provider — `providers/tyche/`
 
 Simpler single-source provider (`tyche://ourforces` only).

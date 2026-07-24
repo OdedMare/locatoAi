@@ -38,7 +38,8 @@ defaults) > dataclass field defaults.**
   `feedback_table`, `llm_model` / `llm_diet_mode` / `llm_base_url`, `openai_api_key`
   (reads the raw `OPENAI_API_KEY` env var, bypassing the `AILOCATOR_` prefix),
   `mqs_base_url` / `mqs_user_id` / `mqs_verify_tls` / `mqs_detail_concurrency`,
-  `cubes_base_url` / `cubes_token` / `cubes_verify_tls`, `tyche_base_url` /
+  `cubes_base_url` / `cubes_token` / `flapi_username` / `cubes_verify_tls`,
+  `tyche_base_url` /
   `tyche_username` / `tyche_token` / `tyche_verify_tls`, `runtime_settings_file`,
   `schema_cache_ttl_seconds`, `request_log_path`.
   - `SettingsProvider.get()` (`config/settings_provider.py`, `@lru_cache`) memoizes one

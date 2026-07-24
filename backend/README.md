@@ -360,6 +360,12 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `AILOCATOR_MQS_DETAIL_CONCURRENCY` setting bounds detail fan-out and is listed in
   `.env.example`.
 
+- **`flapi`** — [`provider.py`](app/dal/providers/flapi/provider.py): the top-level
+  dispatcher for `flapi://cube/<name>` and `flapi://package/<id>`. The Cube path
+  delegates to the existing Cubes adapter; `provider="cubes"` remains registered for
+  existing catalog rows. Both paths share the configured base URL, Authorization
+  token, optional `username` header, and TLS policy.
+
 - **`cubes`** — [`provider.py`](app/dal/providers/cubes/provider.py): time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
   reads metadata with `GET /cube/v1/<dbname>` and falls back to
@@ -411,6 +417,18 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
   query params (`cubes_resolved_parameters`), the same mechanism `query_mode` already
   uses. A required dynamic parameter with no resolved value fails loudly at fetch time.
+
+- **Flow Packages** — [`package_provider.py`](app/dal/providers/flapi/package_provider.py):
+  catalog rows use `provider="flapi"` and `flapi://package/<packageId>`. Parameter
+  definitions come from `GET /package/v1/quick/<id>` and are normalized even when the
+  server groups them under a package identifier. Typed inputs are JSON-encoded into the
+  catalog source URL, validated and serialized just before execution, and sent by
+  `POST /package/v3/<id>`. With no selected query the request uses
+  `lastQueries=true`; otherwise it repeats the `queries` option. Result entries are
+  parsed independently through `CubesSchemaMapper`, tagged with `_package_query`, and
+  merged into one GeoDataFrame. Partial-success trace IDs and capped queries are logged,
+  and a 100,000-row safety ceiling prevents an unbounded response from exhausting the
+  process.
 
 - **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): the Our Forces API at
   `POST /coordinate/v1/ourforces`. Catalog rows use

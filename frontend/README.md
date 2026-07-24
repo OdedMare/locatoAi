@@ -133,8 +133,9 @@ Handles every response state. Feature results become a dynamic property table ca
 
 Loads and searches catalog metadata. It supports manual layer creation, inline editing of names/descriptions/tags, and browsing remote MQS inventory before copying a remote layer into the creation form. Provider and source identity remain read-only during edits. Selecting a remote layer automatically asks the backend to sample up to 10 random entities and generate a description and tags; the suggestions populate normal editable fields and are not saved until the user submits the form. The Tyche activation button probes the configured Our Forces API before idempotently adding or refreshing `provider=tyche` / `tyche://ourforces`. Catalog writes go through backend endpoints; this component never talks to PostgreSQL or providers itself.
 
-“Add Cubes layer” presets `provider=cubes`. The user supplies a display name and a
-cube/database name; the backend normalizes it, executes the known request, dynamically
+“Add Cube from FLAPI” presets `provider=flapi` with resource type `cube`. The user
+supplies a display name and a cube/database name; the backend normalizes it, executes
+the known request, dynamically
 discovers cube fields and parameters, samples entities, and returns editable AI-generated
 description/tags before save.
 
@@ -160,9 +161,18 @@ does not call the cube row route while dynamic values are unresolved. After valu
 chosen, running metadata generation again sends those values, samples the normal
 `POST /cube/v1/<dbname>` route, and produces the editable description/tags.
 
+“Add Flow Package” uses the same FLAPI credentials with resource type `package`. The
+user supplies a package ID and may select a final query/cube name. Metadata generation
+first loads the package parameter definitions without executing the workflow. The form
+then renders required and optional typed inputs; booleans retain FLAPI string casing,
+numbers remain numeric, multi-value text accepts comma-separated values, time accepts
+the documented JSON objects, and geometry accepts WKT or the selected map boundary.
+After required inputs are present, metadata generation executes the package's final
+queries and uses their returned Cube rows for the editable catalog description/tags.
+
 ### `SettingsPanel`
 
-Loads runtime settings, populates editable LLM/MQS/Cubes/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, Cubes token, and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.
+Loads runtime settings, populates editable LLM/MQS/FLAPI/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, FLAPI token, and database password fields mean “keep the saved secret.” FLAPI also exposes its optional `username` request header. The response includes a live catalog connection status.
 
 MQS and Cubes TLS verification is enabled by default and independently editable. Environment variables provide deployment defaults; saved UI values remain live overrides.
 

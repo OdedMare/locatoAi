@@ -77,13 +77,14 @@ inconsistency worth knowing about rather than "fixing" incidentally.
 
 `ApplicationStateWiring.wire` in three phases:
 1. **`_providers`** — `InMemoryProviderRegistry()`, registers `MqsProvider`,
-   `CubesProvider`, `TycheProvider` (all take the shared `RuntimeSettingsStore`).
+   `FlapiProvider`, the legacy `CubesProvider` alias, and `TycheProvider` (all take the
+   shared `RuntimeSettingsStore`).
 2. **`_services`** — `CatalogService`, `PlanExecutor`, `OpenAIJsonClient`,
    `RuntimeDietMode`, `LayerSelector`, `PlanBuilder`, `LayerMetadataGenerator`,
    `QueryOrchestrator`.
 3. **`_assign`** — sets on `app.state`: `settings_store`, `repository`
    (`PostgresLayersRepository`), `feedback_repository`, `mqs_provider`,
-   `cubes_provider`, `tyche_provider`, `catalog`, `layer_selector`, `llm_client`,
+   `flapi_provider`, `cubes_provider`, `tyche_provider`, `catalog`, `layer_selector`, `llm_client`,
    `layer_metadata_generator`, `orchestrator`, `request_log`.
 
 (`request.state.request_id` / `request.state.pipeline_trace` are separate, per-request,
@@ -158,6 +159,8 @@ overwrites). Same pattern for `llm_model`. The patch then goes through
 - **`catalog/`** — catalog router, `CatalogLayer`, `CreateLayerRequest`, `UpdateLayerRequest`,
   `CubesParameterValues` (mixin: `cubes_parameters` / legacy `cubes_dynamic_parameters`,
   merge helper `.parameter_values()`), `CubesQueryMode` (`Literal["auto","match_not","legacy"]`),
+  `FlapiResourceType` (`"cube"`/`"package"`), typed `package_parameters` and an optional
+  `package_query` on create/generate requests,
   `CubesAutocompleteRequest`/`Response`/`OptionResponse`, `CubesParameterResponse`,
   `GenerateLayerMetadataRequest`, `GeneratedLayerMetadataResponse`, `LayersResponse`,
   `MqsSyncResponse`, `RemoteMqsLayerResponse`/`RemoteMqsLayersResponse`.
