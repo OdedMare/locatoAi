@@ -6,9 +6,12 @@ from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 class PlanResponseSchema:
     @classmethod
     def build(cls) -> dict:
+        plan = GeoQueryPlan.model_json_schema()
+        definitions = plan.pop("$defs", {})
         return {
+            "$defs": definitions,
             "anyOf": [
-                GeoQueryPlan.model_json_schema(),
+                plan,
                 cls._tool(
                     "sample_field",
                     {"layer_id": {"type": "string"}, "field": {"type": "string"}},

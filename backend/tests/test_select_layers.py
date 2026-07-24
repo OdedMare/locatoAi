@@ -80,7 +80,7 @@ def test_selector_prompt_requires_all_multi_reference_layers(catalog):
         "schools", "roundabouts", "accidents"
     ]
     assert "Never drop a required second reference layer" in llm.last_system
-    assert "`profile:<id>` tag" in llm.last_system
+    assert "A profile id" in llm.last_system
     assert "`tyche`" not in llm.last_system
 
 
@@ -98,8 +98,31 @@ def test_diet_selector_keeps_contract_with_shorter_prompt(catalog):
     assert "schools|arcgis|בתי ספר|" in diet_llm.last_system
     assert '"layer_ids"' in diet_llm.last_system
     assert "A near B and C" in diet_llm.last_system
-    assert "`profile:<id>` tags" in diet_llm.last_system
+    assert "Profile ids" in diet_llm.last_system
     assert "`tyche`" not in diet_llm.last_system
+
+
+def test_custom_skill_field_binding_routes_its_layer(catalog):
+    class Content:
+        @staticmethod
+        def prompt(_name):
+            return "{catalog}"
+
+        @staticmethod
+        def custom_skill_index():
+            return [{
+                "title": "מצא חבר",
+                "description": "בקשה למציאת חבר",
+                "field_references": [{
+                    "layer_id": "schools", "field": "city_en",
+                }],
+            }]
+
+    llm = FakeLLM({"layer_ids": ["schools"]})
+    LayerSelector(llm, catalog, content_repository=Content()).select("מצא חבר")
+
+    assert "CUSTOM SKILL ROUTES" in llm.last_system
+    assert "required_layer_ids=schools" in llm.last_system
 
 
 def test_extract_json_plain():

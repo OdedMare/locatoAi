@@ -59,13 +59,8 @@ class FakeLayersRepository:
         self._layers[created.id] = created
         return created
 
-    def update_layer_metadata(
-        self, layer_id: str, name: str, description: str, tags: List[str],
-    ) -> LayerMeta:
-        layer = self._layers[layer_id].model_copy(
-            update={"name": name, "description": description, "tags": tags}
-        )
-        self._layers[layer_id] = layer
+    def update_layer_metadata(self, layer: LayerMeta) -> LayerMeta:
+        self._layers[layer.id] = layer
         return layer
 
     def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:

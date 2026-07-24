@@ -64,6 +64,12 @@ def test_valid_plan_first_attempt(catalog):
     assert "city_en" in llm.calls[0]["system"]
     assert "provider: arcgis" in llm.calls[0]["system"]
     assert "OurForce mission profile" not in llm.calls[0]["system"]
+    schema = llm.calls[0]["schema"]
+    assert schema["anyOf"][0]["properties"]["steps"]
+    assert any(
+        branch.get("properties", {}).get("tool", {}).get("const") == "load_skill"
+        for branch in schema["anyOf"]
+    )
 
 
 def test_diet_plan_prompt_is_short_and_preserves_all_operations(catalog):
@@ -100,6 +106,7 @@ def test_geo_skill_catalog_documents_and_renders_every_operation():
         assert f"# `{operation}`" in full
         assert f'op:"{operation}"' in full
         assert f'op:"{operation}"' in diet
+    assert "**Compose:**" in diet
 
 
 def test_build_plan_eval_checks_operations_roles_and_constraints():

@@ -54,6 +54,8 @@ class ExecutionContext:
     @staticmethod
     def _pushdowns(provider, temporal_range, attribute_filters):
         capabilities = getattr(provider, "capabilities", frozenset())
+        if not isinstance(capabilities, (set, frozenset, tuple, list)):
+            capabilities = frozenset()
         provider_range = (
             temporal_range if TEMPORAL_PUSHDOWN in capabilities else None
         )

@@ -163,3 +163,17 @@ def test_complete_json_reuses_client_across_calls(tmp_path, monkeypatch):
     store.update({"llm_diet_mode": False})
     client.complete_json(system="full", user="u3")
     assert "max_tokens" not in calls[-1]
+
+
+def test_json_schema_is_first_with_json_mode_fallback():
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+
+    attempts = OpenAIJsonClient._attempts(
+        [{"role": "user", "content": "u"}], schema=schema
+    )
+
+    assert attempts[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "geo_plan_response", "schema": schema},
+    }
+    assert attempts[1]["response_format"] == {"type": "json_object"}

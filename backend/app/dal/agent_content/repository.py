@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List
 from uuid import uuid4
 
+from app.bl.agent.skill_field_references import SkillFieldReferences
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 _AGENT_ROOT = Path(__file__).parents[2] / "bl" / "agent"
@@ -82,6 +83,12 @@ class AgentContentRepository:
                 "id": content_id,
                 "title": str(item.get("title") or content_id),
                 "description": self._use_when(str(item.get("content") or "")),
+                "field_references": [
+                    {"layer_id": layer_id, "field": field}
+                    for layer_id, field in SkillFieldReferences.references(
+                        str(item.get("content") or "")
+                    )
+                ],
             }
             for content_id, item in self._custom_skills().items()
         ]

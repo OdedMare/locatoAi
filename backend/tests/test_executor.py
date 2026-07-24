@@ -7,6 +7,10 @@ from shapely.geometry import Point, box
 
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.executor.ops.base.execution_context import ExecutionContext
+from app.bl.providers.provider import (
+    ATTRIBUTE_FILTER_PUSHDOWN,
+    TEMPORAL_PUSHDOWN,
+)
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
@@ -511,14 +515,13 @@ def test_temporal_filter_yesterday(executor, frozen_now):
     assert len(result) == 5
 
 
-@pytest.mark.parametrize("provider_name", ["cubes", "tyche"])
+@pytest.mark.parametrize("provider_name", ["adapter-a", "adapter-b"])
 def test_temporal_range_pushdown_reaches_temporal_providers(
     frozen_now, provider_name,
 ):
     cube_layer = LayerMeta(
         id="moving", name="moving", provider=provider_name,
-        source_url=("cubes://db/moving" if provider_name == "cubes"
-                    else "tyche://ourforces"),
+        source_url="custom://moving",
     )
     catalog, providers, cubes = Mock(), Mock(), Mock()
     catalog.get_layer.return_value = cube_layer
@@ -526,6 +529,7 @@ def test_temporal_range_pushdown_reaches_temporal_providers(
         layer_id="moving", geometry_type="Point", fields=[],
         temporal_field="eventTime")
     providers.get.return_value = cubes
+    cubes.capabilities = frozenset({TEMPORAL_PUSHDOWN})
     cubes.fetch_features.return_value = gpd.GeoDataFrame(
         {"eventTime": ["2026-07-08T12:00:00Z"]},
         geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
@@ -551,6 +555,7 @@ def test_attribute_filter_eq_pushdown_reaches_mqs_provider():
         layer_id="schools-mqs", geometry_type="Point", fields=[],
         temporal_field=None)
     providers.get.return_value = mqs
+    mqs.capabilities = frozenset({ATTRIBUTE_FILTER_PUSHDOWN})
     mqs.fetch_features.return_value = gpd.GeoDataFrame(
         {"סוג": ["בית ספר"]}, geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
 
@@ -577,6 +582,7 @@ def test_attribute_filter_contains_does_not_pushdown_to_mqs():
         layer_id="schools-mqs", geometry_type="Point", fields=[],
         temporal_field=None)
     providers.get.return_value = mqs
+    mqs.capabilities = frozenset({ATTRIBUTE_FILTER_PUSHDOWN})
     mqs.fetch_features.return_value = gpd.GeoDataFrame(
         {"name": ["בית ספר אלונים"]}, geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
 
@@ -589,12 +595,11 @@ def test_attribute_filter_contains_does_not_pushdown_to_mqs():
     assert mqs.fetch_features.call_args.kwargs.get("attribute_filters") is None
 
 
-@pytest.mark.parametrize("provider_name", ["cubes", "tyche"])
+@pytest.mark.parametrize("provider_name", ["adapter-a", "adapter-b"])
 def test_attribute_filter_pushdown_is_mqs_only(frozen_now, provider_name):
     cube_layer = LayerMeta(
         id="moving", name="moving", provider=provider_name,
-        source_url=("cubes://db/moving" if provider_name == "cubes"
-                    else "tyche://ourforces"),
+        source_url="custom://moving",
     )
     catalog, providers, cubes = Mock(), Mock(), Mock()
     catalog.get_layer.return_value = cube_layer
@@ -602,6 +607,7 @@ def test_attribute_filter_pushdown_is_mqs_only(frozen_now, provider_name):
         layer_id="moving", geometry_type="Point", fields=[],
         temporal_field="eventTime")
     providers.get.return_value = cubes
+    cubes.capabilities = frozenset({TEMPORAL_PUSHDOWN})
     cubes.fetch_features.return_value = gpd.GeoDataFrame(
         {"status": ["active"]}, geometry=[Point(34.78, 32.08)], crs="EPSG:4326")
 

@@ -78,7 +78,8 @@ def test_plan_loop_loads_custom_skill_before_planning(tmp_path, catalog):
     repository = make_repository(tmp_path)
     created = repository.add_skill(
         "mission steps",
-        "# `mission`\n\n**Use when:** mission\n\nCUSTOM BODY",
+        "# `mission`\n\n**Use when:** mission\n\n"
+        "CUSTOM BODY @field[schools/city_en]",
     )
     plan = {
         "explanation": "מציג בתי ספר",
@@ -108,7 +109,24 @@ def test_plan_loop_loads_custom_skill_before_planning(tmp_path, catalog):
     assert result.plan is not None
     assert result.tool_calls == [{"skill_id": created["id"]}]
     assert "CUSTOM BODY" not in llm.calls[0]["system"]
-    assert "CUSTOM BODY" in llm.calls[1]["user"]
+    assert "CUSTOM BODY @city_en (layer `בתי ספר`, id `schools`)" in (
+        llm.calls[1]["user"]
+    )
+
+
+def test_agent_config_rejects_stale_skill_field_reference(tmp_path, catalog):
+    app = FastAPI()
+    app.state.agent_content = make_repository(tmp_path)
+    app.state.catalog = catalog
+    app.include_router(router)
+
+    response = TestClient(app).post("/api/agent-config/skills", json={
+        "title": "broken",
+        "content": "# broken\n\n@field[schools/not-a-real-field]",
+    })
+
+    assert response.status_code == 422
+    assert "unavailable" in response.json()["detail"]
 
 
 def test_agent_config_api_lists_edits_and_creates_content(tmp_path):

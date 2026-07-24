@@ -33,7 +33,10 @@ class LayerSelector:
         diet = self._diet_mode()
         name = "select_layers_diet.md" if diet else "select_layers.md"
         template = self._prompt(name)
-        system = template.replace("{catalog}", self._formatter.format(layers, diet))
+        catalog = self._formatter.format(layers, diet)
+        system = template.replace(
+            "{catalog}", catalog + self._custom_skill_routes(layers, diet)
+        )
         data = self._llm.complete_json(system=system, user=query.strip())
         return self._mapper.from_response(data, layers)
 
@@ -41,6 +44,36 @@ class LayerSelector:
         if self._content_repository is not None:
             return self._content_repository.prompt(name)
         return (_PROMPTS / name).read_text(encoding="utf-8")
+
+    def _custom_skill_routes(self, layers, diet: bool) -> str:
+        if self._content_repository is None:
+            return ""
+        known = {layer.id for layer in layers}
+        lines = []
+        for item in self._content_repository.custom_skill_index():
+            layer_ids = list(dict.fromkeys(
+                reference["layer_id"]
+                for reference in item.get("field_references", [])
+                if reference["layer_id"] in known
+            ))
+            if not layer_ids:
+                continue
+            description = self._formatter.sanitize(
+                item["description"], 100 if diet else 200
+            )
+            lines.append(
+                "- {} | use={} | required_layer_ids={}".format(
+                    self._formatter.sanitize(item["title"], 80),
+                    description, ",".join(layer_ids),
+                )
+            )
+        if not lines:
+            return ""
+        return (
+            "\n\nCUSTOM SKILL ROUTES\n"
+            "When the query matches a route, include all of its required layer ids.\n"
+            + "\n".join(lines)
+        )
 
     @staticmethod
     def _no_layers() -> LayerSelection:

@@ -16,6 +16,13 @@ class SkillFieldReferences:
     def validate(self, content: str) -> None:
         self.render(content)
 
+    @classmethod
+    def references(cls, content: str):
+        return [
+            tuple(map(unquote, match.groups()))
+            for match in cls._PATTERN.finditer(content)
+        ]
+
     def _resolve(self, match) -> str:
         layer_id, field_name = map(unquote, match.groups())
         layer = self._catalog.get_layer(layer_id)
