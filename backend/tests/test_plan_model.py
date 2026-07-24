@@ -104,6 +104,43 @@ def test_movement_without_compass_direction_parses():
     validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
 
 
+def test_trajectory_relation_and_origin_movement_parse_with_schema_fields():
+    plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "accidents"},
+        {
+            "id": "s2", "op": "trajectory_relation", "input": "s1",
+            "relation": "same_time", "entity_field": "personKey",
+            "time_field": "observedAt", "time_tolerance_minutes": 10,
+        },
+        {
+            "id": "s3", "op": "origin_movement", "input": "s2",
+            "pattern": "departed", "start_at": "2026-07-15T20:00:00Z",
+            "end_at": "2026-07-16T05:00:00Z",
+            "entity_field": "personKey", "time_field": "observedAt",
+        },
+    ], output="s3")
+
+    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+
+
+@pytest.mark.parametrize("op", ["trajectory_relation", "origin_movement"])
+def test_new_trajectory_operations_require_schema_identity_and_time_fields(op):
+    values = {"id": "s2", "op": op, "input": "s1"}
+    if op == "trajectory_relation":
+        values["relation"] = "together"
+    else:
+        values.update({
+            "pattern": "departed",
+            "start_at": "2026-07-15T20:00:00Z",
+            "end_at": "2026-07-16T05:00:00Z",
+        })
+    with pytest.raises(ValidationError):
+        make_plan(steps=[
+            {"id": "s1", "op": "load", "layer": "accidents"},
+            values,
+        ], output="s2")
+
+
 def test_unknown_op_rejected_at_parse_time():
     with pytest.raises(ValidationError):
         make_plan(steps=[{"id": "s1", "op": "drop_table", "layer": "schools"}])

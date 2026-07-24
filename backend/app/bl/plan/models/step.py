@@ -16,7 +16,7 @@ from app.bl.plan.models.movement_direction_step import MovementDirectionStep
 from app.bl.plan.models.near_all_step import NearAllStep
 from app.bl.plan.models.near_step import NearStep
 from app.bl.plan.models.nearest_n_step import NearestNStep
-from app.bl.plan.models.round_trip_step import RoundTripStep
+from app.bl.plan.models.origin_movement_step import OriginMovementStep
 from app.bl.plan.models.temporal_filter_step import TemporalFilterStep
 from app.bl.plan.models.touches_step import TouchesStep
 from app.bl.plan.models.trajectory_relation_step import TrajectoryRelationStep
@@ -40,7 +40,7 @@ Step = Annotated[
         LatestPerEntityStep,
         MovementDirectionStep,
         TrajectoryRelationStep,
-        RoundTripStep,
+        OriginMovementStep,
         CountStep,
     ],
     Field(discriminator="op"),

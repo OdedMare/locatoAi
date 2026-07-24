@@ -12,7 +12,7 @@ from app.bl.executor.ops import (  # noqa: F401
     near,
     near_all,
     nearest_n,
-    round_trip,
+    origin_movement,
     temporal_filter,
     trajectory_relation,
     within_geometry,

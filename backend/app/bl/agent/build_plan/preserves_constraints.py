@@ -16,8 +16,8 @@ _CONSTRAINT_FIELDS = {
         "time_tolerance_minutes", "max_gap_minutes", "min_duration_minutes",
         "min_time_separation_minutes", "min_movement_distance_m",
     ),
-    "round_trip": (
-        "depart_at", "return_at", "entity_field", "time_field",
+    "origin_movement": (
+        "pattern", "start_at", "end_at", "entity_field", "time_field",
         "time_tolerance_minutes", "min_departure_distance_m",
         "max_return_distance_m",
     ),

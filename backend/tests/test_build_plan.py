@@ -28,6 +28,7 @@ VALID_PLAN = {
 OPERATIONS = (
     "load", "within_geometry", "attribute_filter", "near", "nearest_n",
     "near_all", "cluster", "latest_per_entity", "movement_direction",
+    "trajectory_relation", "origin_movement",
     "directional", "between", "crosses", "touches", "contains",
     "temporal_filter", "count",
 )

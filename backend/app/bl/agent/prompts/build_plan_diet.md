@@ -26,7 +26,7 @@ RULES
   relation, then latest_per_entity. Before cluster, collapse observations.
 - One entity's movement uses movement_direction. Relations between entities—move/stay
   together, same destination, same movement time with a buffer, or the same place at
-  different times—use trajectory_relation. Leave-and-return uses round_trip. Never
+  different times—use trajectory_relation. Origin departure/return uses origin_movement. Never
   collapse observations before or after these trajectory operations.
 - Mission path, without changing generic queries: OurForce/soldier/tank/unit/callSign uses
   `tyche` as subject/output and matching `mqs`/`cubes` layers as references. Use load →
@@ -37,7 +37,8 @@ RULES
   after filters, without latest_per_entity.
 - Set trajectory_relation min_movement_distance_m=0 only for stayed/was together.
   Bare clock times missing a date, AM/PM, or timezone require clarification before
-  round_trip. Sample the identity field or clarify if no stable identity is evident.
+  origin_movement. Define “night” explicitly and label home as an inferred origin unless
+  the data verifies it. Sample the identity field or clarify if no stable identity is evident.
 - Tyche examples: "חייל שזז בשעה האחרונה" => time + soldier forceType + direction any;
   "טנק שזז מצפון לדרום" (also typo לדרם) => tank forceType + direction south;
   "חייל שהיה על הציר בין תל אביב להרצליה" => soldier forceType + between two filtered
@@ -45,7 +46,8 @@ RULES
 - Friends moving together => trajectory_relation=together. Same destination =>
   same_destination. Same movement time within N minutes => same_time with that buffer.
   Same place at different times => same_place_different_times. Left and returned =>
-  temporal_filter + round_trip with explicit ISO instants.
+  temporal_filter + origin_movement=round_trip. Left the inferred home/origin at night =>
+  temporal_filter + origin_movement=departed with explicit ISO night boundaries.
 - Ask sample_field when field/value is uncertain. At most 3 tool rounds are available.
 - Clarify only if layers/operations truly cannot answer the query; do not clarify before
   using sample_field for a plausible field.

@@ -3,12 +3,13 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class RoundTripStep(BaseModel):
+class OriginMovementStep(BaseModel):
     id: str
-    op: Literal["round_trip"]
+    op: Literal["origin_movement"]
     input: str
-    depart_at: str
-    return_at: str
+    pattern: Literal["departed", "round_trip"]
+    start_at: str
+    end_at: str
     entity_field: str
     time_field: str
     time_tolerance_minutes: float = Field(default=15, ge=0, le=1440)

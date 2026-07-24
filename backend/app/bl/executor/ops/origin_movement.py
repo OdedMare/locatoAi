@@ -5,36 +5,40 @@ from shapely.geometry import LineString, mapping
 from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.base.op_registry import register_op
-from app.bl.plan.models.round_trip_step import RoundTripStep
+from app.bl.plan.models.origin_movement_step import OriginMovementStep
 from app.common.errors.execution_error import ExecutionError
 from app.common.utils.geo_utils import metric_crs_for, to_metric
 
 
-@register_op("round_trip")
-class RoundTripOp(OpHandler):
+@register_op("origin_movement")
+class OriginMovementOp(OpHandler):
     _RESULT_COLUMNS = (
-        "round_trip_departure_distance_m",
-        "round_trip_return_distance_m",
-        "round_trip_path_distance_m",
-        "round_trip_path",
+        "origin_movement",
+        "origin_inferred_from",
+        "origin_departure_distance_m",
+        "origin_return_distance_m",
+        "movement_path_distance_m",
+        "movement_path",
     )
 
-    def run(self, step: RoundTripStep,
+    def run(self, step: OriginMovementStep,
             ctx: ExecutionContext) -> gpd.GeoDataFrame:
         data = self._prepare(ctx.results[step.input], step)
         if data.empty:
             return self._empty(data)
-        depart_at, return_at = self._times(step)
+        start_at, end_at = self._times(step)
         metric = to_metric(data, metric_crs_for(data))
-        matches = self._matches(data, metric, step, depart_at, return_at)
-        return self._result(data, matches)
+        matches = self._matches(data, metric, step, start_at, end_at)
+        return self._result(data, matches, step)
 
     def _prepare(self, source, step):
         missing = {step.entity_field, step.time_field} - set(source.columns)
         if missing:
-            raise ExecutionError(f"round_trip missing fields: {sorted(missing)}")
+            raise ExecutionError(
+                f"origin_movement missing fields: {sorted(missing)}"
+            )
         if not source.empty and not source.geometry.geom_type.eq("Point").all():
-            raise ExecutionError("round_trip requires point observations")
+            raise ExecutionError("origin_movement requires point observations")
         data = source.copy()
         data["_time"] = pd.to_datetime(
             data[step.time_field], utc=True, errors="coerce"
@@ -46,38 +50,51 @@ class RoundTripOp(OpHandler):
     @staticmethod
     def _times(step):
         try:
-            depart_at = pd.to_datetime(step.depart_at, utc=True)
-            return_at = pd.to_datetime(step.return_at, utc=True)
+            start_at = pd.to_datetime(step.start_at, utc=True)
+            end_at = pd.to_datetime(step.end_at, utc=True)
         except (TypeError, ValueError) as exc:
-            raise ExecutionError(f"round_trip invalid time: {exc}") from exc
-        if depart_at >= return_at:
-            raise ExecutionError("round_trip depart_at must be before return_at")
-        return depart_at, return_at
+            raise ExecutionError(f"origin_movement invalid time: {exc}") from exc
+        if start_at >= end_at:
+            raise ExecutionError("origin_movement start_at must be before end_at")
+        return start_at, end_at
 
-    def _matches(self, source, metric, step, depart_at, return_at):
+    def _matches(self, source, metric, step, start_at, end_at):
         matches = []
         for _, group in metric.groupby(step.entity_field, sort=False):
             match = self._entity_match(
-                source, group, step, depart_at, return_at
+                source, group, step, start_at, end_at
             )
             if match is not None:
                 matches.append(match)
         return matches
 
-    def _entity_match(self, source, group, step, depart_at, return_at):
-        start = self._nearest(group, depart_at, step.time_tolerance_minutes)
-        end = self._nearest(group, return_at, step.time_tolerance_minutes)
+    def _entity_match(self, source, group, step, start_at, end_at):
+        group = group[
+            (group["_time"] >= start_at) & (group["_time"] <= end_at)
+        ]
+        if group.empty:
+            return None
+        start = self._nearest(group, start_at, step.time_tolerance_minutes)
+        end = self._end_index(group, step, end_at)
         if start is None or end is None or start >= end:
             return None
         segment = group.loc[start:end]
-        if len(segment) < 3:
+        if len(segment) < (3 if step.pattern == "round_trip" else 2):
             return None
         departure, returned, path = self._distances(segment)
         if departure < step.min_departure_distance_m:
             return None
-        if returned > step.max_return_distance_m:
+        if (
+            step.pattern == "round_trip"
+            and returned > step.max_return_distance_m
+        ):
             return None
         return self._match(source, segment, departure, returned, path)
+
+    def _end_index(self, group, step, end_at):
+        if step.pattern == "departed":
+            return group.index[-1]
+        return self._nearest(group, end_at, step.time_tolerance_minutes)
 
     @staticmethod
     def _nearest(group, target, tolerance_minutes):
@@ -109,20 +126,22 @@ class RoundTripOp(OpHandler):
             "path": mapping(LineString(coordinates)),
         }
 
-    def _result(self, data, matches):
+    def _result(self, data, matches, step):
         if not matches:
             return self._empty(data)
         result = data.loc[[item["index"] for item in matches]].copy()
-        result["round_trip_departure_distance_m"] = [
+        result["origin_movement"] = step.pattern
+        result["origin_inferred_from"] = "first_observation_near_start_at"
+        result["origin_departure_distance_m"] = [
             item["departure"] for item in matches
         ]
-        result["round_trip_return_distance_m"] = [
+        result["origin_return_distance_m"] = [
             item["returned"] for item in matches
         ]
-        result["round_trip_path_distance_m"] = [
+        result["movement_path_distance_m"] = [
             item["path_distance"] for item in matches
         ]
-        result["round_trip_path"] = [item["path"] for item in matches]
+        result["movement_path"] = [item["path"] for item in matches]
         return result.drop(columns=["_time"])
 
     def _empty(self, data):
