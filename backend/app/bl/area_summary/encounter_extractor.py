@@ -18,6 +18,20 @@ _MAX_FACTS = 100
 def extract_encounter_facts(
     data, layer, schema, distance_m, time_tolerance_minutes,
 ):
+    if data.empty:
+        return []
+    entity_field, name_field = _encounter_fields(data, layer, schema)
+    metric = _metric_points(data, entity_field, name_field)
+    matches = _latest_matches(metric, distance_m, time_tolerance_minutes)
+    ordered = sorted(
+        matches.values(), key=lambda item: item["observed"], reverse=True
+    )
+    return [
+        _encounter_fact(match, layer) for match in ordered[:_MAX_FACTS]
+    ]
+
+
+def _encounter_fields(data, layer, schema):
     entity_field = require_field(
         data, layer.entity_field or schema.entity_field, "entity"
     )
@@ -30,14 +44,7 @@ def extract_encounter_facts(
         "name",
     )
     require_field(data, "_summary_time", "time")
-    metric = _metric_points(data, entity_field, name_field)
-    matches = _latest_matches(metric, distance_m, time_tolerance_minutes)
-    return [
-        _encounter_fact(match, layer)
-        for match in sorted(
-            matches.values(), key=lambda item: item["observed"], reverse=True
-        )[:_MAX_FACTS]
-    ]
+    return entity_field, name_field
 
 
 def _metric_points(data, entity_field, name_field):

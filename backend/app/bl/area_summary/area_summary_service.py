@@ -24,9 +24,9 @@ class AreaSummaryService:
         encounter_distance_m=30, encounter_time_tolerance_minutes=10,
         now: Optional[datetime] = None,
     ) -> AreaSummaryResult:
-        generated_at = now or datetime.now(timezone.utc)
-        end = window_end or generated_at
-        start = window_start or end - timedelta(hours=24)
+        generated_at = self._aware(now or datetime.now(timezone.utc))
+        end = self._aware(window_end or generated_at)
+        start = self._aware(window_start or end - timedelta(hours=24))
         if start > end:
             raise ValueError("Area summary window_start must not exceed window_end")
         layers = [
@@ -46,6 +46,20 @@ class AreaSummaryService:
             catalog=self._catalog, providers=self._providers,
             user_geometry=boundaries, now=generated_at,
         )
+        facts, failures, successful = self._collect(
+            context, layers, boundaries, start, end,
+            encounter_distance_m, encounter_time_tolerance_minutes,
+        )
+        return AreaSummaryResult(
+            generated_at=generated_at, window_start=start, window_end=end,
+            queried_layer_count=len(layers), successful_layer_count=successful,
+            facts=facts, failures=failures,
+        )
+
+    def _collect(
+        self, context, layers, boundaries, start, end,
+        encounter_distance_m, encounter_time_tolerance_minutes,
+    ):
         facts, failures, successful = [], [], 0
         for layer in layers:
             try:
@@ -56,11 +70,7 @@ class AreaSummaryService:
                 successful += 1
             except Exception as exc:
                 failures.append(self._failure(layer, exc))
-        return AreaSummaryResult(
-            generated_at=generated_at, window_start=start, window_end=end,
-            queried_layer_count=len(layers), successful_layer_count=successful,
-            facts=facts, failures=failures,
-        )
+        return facts, failures, successful
 
     def _layer_facts(
         self, context, layer, boundaries, start, end,
@@ -100,6 +110,12 @@ class AreaSummaryService:
 
     @staticmethod
     def _time_filter(data, field, start, end):
+        if data.empty:
+            filtered = data.copy()
+            filtered["_summary_time"] = pd.Series(
+                index=filtered.index, dtype="datetime64[ns, UTC]"
+            )
+            return filtered
         if field not in data.columns:
             raise ValueError("Area summary temporal field is missing")
         filtered = data.copy()
@@ -118,3 +134,9 @@ class AreaSummaryService:
             error_type=type(error).__name__,
             message=(str(error) or type(error).__name__)[:240],
         )
+
+    @staticmethod
+    def _aware(value):
+        if value.utcoffset() is None:
+            raise ValueError("Area summary times must include a timezone")
+        return value.astimezone(timezone.utc)

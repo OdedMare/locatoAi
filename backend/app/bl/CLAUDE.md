@@ -14,6 +14,7 @@ directly.
 
 ```
 app/bl/
+├── area_summary/             deterministic fact extraction + partial failures
 ├── plan/
 │   ├── models/                one Pydantic model per plan step + discriminated union
 │   └── validators.py          semantic checks
@@ -39,6 +40,13 @@ Dependency order within the tier: `plan` has no dependency on `executor`/`agent`
 `plan`, `catalog`, and its `LLMClient` Protocol; `query_orchestrator` composes
 `agent` + `catalog` + `executor`; `catalog` depends only on its repository Protocol
 and the provider registry Protocol.
+
+`area_summary` composes `catalog`, the provider registry, and the executor's bounded
+load context. It does not depend on the agent: returned count, presence,
+recommendation, and encounter facts must be derivable from source features and carry
+evidence. Catalog participation is explicit through the `area-summary` profile and
+one `summary:<kind>` tag. Exceptions are isolated per layer and returned as coverage
+failures instead of failing the whole summary.
 
 ## 1. Context-owned models and Protocols — the DIP seam
 

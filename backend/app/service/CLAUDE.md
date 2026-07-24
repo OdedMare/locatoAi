@@ -16,6 +16,7 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 |---|---|---|---|---|
 | GET | `/health` | — | `dict` | Liveness check (`health/router.py`, wired in `main.py`) |
 | POST | `/api/query` | `QueryRequest` | `QueryResponse` | Full NL pipeline: select layers → build plan → execute |
+| POST | `/api/area-summary` | `AreaSummaryRequest` | `AreaSummaryResult` | Deterministic evidence-backed facts for one polygon |
 | POST | `/api/execute-plan` | `ExecutePlanRequest` | `QueryResponse` | Debug: validate + execute a hand-written plan, no LLM calls |
 | POST | `/api/select-layers` | `SelectLayersRequest` | `SelectLayersResponse` | Debug: agent call 1 only |
 | GET | `/api/layers` | — | `LayersResponse` | List catalog layers |
@@ -40,6 +41,8 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
   `QueryEventSink` so the orchestrator can stream trace events into it as it runs. On
   exception: logs then **re-raises** — HTTP mapping happens in the global
   `ErrorHandlerRegistry`, not here. Builds `QueryResponse.from_outcome(outcome)`.
+- **`area_summary/router.py`** — validates the polygon translation and delegates to
+  `app.state.area_summary`; layer-level errors remain successful partial responses.
 - **`plan/router.py`** — `orchestrator.execute_plan(body.plan, boundaries)`. No LLM
   call; tests the executor in isolation.
 - **`agent/router.py`** — `request.app.state.layer_selector.select(body.query)`
@@ -74,7 +77,7 @@ inconsistency worth knowing about rather than "fixing" incidentally.
 2. `ApplicationStateWiring.wire(application, get_settings())` — builds the full
    dependency graph and attaches it to `app.state` (see below).
 3. `ErrorHandlerRegistry.register(application)` — domain-error → HTTP-status handlers.
-4. Includes all 7 routers + a direct `GET /health` (`HealthRouter.status`).
+4. Includes all routers + a direct `GET /health` (`HealthRouter.status`).
 
 `ApplicationStateWiring.wire` in three phases:
 1. **`_providers`** — `InMemoryProviderRegistry()`, registers `MqsProvider`, one
@@ -82,11 +85,11 @@ inconsistency worth knowing about rather than "fixing" incidentally.
    `TycheProvider` (all take the shared `RuntimeSettingsStore`).
 2. **`_services`** — `CatalogService`, `PlanExecutor`, `OpenAIJsonClient`,
    `RuntimeDietMode`, `LayerSelector`, `PlanBuilder`, `LayerMetadataGenerator`,
-   `QueryOrchestrator`.
+   `QueryOrchestrator`, `AreaSummaryService`.
 3. **`_assign`** — sets on `app.state`: `settings_store`, `repository`
    (`PostgresLayersRepository`), `feedback_repository`, `mqs_provider`,
    `flapi_provider`, `tyche_provider`, `catalog`, `layer_selector`, `llm_client`,
-   `layer_metadata_generator`, `orchestrator`, `request_log`.
+   `layer_metadata_generator`, `orchestrator`, `area_summary`, `request_log`.
 
 (`request.state.request_id` / `request.state.pipeline_trace` are separate, per-request,
 set by `query/router.py` — not part of the composition root.)
@@ -152,6 +155,8 @@ overwrites). Same pattern for `llm_model`. The patch then goes through
 
 - **`query/`** — query router, event sink, `QueryRequest`, `QueryResponse` (built via
   `.from_outcome(QueryOutcome)`), and `SelectedLayerDto`.
+- **`area_summary/`** — area-summary router and a timezone-aware request DTO with
+  polygon, optional `from`/`to`, encounter distance, and time tolerance.
 - **`plan/`** — execute-plan router and `ExecutePlanRequest`.
 - **`shared/`** — `GeoJSONMultiPolygon` plus `FeatureCollectionMapper`
   (GeoDataFrame → GeoJSON).

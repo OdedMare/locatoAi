@@ -1,0 +1,1 @@
+"""Area-summary HTTP service."""

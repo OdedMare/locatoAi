@@ -3,6 +3,7 @@
 from app.bl.agent.build_plan.plan_builder import PlanBuilder
 from app.bl.agent.generate_layer_metadata.layer_metadata_generator import LayerMetadataGenerator
 from app.bl.agent.select_layers.layer_selector import LayerSelector
+from app.bl.area_summary.area_summary_service import AreaSummaryService
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
@@ -71,7 +72,8 @@ class ApplicationStateWiring:
         orchestrator = QueryOrchestrator(
             catalog, executor, layer_selector=selector, plan_builder=builder
         )
-        return catalog, llm, selector, metadata, orchestrator
+        area_summary = AreaSummaryService(catalog, providers)
+        return catalog, llm, selector, metadata, orchestrator, area_summary
 
     @staticmethod
     def _assign(
@@ -79,7 +81,7 @@ class ApplicationStateWiring:
         agent_content,
     ) -> None:
         providers, mqs, flapi, tyche = provider_bundle
-        catalog, llm, selector, metadata, orchestrator = services
+        catalog, llm, selector, metadata, orchestrator, area_summary = services
         app.state.settings_store = store
         app.state.agent_content = agent_content
         app.state.repository = repository
@@ -92,4 +94,5 @@ class ApplicationStateWiring:
         app.state.llm_client = llm
         app.state.layer_metadata_generator = metadata
         app.state.orchestrator = orchestrator
+        app.state.area_summary = area_summary
         app.state.request_log = configure_logging(settings.request_log_path)

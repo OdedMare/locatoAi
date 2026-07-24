@@ -12,6 +12,8 @@ _MAX_FACTS = 100
 
 
 def extract_presence_facts(data, layer, schema):
+    if data.empty:
+        return []
     entity_field = require_field(
         data, layer.entity_field or schema.entity_field, "entity"
     )

@@ -11,6 +11,8 @@ _MAX_FACTS = 100
 
 
 def extract_recommendation_facts(data, layer, schema):
+    if data.empty:
+        return []
     text_field = require_field(
         data,
         resolved_field(

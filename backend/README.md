@@ -41,6 +41,7 @@ app/
 │
 ├── service/                 # ── HTTP tier: one package per API context ──
 │   ├── query/               # POST /api/query + request/response DTOs and event sink
+│   ├── area_summary/        # POST /api/area-summary request + router
 │   ├── plan/                # POST /api/execute-plan + request DTO
 │   ├── agent/               # POST /api/select-layers + DTOs
 │   ├── agent_config/        # GET/PUT prompts + skills; POST custom skill
@@ -54,6 +55,7 @@ app/
 │   └── dependencies.py      # FastAPI dependency accessors (app.state)
 │
 ├── bl/                      # ── Business logic tier ──
+│   ├── area_summary/        # deterministic facts, evidence, time, partial failures
 │   ├── query_orchestrator/
 │   │   └── query_orchestrator.py # the select → plan → validate → execute flow + retry policy
 │   ├── agent/
@@ -103,6 +105,7 @@ The service tier exposes these routes:
 |---|---|
 | `GET /health` | Process health check; outside the `/api` proxy family. |
 | `POST /api/query` | Full natural-language select → plan → validate → execute pipeline. |
+| `POST /api/area-summary` | Derive evidence-backed count, presence, recommendation, and encounter facts from configured catalog layers. |
 | `POST /api/execute-plan` | Validate and execute a supplied plan without either LLM call. |
 | `POST /api/select-layers` | Run only agent call one for debugging/evaluation. |
 | `GET /api/layers` | Return local catalog metadata. |
@@ -125,6 +128,22 @@ Cubes and Tyche providers, catalog, executor, LLM client, both agent stages,
 and orchestrator.
 These long-lived objects are attached to `app.state`; routers retrieve them
 directly or through `service/dependencies.py`.
+
+### Area-summary catalog contract
+
+`POST /api/area-summary` is deterministic and does not ask the LLM to infer facts.
+It queries every queryable layer whose profiles include `area-summary`, intersects
+features with the requested `MultiPolygon`, applies the requested time window
+(default: the last 24 hours), and returns facts plus per-layer failures.
+
+Each participating layer must contain exactly one kind tag:
+`summary:count`, `summary:presence`, `summary:recommendation`, or
+`summary:encounter`. Existing `entity_field`, `display_field`, and the
+provider-declared `temporal_field` are the defaults. Optional tag overrides use
+`summary:<role>:<field>`, including `group_field`, `name_field`, `text_field`,
+`owner_field`, and `source_field`. Every fact keeps its source layer and bounded
+feature evidence; one broken layer reduces `successful_layer_count` and appears in
+`failures` without discarding facts from successful layers.
 
 **How SOLID maps onto it**
 
