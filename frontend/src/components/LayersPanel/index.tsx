@@ -15,10 +15,12 @@ import type {
   CubesAutocompleteOption,
   CubesParameterDefinition,
   CubesQueryMode,
+  FlapiResourceType,
   RemoteMqsLayer,
 } from "@/types/catalog";
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 import CubesParametersFieldset from "./CubesParametersFieldset";
+import PackageParametersFieldset from "./PackageParametersFieldset";
 
 interface LayersPanelProps {
   onClose: () => void;
@@ -35,6 +37,13 @@ function mergeTags(current: string[], value: string, limit: number): string[] {
     seen.add(key);
     return true;
   })].slice(0, limit);
+}
+
+function isGeometryParameter(definition: CubesParameterDefinition): boolean {
+  return [definition.name, definition.type, definition.ontology_type]
+    .join(" ")
+    .toLowerCase()
+    .match(/geometry|polygon|wkt/) !== null;
 }
 
 /**
@@ -56,6 +65,9 @@ export default function LayersPanel({
   const [tagDraft, setTagDraft] = useState("");
   const [provider, setProvider] = useState("mqs");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [flapiResourceType, setFlapiResourceType] =
+    useState<FlapiResourceType>("cube");
+  const [packageQuery, setPackageQuery] = useState("");
   const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
   const [parameterDefinitions, setParameterDefinitions] =
@@ -87,6 +99,10 @@ export default function LayersPanel({
   const [editTagDraft, setEditTagDraft] = useState("");
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const providerName = provider.trim().toLowerCase();
+  const isFlowPackage = providerName === "flapi" && flapiResourceType === "package";
+  const isCubeResource = providerName === "cubes"
+    || (providerName === "flapi" && flapiResourceType === "cube");
 
   useEffect(() => {
     getLayers()
@@ -179,8 +195,11 @@ export default function LayersPanel({
         tags,
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
+        flapi_resource_type: flapiResourceType,
         cubes_query_mode: cubesQueryMode,
         cubes_parameters: dynamicParameterValues,
+        package_parameters: isFlowPackage ? dynamicParameterValues : {},
+        package_query: isFlowPackage ? packageQuery.trim() || null : null,
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -188,6 +207,8 @@ export default function LayersPanel({
       setTags([]);
       setTagDraft("");
       setSourceUrl("");
+      setFlapiResourceType("cube");
+      setPackageQuery("");
       setCubesQueryMode("auto");
       setDynamicParameterNames([]);
       setParameterDefinitions([]);
@@ -260,8 +281,11 @@ export default function LayersPanel({
       name: selected?.name ?? name,
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
+      flapi_resource_type: flapiResourceType,
       cubes_query_mode: cubesQueryMode,
       cubes_parameters: selectedDynamicValues,
+      package_parameters: isFlowPackage ? selectedDynamicValues : {},
+      package_query: isFlowPackage ? packageQuery.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
@@ -283,7 +307,12 @@ export default function LayersPanel({
           definitions.push({
             name: manualName,
             display_name: "",
+            description: "",
+            type: "string",
             required: true,
+            single_value: true,
+            ontology_type: "",
+            has_default: false,
             dynamic: true,
             options: [],
           });
@@ -312,8 +341,12 @@ export default function LayersPanel({
           .filter((parameterName) => current[parameterName])
           .map((parameterName) => [parameterName, current[parameterName]])
       ));
-      const missingParameters = parameterNames.some(
-        (parameterName) => !selectedDynamicValues[parameterName]
+      const missingParameters = definitions.some(
+        (definition) =>
+          definition.required
+          && !definition.has_default
+          && !isGeometryParameter(definition)
+          && !selectedDynamicValues[definition.name]
       );
       const missingPolygon = generated.requires_sample_polygon && !selectedBoundary;
       setFormMessage(
@@ -327,9 +360,9 @@ export default function LayersPanel({
           ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות ✓`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה ✓`
       );
-      const dynamicNames = definitions
+      const dynamicNames = isCubeResource ? definitions
         .filter((item) => item.dynamic)
-        .map((item) => item.name);
+        .map((item) => item.name) : [];
       if (dynamicNames.length > 0) {
         // Required controls are already visible. Autocomplete hydration runs
         // separately so a slow child cube cannot keep metadata generation
@@ -370,7 +403,15 @@ export default function LayersPanel({
     };
     setDynamicParameterValues(selectedDynamicValues);
     const allDynamicParametersSelected = dynamicParameterNames.every(
-      (name) => Boolean(selectedDynamicValues[name])
+      (parameterName) => {
+        const definition = parameterDefinitions.find(
+          (item) => item.name === parameterName
+        );
+        return !definition?.required
+          || definition.has_default
+          || isGeometryParameter(definition)
+          || Boolean(selectedDynamicValues[parameterName]);
+      }
     );
     if (allDynamicParametersSelected && (!requiresSamplePolygon || cubesSampleBoundary)) {
       void handleGenerateMetadata(undefined, selectedDynamicValues);
@@ -388,7 +429,15 @@ export default function LayersPanel({
     setCubesSampleBoundary(boundary);
     setCubesSampleBoundarySource(source);
     const allParametersSelected = dynamicParameterNames.every(
-      (parameterName) => Boolean(dynamicParameterValues[parameterName])
+      (parameterName) => {
+        const definition = parameterDefinitions.find(
+          (item) => item.name === parameterName
+        );
+        return !definition?.required
+          || definition.has_default
+          || isGeometryParameter(definition)
+          || Boolean(dynamicParameterValues[parameterName]);
+      }
     );
     if (allParametersSelected) {
       void handleGenerateMetadata(undefined, dynamicParameterValues, boundary);
@@ -409,7 +458,12 @@ export default function LayersPanel({
     setParameterDefinitions((current) => [...current, {
       name: parameterName,
       display_name: "",
+      description: "",
+      type: "string",
       required: true,
+      single_value: true,
+      ontology_type: "",
+      has_default: false,
       dynamic: true,
       options: [],
     }]);
@@ -428,6 +482,8 @@ export default function LayersPanel({
     setTagDraft("");
     setProvider(layer.provider);
     setSourceUrl(layer.source_url);
+    setFlapiResourceType("cube");
+    setPackageQuery("");
     setCubesQueryMode("auto");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
@@ -444,7 +500,9 @@ export default function LayersPanel({
   };
 
   const startCubesLayer = () => {
-    setProvider("cubes");
+    setProvider("flapi");
+    setFlapiResourceType("cube");
+    setPackageQuery("");
     setSourceUrl("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
@@ -459,6 +517,28 @@ export default function LayersPanel({
     setTags([]);
     setCubesQueryMode("auto");
     setFormMessage("הזינו שם שכבה ושם Cube, ואז הפעילו יצירת תיאור ותגיות.");
+    setShowAddForm(true);
+  };
+
+  const startFlowPackage = () => {
+    setProvider("flapi");
+    setFlapiResourceType("package");
+    setPackageQuery("");
+    setSourceUrl("");
+    setDynamicParameterNames([]);
+    setParameterDefinitions([]);
+    setManualDynamicParameterNames([]);
+    setDynamicParameterOptions({});
+    setDynamicParameterValues({});
+    setRequiresSamplePolygon(false);
+    setCubesSampleBoundary(null);
+    setCubesSampleBoundarySource(null);
+    setName("");
+    setDescription("");
+    setTags([]);
+    setFormMessage(
+      "הזינו שם ו-ID של Flow Package, ואז טענו את הגדרות הפרמטרים."
+    );
     setShowAddForm(true);
   };
 
@@ -516,7 +596,11 @@ export default function LayersPanel({
         </button>
 
         <button type="button" className="add-layer-toggle" onClick={startCubesLayer}>
-          + הוספת שכבת Cubes
+          + הוספת Cube מ-FLAPI
+        </button>
+
+        <button type="button" className="add-layer-toggle" onClick={startFlowPackage}>
+          + הוספת Flow Package
         </button>
 
         <button
@@ -573,6 +657,8 @@ export default function LayersPanel({
                   value={provider}
                   onChange={(e) => {
                     setProvider(e.target.value);
+                    setFlapiResourceType("cube");
+                    setPackageQuery("");
                     setDynamicParameterNames([]);
                     setParameterDefinitions([]);
                     setManualDynamicParameterNames([]);
@@ -620,9 +706,11 @@ export default function LayersPanel({
               />
             </div>
             <label className="field-label" htmlFor="layer-source-url">
-              {provider.trim().toLowerCase() === "cubes"
+              {isFlowPackage
+                ? "Flow Package ID"
+                : isCubeResource
                 ? "שם Cube / database"
-                : provider.trim().toLowerCase() === "tyche"
+                : providerName === "tyche"
                   ? "מקור Tyche"
                   : "כתובת המקור"}
             </label>
@@ -636,10 +724,36 @@ export default function LayersPanel({
                 setCubesSampleBoundary(null);
                 setCubesSampleBoundarySource(null);
               }}
-              placeholder={provider.trim().toLowerCase() === "cubes" ? "transport (or cubes://db/transport)" : provider.trim().toLowerCase() === "tyche" ? "ourforces (or tyche://ourforces)" : "https://provider.example/layer"}
+              placeholder={
+                isFlowPackage
+                  ? "466192 (or flapi://package/466192)"
+                  : isCubeResource
+                    ? "transport (or flapi://cube/transport)"
+                    : providerName === "tyche"
+                      ? "ourforces (or tyche://ourforces)"
+                      : "https://provider.example/layer"
+              }
               dir="ltr"
             />
-            {provider.trim().toLowerCase() === "cubes" && (
+            {isFlowPackage && (
+              <>
+                <label className="field-label" htmlFor="package-query">
+                  תוצאת Query / Cube{" "}
+                  <span className="optional">
+                    (אופציונלי; ריק = השאילתות האחרונות בכל ענף)
+                  </span>
+                </label>
+                <input
+                  id="package-query"
+                  className="settings-input"
+                  value={packageQuery}
+                  onChange={(event) => setPackageQuery(event.target.value)}
+                  placeholder="FinalCubeName"
+                  dir="ltr"
+                />
+              </>
+            )}
+            {isCubeResource && (
               <fieldset className="cubes-query-mode">
                 <legend>מבנה שאילתת זמן וגיאוגרפיה</legend>
                 <div className="cubes-query-mode-options">
@@ -662,7 +776,7 @@ export default function LayersPanel({
                 </div>
               </fieldset>
             )}
-            {provider.trim().toLowerCase() === "cubes" && (
+            {isCubeResource && (
               <CubesParametersFieldset
                 definitions={parameterDefinitions}
                 options={dynamicParameterOptions}
@@ -683,7 +797,20 @@ export default function LayersPanel({
                 }}
               />
             )}
-            {provider.trim().toLowerCase() === "cubes" && requiresSamplePolygon && (
+            {isFlowPackage && (
+              <PackageParametersFieldset
+                definitions={parameterDefinitions}
+                values={dynamicParameterValues}
+                busy={generatingMetadata}
+                onChange={(parameterName, value) => {
+                  setDynamicParameterValues((current) => ({
+                    ...current,
+                    [parameterName]: value,
+                  }));
+                }}
+              />
+            )}
+            {requiresSamplePolygon && (
               <fieldset className="cubes-query-mode cubes-sample-polygon">
                 <legend>פוליגון לדגימת metadata</legend>
                 <div className="cubes-query-mode-options cubes-sample-polygon-options">
@@ -731,7 +858,13 @@ export default function LayersPanel({
               onClick={handleAddLayer}
               disabled={
                 !name.trim() || !sourceUrl.trim() || saving ||
-                dynamicParameterNames.some((parameterName) => !dynamicParameterValues[parameterName])
+                parameterDefinitions.some(
+                  (definition) =>
+                    definition.required
+                    && !definition.has_default
+                    && !isGeometryParameter(definition)
+                    && !dynamicParameterValues[definition.name]
+                )
               }
             >
               {saving ? "מוסיף…" : "הוספת שכבה"}

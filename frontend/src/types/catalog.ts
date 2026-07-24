@@ -3,6 +3,7 @@
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 
 export type CubesQueryMode = "auto" | "match_not" | "legacy";
+export type FlapiResourceType = "cube" | "package";
 
 export interface CatalogLayer {
   id: string;
@@ -22,9 +23,12 @@ export interface CreateLayerRequest {
   tags: string[];
   provider: string;
   source_url: string;
+  flapi_resource_type?: FlapiResourceType;
   cubes_query_mode?: CubesQueryMode;
   cubes_parameters?: Record<string, string>;
   cubes_dynamic_parameters?: Record<string, string>;
+  package_parameters?: Record<string, unknown>;
+  package_query?: string | null;
 }
 
 export interface UpdateLayerRequest {
@@ -37,9 +41,12 @@ export interface GenerateLayerMetadataRequest {
   name: string;
   provider: string;
   source_url: string;
+  flapi_resource_type?: FlapiResourceType;
   cubes_query_mode?: CubesQueryMode;
   cubes_parameters?: Record<string, string>;
   cubes_dynamic_parameters?: Record<string, string>;
+  package_parameters?: Record<string, unknown>;
+  package_query?: string | null;
   cubes_sample_boundary?: GeoJSONMultiPolygon | null;
 }
 
@@ -69,7 +76,12 @@ export interface GeneratedLayerMetadataResponse {
 export interface CubesParameterDefinition {
   name: string;
   display_name: string;
+  description: string;
+  type: string;
   required: boolean;
+  single_value: boolean;
+  ontology_type: string;
+  has_default: boolean;
   dynamic: boolean;
   options: string[];
 }
