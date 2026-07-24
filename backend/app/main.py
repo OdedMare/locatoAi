@@ -7,6 +7,7 @@ from app.common.config.settings_provider import get_settings
 from app.service.errors.registry import ErrorHandlerRegistry
 from app.service.health.router import HealthRouter
 from app.service.agent.router import router as agent_router
+from app.service.agent_config.router import router as agent_config_router
 from app.service.catalog.router import router as catalog_router
 from app.service.feedback.router import router as feedback_router
 from app.service.models.router import router as models_router
@@ -16,7 +17,7 @@ from app.service.settings.router import router as settings_router
 
 _ROUTERS = (
     query_router, plan_router, settings_router, agent_router,
-    feedback_router, catalog_router, models_router,
+    agent_config_router, feedback_router, catalog_router, models_router,
 )
 
 

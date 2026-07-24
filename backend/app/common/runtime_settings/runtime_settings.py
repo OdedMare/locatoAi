@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Dict, Optional
 
 
 @dataclass
@@ -26,6 +26,8 @@ class RuntimeSettings:
     database_name: str
     layers_table: str
     feedback_table: str
+    agent_content_overrides: Dict[str, str] = field(default_factory=dict)
+    agent_custom_skills: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     def quoted_layers_table(self) -> str:
         """The layers table as a safely quoted SQL identifier."""

@@ -18,10 +18,13 @@ _PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "generate_layer_metada
 class LayerMetadataGenerator:
     _FETCH_LIMIT = 100
 
-    def __init__(self, llm: LLMClient, providers: ProviderRegistry) -> None:
+    def __init__(
+        self, llm: LLMClient, providers: ProviderRegistry,
+        content_repository=None,
+    ) -> None:
         self._llm = llm
         self._providers = providers
-        self._prompt = _PROMPT_PATH.read_text(encoding="utf-8")
+        self._content_repository = content_repository
         self._sample_builder = MetadataSampleBuilder()
         self._response_mapper = MetadataResponseMapper()
 
@@ -42,10 +45,15 @@ class LayerMetadataGenerator:
             layer, provider, sample_geometry
         )
         user, sample_count = self._sample_builder.build(layer, features, schema)
-        data = self._llm.complete_json(system=self._prompt, user=user)
+        data = self._llm.complete_json(system=self._prompt(), user=user)
         return self._response_mapper.map(
             data, sample_count, parameters, requires_polygon
         )
+
+    def _prompt(self) -> str:
+        if self._content_repository is not None:
+            return self._content_repository.prompt("generate_layer_metadata.md")
+        return _PROMPT_PATH.read_text(encoding="utf-8")
 
     def _sample(self, layer, provider, sample_geometry=None):
         try:

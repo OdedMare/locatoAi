@@ -17,11 +17,11 @@ class LayerSelector:
     def __init__(
         self, llm: LLMClient, catalog: CatalogService,
         diet_mode: Callable[[], bool] = None,
+        content_repository=None,
     ) -> None:
         self._llm = llm
         self._catalog = catalog
-        self._template = (_PROMPTS / "select_layers.md").read_text(encoding="utf-8")
-        self._diet_template = (_PROMPTS / "select_layers_diet.md").read_text(encoding="utf-8")
+        self._content_repository = content_repository
         self._diet_mode = diet_mode or self._diet_disabled
         self._formatter = LayerCatalogFormatter()
         self._mapper = LayerSelectionMapper()
@@ -31,10 +31,16 @@ class LayerSelector:
         if not layers:
             return self._no_layers()
         diet = self._diet_mode()
-        template = self._diet_template if diet else self._template
+        name = "select_layers_diet.md" if diet else "select_layers.md"
+        template = self._prompt(name)
         system = template.replace("{catalog}", self._formatter.format(layers, diet))
         data = self._llm.complete_json(system=system, user=query.strip())
         return self._mapper.from_response(data, layers)
+
+    def _prompt(self, name: str) -> str:
+        if self._content_repository is not None:
+            return self._content_repository.prompt(name)
+        return (_PROMPTS / name).read_text(encoding="utf-8")
 
     @staticmethod
     def _no_layers() -> LayerSelection:

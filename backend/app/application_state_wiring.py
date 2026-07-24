@@ -9,6 +9,7 @@ from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.common.logging.configurator import configure_logging
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.feedback.feedback_repository import PostgresFeedbackRepository
+from app.dal.agent_content.repository import AgentContentRepository
 from app.dal.catalog.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
 from app.dal.providers.cubes.provider import CubesProvider
@@ -22,10 +23,15 @@ class ApplicationStateWiring:
     @classmethod
     def wire(cls, app, settings) -> None:
         store = RuntimeSettingsStore(settings)
+        agent_content = AgentContentRepository(store)
         repository = PostgresLayersRepository(store)
         providers = cls._providers(store, settings)
-        services = cls._services(store, repository, providers, settings)
-        cls._assign(app, store, repository, providers, services, settings)
+        services = cls._services(
+            store, repository, providers, settings, agent_content
+        )
+        cls._assign(
+            app, store, repository, providers, services, settings, agent_content
+        )
 
     @staticmethod
     def _providers(store, settings):
@@ -39,7 +45,9 @@ class ApplicationStateWiring:
         return registry, mqs, cubes, tyche
 
     @staticmethod
-    def _services(store, repository, provider_bundle, settings):
+    def _services(
+        store, repository, provider_bundle, settings, agent_content
+    ):
         providers = provider_bundle[0]
         catalog = CatalogService(
             repository, providers,
@@ -48,19 +56,31 @@ class ApplicationStateWiring:
         executor = PlanExecutor(catalog, providers)
         llm = OpenAIJsonClient(store)
         diet_mode = RuntimeDietMode(store)
-        selector = LayerSelector(llm, catalog, diet_mode=diet_mode)
-        builder = PlanBuilder(llm, catalog, diet_mode=diet_mode)
-        metadata = LayerMetadataGenerator(llm, providers)
+        selector = LayerSelector(
+            llm, catalog, diet_mode=diet_mode,
+            content_repository=agent_content,
+        )
+        builder = PlanBuilder(
+            llm, catalog, diet_mode=diet_mode,
+            content_repository=agent_content,
+        )
+        metadata = LayerMetadataGenerator(
+            llm, providers, content_repository=agent_content
+        )
         orchestrator = QueryOrchestrator(
             catalog, executor, layer_selector=selector, plan_builder=builder
         )
         return catalog, llm, selector, metadata, orchestrator
 
     @staticmethod
-    def _assign(app, store, repository, provider_bundle, services, settings) -> None:
+    def _assign(
+        app, store, repository, provider_bundle, services, settings,
+        agent_content,
+    ) -> None:
         providers, mqs, cubes, tyche = provider_bundle
         catalog, llm, selector, metadata, orchestrator = services
         app.state.settings_store = store
+        app.state.agent_content = agent_content
         app.state.repository = repository
         app.state.feedback_repository = PostgresFeedbackRepository(store)
         app.state.mqs_provider = mqs
