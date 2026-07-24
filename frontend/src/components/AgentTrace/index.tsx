@@ -19,6 +19,18 @@ const MOVEMENT_DIRECTION_HE: Record<string, string> = {
   west: "מערבה",
 };
 
+const TRAJECTORY_RELATION_HE: Record<string, string> = {
+  together: "נעו או שהו יחד",
+  same_destination: "הגיעו לאותו יעד",
+  same_time: "נעו באותו זמן",
+  same_place_different_times: "עברו באותו מקום בזמנים שונים",
+};
+
+const ORIGIN_MOVEMENT_HE: Record<string, string> = {
+  departed: "יצאו מנקודת המוצא המשוערת",
+  round_trip: "יצאו וחזרו לנקודת המוצא המשוערת",
+};
+
 /** One Hebrew line per plan step, with layer ids resolved to names. */
 function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): string {
   switch (step.op) {
@@ -52,6 +64,10 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
       return `המיקום האחרון לכל ישות לפי ${step.entity_field ?? "netId"}`;
     case "movement_direction":
       return `ישויות שנעו ${MOVEMENT_DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? 50} מ'`;
+    case "trajectory_relation":
+      return `${TRAJECTORY_RELATION_HE[step.relation ?? ""] ?? step.relation} (מרחק עד ${step.max_distance_m ?? 100} מ', מרווח זמן ${step.time_tolerance_minutes ?? 5} דק')`;
+    case "origin_movement":
+      return `${ORIGIN_MOVEMENT_HE[step.pattern ?? ""] ?? step.pattern} בין ${step.start_at} ל-${step.end_at}`;
     case "count":
       return "ספירת תוצאות";
   }
@@ -80,7 +96,8 @@ const OP_HE: Record<string, string> = {
   between: "בין יעדים", crosses: "חצייה", touches: "נגיעה",
   contains: "הכלה", directional: "כיוון", temporal_filter: "טווח זמן",
   cluster: "קיבוץ", latest_per_entity: "מיקום אחרון",
-  movement_direction: "כיוון תנועה", count: "ספירה",
+  movement_direction: "כיוון תנועה", trajectory_relation: "קשר בין מסלולים",
+  origin_movement: "תנועה מנקודת מוצא", count: "ספירה",
 };
 
 function PipelineTimeline({ response }: { response: GeoQueryResponse }) {

@@ -145,6 +145,8 @@ A plan is an ordered DAG. Each step has a unique ID, and any `input` must refer 
 | `cluster` | Finds same-layer groups whose members are mutually close. |
 | `latest_per_entity` | Keeps the newest observation for each stable entity identity. |
 | `movement_direction` | Detects movement in any direction or a dominant compass direction and returns each matching entity's latest position and path. |
+| `trajectory_relation` | Compares different entities' tracks for moving together, a shared destination, concurrent movement, or the same place at different times. |
+| `origin_movement` | Detects departure from an inferred starting point or a round trip back to it within an explicit time window. |
 | `between` | Keeps features inside a metric corridor between two references. |
 | `crosses` | Keeps input geometries crossing a target geometry. |
 | `touches` | Keeps input geometries touching a target boundary without interior overlap. |
@@ -183,7 +185,7 @@ the request boundary expanded by their requested distance.
 FLAPI is the top-level provider for Cubes and Flow Packages. New cube catalog entries
 use `provider="flapi"` and `source_url="flapi://cube/<dbname>"`; existing
 `provider="cubes"` / `cubes://db/<dbname>` rows remain supported as a compatibility
-alias. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Name-only entries are hydrated through `GET /cube/v1/<dbname>/parameters/<parameterName>` before required values are resolved. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, supports declared `polygon`/`date` request shapes, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. `netId` is the stable entity identity and `eventTime` is the observation time. Plans can collapse repeated observations with `latest_per_entity` or detect movement in any/north/south/east/west direction with `movement_direction`.
+alias. The adapter reads cube metadata from `GET /cube/v1/<dbname>` and, when parameters are not embedded there, discovers them through `GET /cube/v1/<dbname>/parameters`. Name-only entries are hydrated through `GET /cube/v1/<dbname>/parameters/<parameterName>` before required values are resolved. Declared fields are merged with dynamically inferred response fields, so new response properties require no code change. The adapter supports legacy relative windows plus exact `eventTime.match`/`eventTime.not`-style parameters, pushes a plan's temporal range as `From`/`To`, supports declared `polygon`/`date` request shapes, and locally rechecks returned WKT `POINT` geometries. This is Cubes-only; MQS retains its documented geographic payload. Cubes commonly uses `netId` as identity and `eventTime` as observation time, while trajectory plans accept any schema-backed stable identity/time fields. Plans can collapse observations, detect direction or round trips, and compare multiple entities' movement in space and time.
 
 Fixed parameter values declared by Cubes metadata are sent unchanged with every cube
 request. For example, a required parameter with `"Name": "environment"` and

@@ -70,11 +70,11 @@ class GeoQueryPlan(BaseModel):
     output: str            # step id that produces the plan's result
     context_layers: List[str] = []
 ```
-`Step` (`models/step.py`) is `Annotated[Union[16 step classes], Field(discriminator="op")]`
+`Step` (`models/step.py`) is `Annotated[Union[18 step classes], Field(discriminator="op")]`
 — the discriminator field is **`op`**, a `Literal[...]` on every concrete step model.
-This is the single place to touch when adding step #17.
+This is the single place to touch when adding another step type.
 
-### The 16 step types (`models/*_step.py`)
+### The 18 step types (`models/*_step.py`)
 
 | Step model | `op` literal | Purpose |
 |---|---|---|
@@ -93,6 +93,8 @@ This is the single place to touch when adding step #17.
 | `ClusterStep` | `cluster` | Connected group of ≥ `min_group_size` mutually within `max_distance_m` |
 | `LatestPerEntityStep` | `latest_per_entity` | Most-recent row per `entity_field` (by `time_field`) |
 | `MovementDirectionStep` | `movement_direction` | Entities whose first→last position moved `min_distance_m`+ in a direction |
+| `TrajectoryRelationStep` | `trajectory_relation` | Compare different entities' tracks in space/time using configurable buffers |
+| `OriginMovementStep` | `origin_movement` | Detect departure from or return to an inferred starting point |
 | `CountStep` | `count` | Terminal aggregation: row count as a plain `int`; must be the plan's final step |
 
 `reference_entity_filter`, `union_find`, `proximity_result_builder` (in
@@ -188,6 +190,8 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
 | `nearest_n.py` | `NearestNOp` | `NearestNStep` | Top-N via `sjoin_nearest` + `nsmallest` |
 | `directional.py` | `DirectionalOp` | `DirectionalStep` | Ranks by WGS84 bbox center on N/S/E/W axis |
 | `movement_direction.py` | `MovementDirectionOp` | `MovementDirectionStep` | Groups by entity, compares first vs last position; emits `movement_distance_m`, `movement_direction`, `movement_path` |
+| `trajectory_relation.py` | `TrajectoryRelationOp` | `TrajectoryRelationStep` | Pairwise track comparison for together/destination/time/shared-place patterns; emits related ids and paths |
+| `origin_movement.py` | `OriginMovementOp` | `OriginMovementStep` | Detects departures and round trips inside an explicit window; labels the origin as inferred |
 | `latest_per_entity.py` | `LatestPerEntityOp` | `LatestPerEntityStep` | Sorts by time, drops duplicate entity keys keeping the latest |
 | `cluster.py` | `ClusterOp` | `ClusterStep` | Buffer + `sjoin` self-join graph + `UnionFind`; tags `cluster_id` |
 | `count.py` | `CountOp` | `CountStep` | `len(ctx.results[step.input])` as a plain `int` |
@@ -369,7 +373,7 @@ semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID d
 
 ## Cross-cutting notes
 
-- **The 16-step Union is the contract surface.** Adding a new plan operation touches:
+- **The 18-step Union is the contract surface.** Adding a new plan operation touches:
   the Pydantic model, `step.py`'s Union, `validators.py` (if it needs semantic checks),
   a new `ops/*.py` handler with `@register_op`, `ops/__init__.py`'s import list, one
   `skills/plan-geo-queries/references/*.md` definition, prompt policy when needed,
@@ -378,7 +382,8 @@ semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID d
 - **Hebrew strings are pervasive** in `match_reason` columns and clarify fallbacks —
   this is a Hebrew-first product.
 - **ITM (EPSG:2039)** is the fixed metric CRS for all meter-based spatial math (`near`,
-  `near_all`, `nearest_n`, `between`, `cluster`, `movement_direction`) via
+  `near_all`, `nearest_n`, `between`, `cluster`, `movement_direction`,
+  `trajectory_relation`, `origin_movement`) via
   `app.common.geo.metric_crs_for`/`to_metric` — WGS84 degrees are never used directly
   for distance math.
 - Every op class is effectively a singleton: `OpRegistration.__call__` instantiates the

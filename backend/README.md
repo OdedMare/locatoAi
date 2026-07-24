@@ -23,7 +23,7 @@ POST /api/query {query, boundaries: MultiPolygon}
 
 The model never writes SQL and never invents data sources: it chooses from a
 **Postgres layer catalog** and emits a **plan** — a small, validated JSON program
-over 16 spatial, filtering, movement, and aggregation operations.
+18 spatial, filtering, movement, and aggregation operations.
 
 ---
 
@@ -166,6 +166,8 @@ Plans are DAGs of steps chained by `id`/`input`. Validators guarantee every
 | `cluster` | find mutually close groups within the input layer | adds `cluster_id` |
 | `latest_per_entity` | newest observation per identity | Cubes defaults: `netId` + `eventTime` |
 | `movement_direction` | movement in any or a dominant compass direction | latest matching position + path distance/displacement |
+| `trajectory_relation` | compare different entities' tracks | together, same destination/time, or same place at different times |
+| `origin_movement` | departure or round trip from an inferred origin | explicit time window, distance/time buffers, and path |
 | `between` | keep features in a corridor between two references | metric corridor width |
 | `crosses` | input crosses target | topological relation |
 | `touches` | input touches target without interior overlap | topological relation |
@@ -389,9 +391,10 @@ provider behavior belongs in the collaborator that owns that single responsibili
   New requests use `cubes_parameters`; `cubes_dynamic_parameters` is retained for
   compatibility. A declared `polygon` receives `{"value": [<boundary WKT>]}` and a
   plain `date` receives `{"TimeBackUnit":"no_time","TimeBackValue":1}`.
-  Moving-entity plans use `netId` as identity and `eventTime` as time. The
-  `latest_per_entity` and `movement_direction` operations prevent repeated observations
-  from being mistaken for multiple vehicles and support trajectory questions.
+  Moving-entity plans use schema-backed identity/time fields (`netId`/`eventTime` for
+  typical Cubes layers). `latest_per_entity`, `movement_direction`,
+  `trajectory_relation`, and `origin_movement` prevent repeated observations from being
+  mistaken for multiple vehicles and support single- and multi-track questions.
   `ResultsLimit` controls truncation detection (default 10,000). When a bounded request
   reaches it, the provider adaptively splits only saturated spatial tiles, recursively
   fetches them, and deduplicates complete JSON observations. Depth and a 100,000-row

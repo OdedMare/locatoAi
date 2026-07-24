@@ -57,6 +57,8 @@ export interface GeoPlanStep {
     | "cluster"
     | "latest_per_entity"
     | "movement_direction"
+    | "trajectory_relation"
+    | "origin_movement"
     | "count";
   input?: string;
   layer?: string;
@@ -92,6 +94,17 @@ export interface GeoPlanStep {
   entity_field?: string;
   time_field?: string;
   min_distance_m?: number;
+  relation?: "together" | "same_destination" | "same_time" | "same_place_different_times";
+  time_tolerance_minutes?: number;
+  max_gap_minutes?: number;
+  min_duration_minutes?: number;
+  min_time_separation_minutes?: number;
+  min_movement_distance_m?: number;
+  pattern?: "departed" | "round_trip";
+  start_at?: string;
+  end_at?: string;
+  min_departure_distance_m?: number;
+  max_return_distance_m?: number;
 }
 
 /** The plan the agent built (mirrors backend GeoQueryPlan). */

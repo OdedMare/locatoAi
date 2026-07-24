@@ -105,22 +105,26 @@ def test_movement_without_compass_direction_parses():
 
 
 def test_trajectory_relation_and_origin_movement_parse_with_schema_fields():
-    plan = make_plan(steps=[
+    relation_plan = make_plan(steps=[
         {"id": "s1", "op": "load", "layer": "accidents"},
         {
             "id": "s2", "op": "trajectory_relation", "input": "s1",
             "relation": "same_time", "entity_field": "personKey",
             "time_field": "observedAt", "time_tolerance_minutes": 10,
         },
+    ], output="s2")
+    origin_plan = make_plan(steps=[
+        {"id": "s1", "op": "load", "layer": "accidents"},
         {
-            "id": "s3", "op": "origin_movement", "input": "s2",
+            "id": "s2", "op": "origin_movement", "input": "s1",
             "pattern": "departed", "start_at": "2026-07-15T20:00:00Z",
             "end_at": "2026-07-16T05:00:00Z",
             "entity_field": "personKey", "time_field": "observedAt",
         },
-    ], output="s3")
+    ], output="s2")
 
-    validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
+    validate_plan(relation_plan, KNOWN_LAYERS, has_user_geometry=False)
+    validate_plan(origin_plan, KNOWN_LAYERS, has_user_geometry=False)
 
 
 @pytest.mark.parametrize("op", ["trajectory_relation", "origin_movement"])
