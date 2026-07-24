@@ -57,7 +57,7 @@ class OpenAIJsonClient:
         self._cached_client = None
         self._cached_key = None
 
-    def complete_json(self, system: str, user: str) -> dict:
+    def complete_json(self, system: str, user: str, schema=None) -> dict:
         settings = self._store.get()
         self._validate_configuration(settings)
         client = self._client_for(settings.openai_api_key, settings.llm_base_url)
@@ -68,7 +68,9 @@ class OpenAIJsonClient:
         last_error = "unknown"
         total_usage = self._empty_usage()
         for _attempt in range(_MAX_JSON_ATTEMPTS):
-            content, usage = self._complete_for_settings(client, settings, messages)
+            content, usage = self._complete_for_settings(
+                client, settings, messages, schema
+            )
             self._add_usage(total_usage, usage)
             try:
                 return self._parse_with_usage(content, total_usage)
@@ -119,9 +121,12 @@ class OpenAIJsonClient:
             self._cached_key = cache_key
         return self._cached_client
 
-    def _complete_for_settings(self, client, settings, messages):
+    def _complete_for_settings(self, client, settings, messages, schema=None):
         max_tokens = _DIET_MAX_COMPLETION_TOKENS if settings.llm_diet_mode else None
-        return self._complete(client, settings.llm_model, messages, max_tokens=max_tokens)
+        return self._complete(
+            client, settings.llm_model, messages,
+            max_tokens=max_tokens, schema=schema,
+        )
 
     @staticmethod
     def _validate_configuration(settings) -> None:
@@ -173,12 +178,12 @@ class OpenAIJsonClient:
     @staticmethod
     def _complete(
         client: "OpenAI", model: str, messages: list,
-        max_tokens=None,
+        max_tokens=None, schema=None,
     ):
         # Degradation ladder for OpenAI-compatible servers:
         # 1. JSON mode → 2. plain → 3. plain with the system prompt merged
         # into the user turn (some Gemma deployments reject a system role).
-        attempts = OpenAIJsonClient._attempts(messages, max_tokens)
+        attempts = OpenAIJsonClient._attempts(messages, max_tokens, schema)
         last_bad_request = None
         for kwargs in attempts:
             try:
@@ -194,12 +199,24 @@ class OpenAIJsonClient:
         return OpenAIJsonClient._response_data(response)
 
     @staticmethod
-    def _attempts(messages: list, max_tokens=None) -> list:
-        attempts = [
+    def _attempts(messages: list, max_tokens=None, schema=None) -> list:
+        attempts = []
+        if schema is not None:
+            attempts.append({
+                "messages": messages,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "geo_plan_response",
+                        "schema": schema,
+                    },
+                },
+            })
+        attempts.extend([
             {"messages": messages, "response_format": {"type": "json_object"}},
             {"messages": messages},
             {"messages": _merge_system_into_user(messages)},
-        ]
+        ])
         if max_tokens is None:
             return attempts
         return [{**kwargs, "max_tokens": max_tokens} for kwargs in attempts]

@@ -32,9 +32,4 @@ class MqsSource:
 
     @staticmethod
     def entity_field(layer: LayerMeta) -> Optional[str]:
-        prefix = "entity_field:"
-        return next(
-            (tag[len(prefix):].strip() for tag in layer.tags
-             if tag.startswith(prefix) and tag[len(prefix):].strip()),
-            None,
-        )
+        return layer.entity_field

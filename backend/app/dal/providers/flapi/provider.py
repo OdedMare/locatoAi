@@ -1,5 +1,6 @@
 """Top-level FLAPI provider dispatching Cube and Flow Package resources."""
 
+from app.bl.providers.provider import TEMPORAL_PUSHDOWN
 from app.dal.providers.flapi.client_factory import FlapiClientFactory
 from app.dal.providers.flapi.cube_provider import CubesProvider
 from app.dal.providers.flapi.package_provider import FlowPackageProvider
@@ -7,6 +8,8 @@ from app.dal.providers.flapi.source import FlapiSource
 
 
 class FlapiProvider:
+    capabilities = frozenset({TEMPORAL_PUSHDOWN})
+
     def __init__(self, settings_store, transport=None) -> None:
         self._source = FlapiSource()
         clients = FlapiClientFactory(settings_store, transport)

@@ -26,7 +26,9 @@ class PlanBuilder:
         content_repository=None,
     ) -> None:
         self._content_repository = content_repository
-        self._skills = GeoSkillCatalog(content_repository=content_repository)
+        self._skills = GeoSkillCatalog(
+            content_repository=content_repository, catalog=catalog
+        )
         self._diet_mode = diet_mode or self._diet_disabled
         self._formatter = LayerPromptFormatter(catalog)
         self._loop = PlanBuildLoop(
@@ -90,9 +92,7 @@ class PlanBuilder:
 
     @staticmethod
     def _profile_ids(layers) -> set:
-        prefix = "profile:"
         return {
-            tag[len(prefix):].strip()
-            for layer in layers for tag in layer.tags
-            if tag.startswith(prefix) and tag[len(prefix):].strip()
+            profile
+            for layer in layers for profile in layer.profiles
         }

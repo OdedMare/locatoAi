@@ -36,6 +36,9 @@ export interface SelectedLayer {
   name: string;
   tags: string[];
   description: string;
+  entity_field?: string | null;
+  display_field?: string | null;
+  profiles: string[];
 }
 
 /** One step of a Geo Query Plan (discriminated by `op` on the backend). */
@@ -127,6 +130,8 @@ export interface GeoQueryResponse {
   features: GeoJSON.FeatureCollection | null;
   /** Set when the plan ends in a `count` step; `features` is then null. */
   scalar_result: number | null;
+  /** Preferred feature property for map labels. */
+  display_field: string | null;
   timing_ms: Record<string, number> | null;
   token_usage: {
     prompt_tokens: number;

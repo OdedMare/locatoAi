@@ -17,6 +17,7 @@ class QueryResponse(BaseModel):
     features: Optional[Dict[str, Any]] = None  # GeoJSON FeatureCollection
     scalar_result: Optional[int] = None
     """For count plans, set while features is null."""
+    display_field: Optional[str] = None
     timing_ms: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
     selected_layers: List[SelectedLayerDto] = []
@@ -35,6 +36,7 @@ class QueryResponse(BaseModel):
             plan=outcome.plan,
             features=gdf_to_feature_collection(outcome.features),
             scalar_result=outcome.scalar_result,
+            display_field=outcome.display_field,
             timing_ms=outcome.timing_ms,
             token_usage=outcome.token_usage,
             selected_layers=cls._selected_layers(outcome),
@@ -49,6 +51,9 @@ class QueryResponse(BaseModel):
             SelectedLayerDto(
                 id=layer.id, name=layer.name, tags=layer.tags,
                 description=layer.description,
+                entity_field=layer.entity_field,
+                display_field=layer.display_field,
+                profiles=layer.profiles,
             )
             for layer in outcome.selected_layers
         ]

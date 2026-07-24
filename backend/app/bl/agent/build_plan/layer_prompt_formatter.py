@@ -33,6 +33,7 @@ class LayerPromptFormatter:
         roles = [
             f"entity={schema.entity_field}" if schema.entity_field else "",
             f"time={schema.temporal_field}" if schema.temporal_field else "",
+            f"display={schema.display_field}" if schema.display_field else "",
         ]
         rendered = ", ".join(role for role in roles if role)
         return " | roles: " + rendered if rendered else ""

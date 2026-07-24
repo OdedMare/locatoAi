@@ -76,13 +76,10 @@ class FlapiSchemaMapper:
     def with_layer_roles(
         schema: LayerSchema, layer: LayerMeta
     ) -> LayerSchema:
-        prefix = "entity_field:"
-        entity = next(
-            (tag[len(prefix):].strip() for tag in layer.tags
-             if tag.startswith(prefix) and tag[len(prefix):].strip()),
-            None,
-        )
-        return schema.model_copy(update={"entity_field": entity})
+        return schema.model_copy(update={
+            "entity_field": layer.entity_field,
+            "display_field": layer.display_field,
+        })
 
     def metadata_fields(self, payload: dict) -> List[LayerField]:
         fields = self._value(payload, "Fields", "fields") or []

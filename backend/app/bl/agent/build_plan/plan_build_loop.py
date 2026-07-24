@@ -5,6 +5,7 @@ import json
 from pydantic import ValidationError
 
 from app.bl.agent.build_plan.plan_build_result import PlanBuildResult
+from app.bl.agent.build_plan.plan_response_schema import PLAN_RESPONSE_SCHEMA
 from app.bl.agent.build_plan.plan_build_state import PlanBuildState
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 from app.bl.plan.validators import validate_plan
@@ -27,7 +28,9 @@ class PlanBuildLoop:
     def run(self, query, system, selected_ids, has_boundaries, diet) -> PlanBuildResult:
         state = PlanBuildState(query)
         while state.attempt < self._MAX_ATTEMPTS:
-            data = self._llm.complete_json(system=system, user=state.user)
+            data = self._llm.complete_json(
+                system=system, user=state.user, schema=PLAN_RESPONSE_SCHEMA
+            )
             state.usage.add(data.pop("_usage", None))
             if self._is_tool_request(data, state):
                 self._handle_tool(data, selected_ids, state, diet)

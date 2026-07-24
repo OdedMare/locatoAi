@@ -45,10 +45,16 @@ class CatalogService:
 
     def update_layer_metadata(
         self, layer_id: str, name: str, description: str, tags: List[str],
+        entity_field=None, display_field=None, profiles=None,
     ) -> LayerMeta:
-        self.get_layer(layer_id)
+        current = self.get_layer(layer_id)
+        candidate = current.model_copy(update={
+            "name": name, "description": description, "tags": tags,
+            "entity_field": entity_field, "display_field": display_field,
+            "profiles": profiles or [],
+        })
         updated = self._repository.update_layer_metadata(
-            layer_id, name, description, tags
+            LayerMeta.model_validate(candidate.model_dump())
         )
         self._schema_cache.pop(layer_id, None)
         return updated

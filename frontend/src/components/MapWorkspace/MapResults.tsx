@@ -6,6 +6,7 @@ import { useMap } from "react-leaflet";
 
 interface MapResultsProps {
   features: GeoJSON.FeatureCollection | null;
+  displayField?: string | null;
 }
 
 const POINT_STYLE: L.CircleMarkerOptions = {
@@ -43,13 +44,13 @@ const MOVEMENT_STYLE: L.PolylineOptions = {
   opacity: 0.85,
 };
 
-function popupContent(feature: GeoJSON.Feature, title: string): HTMLElement {
+function popupContent(
+  feature: GeoJSON.Feature, title: string, displayField?: string | null
+): HTMLElement {
   const root = document.createElement("div");
   root.className = "entity-popup";
   const properties = feature.properties ?? {};
-  const displayName = ["שם", "name", "Name", "title", "callSign", "netId", "id"]
-    .map((key) => properties[key])
-    .find((value) => value != null && String(value).trim());
+  const displayName = displayField ? properties[displayField] : null;
   const header = document.createElement("div");
   header.className = "entity-popup-header";
   const marker = document.createElement("span");
@@ -107,7 +108,7 @@ function centerOf(layer: L.Layer): L.LatLng | null {
  * imperatively (add/remove on change) — react-leaflet's <GeoJSON> does
  * not update when its data prop changes.
  */
-export default function MapResults({ features }: MapResultsProps) {
+export default function MapResults({ features, displayField }: MapResultsProps) {
   const map = useMap();
 
   useEffect(() => {
@@ -118,7 +119,8 @@ export default function MapResults({ features }: MapResultsProps) {
       pointToLayer: (_feature, latlng) => L.circleMarker(latlng, POINT_STYLE),
       style: () => SHAPE_STYLE,
       onEachFeature: (feature, featureLayer) => {
-        featureLayer.bindPopup(popupContent(feature, "ישות שנמצאה"), {
+        featureLayer.bindPopup(
+          popupContent(feature, "ישות שנמצאה", displayField), {
           className: "entity-popup-shell",
           maxWidth: 360,
           minWidth: 260,
@@ -199,7 +201,7 @@ export default function MapResults({ features }: MapResultsProps) {
     return () => {
       map.removeLayer(group);
     };
-  }, [features, map]);
+  }, [displayField, features, map]);
 
   return null;
 }

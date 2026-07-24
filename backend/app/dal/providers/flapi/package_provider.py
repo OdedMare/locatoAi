@@ -68,6 +68,7 @@ class FlowPackageProvider:
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
+        attribute_filters: Optional[List[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
         definitions = self._parameter_definitions(layer)
         body = self._serializer.build(

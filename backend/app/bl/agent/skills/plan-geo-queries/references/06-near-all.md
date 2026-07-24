@@ -4,4 +4,4 @@
 
 **Do not use when:** Only one reference exists (`near`/`nearest_n`) or features must be near each other within the same subject layer (`cluster`). Never chain `nearest_n` for multi-reference proximity.
 
-Use the latest subject-chain step as input. Omit an unstated distance so the contract supplies the default. Each named target needs its complete filter; a whole layer does not. Add every target layer to `context_layers`.
+**Compose:** Use the latest subject-chain step as input. Omit an unstated distance so the contract supplies the default. Each named target needs its complete filter; a whole layer does not. Add every target layer to `context_layers`.

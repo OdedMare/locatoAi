@@ -5,6 +5,7 @@ from pathlib import Path
 from app.bl.agent.build_plan.operation_contract_catalog import (
     OperationContractCatalog,
 )
+from app.bl.agent.skill_field_references import SkillFieldReferences
 
 _REFERENCES = (
     Path(__file__).parent.parent / "skills" / "plan-geo-queries" / "references"
@@ -17,11 +18,14 @@ _PROFILES = (
 class GeoSkillCatalog:
     def __init__(
         self, references: Path = _REFERENCES, profiles: Path = _PROFILES,
-        content_repository=None,
+        content_repository=None, catalog=None,
     ) -> None:
         self._references = references
         self._profiles = profiles
         self._content_repository = content_repository
+        self._field_references = (
+            SkillFieldReferences(catalog) if catalog is not None else None
+        )
         self._contracts = OperationContractCatalog()
 
     def render(self, diet: bool = False, profile_ids=()) -> str:
@@ -44,6 +48,8 @@ class GeoSkillCatalog:
         if self._content_repository is None:
             return ""
         content = self._content_repository.custom_skill(skill_id).strip()
+        if self._field_references is not None:
+            content = self._field_references.render(content)
         return content[:1500 if diet else 4000]
 
     @staticmethod
@@ -51,7 +57,9 @@ class GeoSkillCatalog:
         content = content.strip()
         if not diet:
             return content
-        prefixes = ("# ", "**Use when:**", "**Do not use when:**")
+        prefixes = (
+            "# ", "**Use when:**", "**Do not use when:**", "**Compose:**",
+        )
         compact = "\n\n".join(
             line for line in content.splitlines() if line.startswith(prefixes)
         )

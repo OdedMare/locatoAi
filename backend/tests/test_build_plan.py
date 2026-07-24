@@ -47,8 +47,8 @@ class SequenceLLM:
         self.responses = list(responses)
         self.calls = []
 
-    def complete_json(self, system: str, user: str) -> dict:
-        self.calls.append({"system": system, "user": user})
+    def complete_json(self, system: str, user: str, schema=None) -> dict:
+        self.calls.append({"system": system, "user": user, "schema": schema})
         return dict(self.responses.pop(0))
 
 

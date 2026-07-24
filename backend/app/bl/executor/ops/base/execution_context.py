@@ -6,6 +6,10 @@ import geopandas as gpd
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.catalog_service import CatalogService
+from app.bl.providers.provider import (
+    ATTRIBUTE_FILTER_PUSHDOWN,
+    TEMPORAL_PUSHDOWN,
+)
 from app.bl.providers.registry import ProviderRegistry
 from app.common.utils.geo_utils import buffer_wgs84_geometry
 
@@ -31,13 +35,13 @@ class ExecutionContext:
     ) -> gpd.GeoDataFrame:
         geometry = self._geometry(push_down_geometry, geometry_hint)
         layer = self.catalog.get_layer(layer_id)
+        provider = self.providers.get(layer.provider)
         provider_range, provider_filters = self._pushdowns(
-            layer.provider, temporal_range, attribute_filters
+            provider, temporal_range, attribute_filters
         )
         cache_key = self._cache_key(layer_id, geometry, provider_range, provider_filters)
         if cache_key in self.feature_cache:
             return self.feature_cache[cache_key]
-        provider = self.providers.get(layer.provider)
         options = self._provider_options(geometry, provider_range, provider_filters)
         gdf = provider.fetch_features(layer, **options)
         gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
@@ -48,11 +52,15 @@ class ExecutionContext:
         return self.user_geometry if hint is None and push_down else hint
 
     @staticmethod
-    def _pushdowns(provider: str, temporal_range, attribute_filters):
+    def _pushdowns(provider, temporal_range, attribute_filters):
+        capabilities = getattr(provider, "capabilities", frozenset())
         provider_range = (
-            temporal_range if provider in ("cubes", "flapi", "tyche") else None
+            temporal_range if TEMPORAL_PUSHDOWN in capabilities else None
         )
-        provider_filters = attribute_filters if provider == "mqs" else None
+        provider_filters = (
+            attribute_filters
+            if ATTRIBUTE_FILTER_PUSHDOWN in capabilities else None
+        )
         return provider_range, provider_filters
 
     def _provider_options(self, geometry, temporal_range, attribute_filters):

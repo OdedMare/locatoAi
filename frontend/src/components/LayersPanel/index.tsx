@@ -69,6 +69,8 @@ export default function LayersPanel({
   const [tycheGeoQueryField, setTycheGeoQueryField] = useState("location");
   const [tycheTimeField, setTycheTimeField] = useState("eventTime");
   const [tycheEntityField, setTycheEntityField] = useState("");
+  const [displayField, setDisplayField] = useState("");
+  const [profiles, setProfiles] = useState("");
   const [flapiResourceType, setFlapiResourceType] =
     useState<FlapiResourceType>("cube");
   const [packageQuery, setPackageQuery] = useState("");
@@ -100,6 +102,9 @@ export default function LayersPanel({
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [editEntityField, setEditEntityField] = useState("");
+  const [editDisplayField, setEditDisplayField] = useState("");
+  const [editProfiles, setEditProfiles] = useState("");
   const [editTagDraft, setEditTagDraft] = useState("");
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -157,6 +162,9 @@ export default function LayersPanel({
     setEditName(layer.name);
     setEditDescription(layer.description);
     setEditTags(layer.tags);
+    setEditEntityField(layer.entity_field ?? "");
+    setEditDisplayField(layer.display_field ?? "");
+    setEditProfiles(layer.profiles.join(", "));
     setEditTagDraft("");
     setEditMessage(null);
   };
@@ -180,6 +188,9 @@ export default function LayersPanel({
     try {
       const updated = await updateLayer(editingLayerId, {
         name: editName.trim(), description: editDescription.trim(), tags: finalTags,
+        entity_field: editEntityField.trim() || null,
+        display_field: editDisplayField.trim() || null,
+        profiles: editProfiles.split(",").map((item) => item.trim()).filter(Boolean),
       });
       setLayers((current) => (current ?? []).map(
         (layer) => layer.id === updated.id ? updated : layer
@@ -210,6 +221,8 @@ export default function LayersPanel({
         package_parameters: isFlowPackage ? dynamicParameterValues : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
         entity_field: tycheEntityField.trim() || undefined,
+        display_field: displayField.trim() || undefined,
+        profiles: profiles.split(",").map((item) => item.trim()).filter(Boolean),
         tyche_geometry_field: tycheGeometryField.trim(),
         tyche_geo_query_field: tycheGeoQueryField.trim(),
         tyche_time_field: tycheTimeField.trim(),
@@ -225,6 +238,8 @@ export default function LayersPanel({
       setTycheGeoQueryField("location");
       setTycheTimeField("eventTime");
       setTycheEntityField("");
+      setDisplayField("");
+      setProfiles("");
       setFlapiResourceType("cube");
       setPackageQuery("");
       setCubesQueryMode("auto");
@@ -508,6 +523,8 @@ export default function LayersPanel({
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
     setTycheEntityField("");
+    setDisplayField(layer.display_field ?? "");
+    setProfiles(layer.profiles?.join(", ") ?? "");
     setFlapiResourceType("cube");
     setPackageQuery("");
     setCubesQueryMode("auto");
@@ -534,6 +551,8 @@ export default function LayersPanel({
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
     setTycheEntityField("");
+    setDisplayField("");
+    setProfiles("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
@@ -559,6 +578,8 @@ export default function LayersPanel({
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
     setTycheEntityField("");
+    setDisplayField("");
+    setProfiles("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
@@ -583,6 +604,8 @@ export default function LayersPanel({
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
     setTycheEntityField("");
+    setDisplayField("");
+    setProfiles("");
     setFlapiResourceType("cube");
     setPackageQuery("");
     setCubesQueryMode("auto");
@@ -727,6 +750,8 @@ export default function LayersPanel({
                     setTycheGeoQueryField("location");
                     setTycheTimeField("eventTime");
                     setTycheEntityField("");
+                    setDisplayField("");
+                    setProfiles("");
                     setFlapiResourceType("cube");
                     setPackageQuery("");
                     setDynamicParameterNames([]);
@@ -786,6 +811,34 @@ export default function LayersPanel({
               placeholder="entityId"
               dir="ltr"
             />
+            <div className="settings-input-row">
+              <div>
+                <label className="field-label" htmlFor="layer-display-field">
+                  שדה תצוגה <span className="optional">(אופציונלי)</span>
+                </label>
+                <input
+                  id="layer-display-field"
+                  className="settings-input"
+                  value={displayField}
+                  onChange={(event) => setDisplayField(event.target.value)}
+                  placeholder="displayName"
+                  dir="ltr"
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="layer-profiles">
+                  Profiles <span className="optional">(מופרדים בפסיק)</span>
+                </label>
+                <input
+                  id="layer-profiles"
+                  className="settings-input"
+                  value={profiles}
+                  onChange={(event) => setProfiles(event.target.value)}
+                  placeholder="friends"
+                  dir="ltr"
+                />
+              </div>
+            </div>
             <label className="field-label" htmlFor="layer-source-url">
               {isFlowPackage
                 ? "Flow Package ID"
@@ -1072,6 +1125,43 @@ export default function LayersPanel({
                       dir="auto"
                     />
                   </div>
+                  <div className="settings-input-row">
+                    <div>
+                      <label className="field-label" htmlFor={`edit-entity-${layer.id}`}>
+                        שדה מזהה ישות
+                      </label>
+                      <input
+                        id={`edit-entity-${layer.id}`}
+                        className="settings-input"
+                        value={editEntityField}
+                        onChange={(event) => setEditEntityField(event.target.value)}
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label" htmlFor={`edit-display-${layer.id}`}>
+                        שדה תצוגה
+                      </label>
+                      <input
+                        id={`edit-display-${layer.id}`}
+                        className="settings-input"
+                        value={editDisplayField}
+                        onChange={(event) => setEditDisplayField(event.target.value)}
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                  <label className="field-label" htmlFor={`edit-profiles-${layer.id}`}>
+                    Profiles
+                  </label>
+                  <input
+                    id={`edit-profiles-${layer.id}`}
+                    className="settings-input"
+                    value={editProfiles}
+                    onChange={(event) => setEditProfiles(event.target.value)}
+                    placeholder="friends, our-force"
+                    dir="ltr"
+                  />
                   {editMessage && <p className="settings-message" dir="auto">{editMessage}</p>}
                   <div className="catalog-edit-actions">
                     <button

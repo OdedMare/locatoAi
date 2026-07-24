@@ -22,6 +22,7 @@ from app.service.catalog.flapi_parameter_response import FlapiParameterResponse
 from app.service.catalog.generate_layer_metadata_request import GenerateLayerMetadataRequest
 from app.service.catalog.generated_layer_metadata_response import GeneratedLayerMetadataResponse
 from app.service.catalog.layers_response import LayersResponse
+from app.service.catalog.layer_fields_response import LayerFieldsResponse
 from app.service.catalog.mqs_sync_response import MqsSyncResponse
 from app.service.catalog.remote_mqs_layer_response import RemoteMqsLayerResponse
 from app.service.catalog.remote_mqs_layers_response import RemoteMqsLayersResponse
@@ -45,6 +46,14 @@ class CatalogRouter:
         return LayersResponse(
             layers=[CatalogRouter.catalog_layer(layer) for layer in layers],
             count=len(layers),
+        )
+
+    @staticmethod
+    def layer_fields(layer_id: str, request: Request) -> LayerFieldsResponse:
+        schema = request.app.state.catalog.get_schema(layer_id)
+        return LayerFieldsResponse(
+            layer_id=layer_id,
+            fields=[field.name for field in schema.fields],
         )
 
     @staticmethod
@@ -91,9 +100,23 @@ class CatalogRouter:
     def update_layer(
         cls, layer_id: str, body: UpdateLayerRequest, request: Request,
     ) -> CatalogLayer:
+        current = request.app.state.catalog.get_layer(layer_id)
+        supplied = body.model_fields_set
         updated = request.app.state.catalog.update_layer_metadata(
             layer_id, body.name.strip(), body.description.strip(),
             cls.clean_tags(body.tags, 40),
+            entity_field=(
+                body.entity_field.strip() if body.entity_field
+                else None if "entity_field" in supplied else current.entity_field
+            ),
+            display_field=(
+                body.display_field.strip() if body.display_field
+                else None if "display_field" in supplied else current.display_field
+            ),
+            profiles=(
+                cls.clean_profiles(body.profiles)
+                if body.profiles is not None else current.profiles
+            ),
         )
         request.app.state.request_log.info(
             "catalog_layer_updated", layer_id=updated.id,
@@ -301,10 +324,18 @@ class CatalogRouter:
         return list(dict.fromkeys(tag for tag in cleaned if tag))[:limit]
 
     @staticmethod
+    def clean_profiles(profiles: List[str]) -> List[str]:
+        cleaned = (str(profile).strip()[:60] for profile in profiles)
+        return list(dict.fromkeys(item for item in cleaned if item))[:10]
+
+    @staticmethod
     def catalog_layer(layer: LayerMeta) -> CatalogLayer:
         return CatalogLayer(
             id=layer.id, name=layer.name,
             description=layer.description, tags=layer.tags,
+            entity_field=layer.entity_field,
+            display_field=layer.display_field,
+            profiles=layer.profiles,
         )
 
     @classmethod
@@ -312,8 +343,11 @@ class CatalogRouter:
         return LayerMeta(
             id=str(uuid4()), name=body.name.strip(),
             description=body.description.strip(),
-            tags=cls._layer_tags(body.tags, body.entity_field),
+            tags=cls.clean_tags(body.tags, 20),
             provider=body.provider.strip(),
+            entity_field=body.entity_field.strip() if body.entity_field else None,
+            display_field=body.display_field.strip() if body.display_field else None,
+            profiles=cls.clean_profiles(body.profiles),
             source_url=cls.normalized_source(
                 body.provider, body.source_url, body.cubes_query_mode,
                 body.parameter_values(),
@@ -327,15 +361,6 @@ class CatalogRouter:
             ),
         )
 
-    @classmethod
-    def _layer_tags(
-        cls, tags: List[str], entity_field: Optional[str]
-    ) -> List[str]:
-        role = (
-            [f"entity_field:{entity_field.strip()}"] if entity_field else []
-        )
-        return cls.clean_tags([*role, *tags], 20)
-
     @staticmethod
     def _remote_layer(layer) -> RemoteMqsLayerResponse:
         return RemoteMqsLayerResponse(
@@ -345,6 +370,7 @@ class CatalogRouter:
 
 
 list_layers = CatalogRouter.list_layers
+layer_fields = CatalogRouter.layer_fields
 sync_mqs = CatalogRouter.sync_mqs
 list_remote_mqs_layers = CatalogRouter.list_remote_mqs_layers
 activate_tyche = CatalogRouter.activate_tyche
@@ -361,6 +387,10 @@ _clean_tags = CatalogRouter.clean_tags
 _catalog_layer = CatalogRouter.catalog_layer
 
 router.add_api_route("/api/layers", list_layers, methods=["GET"], response_model=LayersResponse)
+router.add_api_route(
+    "/api/layers/{layer_id}/fields", layer_fields,
+    methods=["GET"], response_model=LayerFieldsResponse,
+)
 router.add_api_route("/api/layers/sync-mqs", sync_mqs, methods=["POST"], response_model=MqsSyncResponse)
 router.add_api_route("/api/layers/mqs", list_remote_mqs_layers, methods=["GET"], response_model=RemoteMqsLayersResponse)
 router.add_api_route("/api/layers/activate-tyche", activate_tyche, methods=["POST"], response_model=CatalogLayer)

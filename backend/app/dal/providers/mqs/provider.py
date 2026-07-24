@@ -13,6 +13,7 @@ from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
+from app.bl.providers.provider import ATTRIBUTE_FILTER_PUSHDOWN
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.mqs.entity_mapper import MqsEntityMapper
 from app.dal.providers.mqs.entity_stream import MqsEntityStream
@@ -23,6 +24,7 @@ from app.dal.providers.mqs.source import MqsSource
 
 
 class MqsProvider:
+    capabilities = frozenset({ATTRIBUTE_FILTER_PUSHDOWN})
     _MAX_SAMPLE_CHARS = 40
     _METADATA_SAMPLE_SIZE = 10
 
@@ -56,6 +58,7 @@ class MqsProvider:
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
         attribute_filters: Optional[Sequence[Tuple[str, str]]] = None,
+        temporal_range: Optional[Tuple[str, str]] = None,
     ) -> gpd.GeoDataFrame:
         layer_id = self._source.layer_id(layer)
         with self._gateway.client() as client:

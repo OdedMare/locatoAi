@@ -1,4 +1,4 @@
-from typing import List, Protocol
+from typing import Dict, List, Optional, Protocol
 
 
 class LLMClient(Protocol):
@@ -7,6 +7,8 @@ class LLMClient(Protocol):
     Returns the parsed JSON object or raises common.errors.AgentError.
     """
 
-    def complete_json(self, system: str, user: str) -> dict: ...
+    def complete_json(
+        self, system: str, user: str, schema: Optional[Dict] = None
+    ) -> dict: ...
 
     def list_models(self) -> List[str]: ...

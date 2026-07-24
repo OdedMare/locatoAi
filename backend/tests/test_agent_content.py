@@ -93,8 +93,8 @@ def test_plan_loop_loads_custom_skill_before_planning(tmp_path, catalog):
             ]
             self.calls = []
 
-        def complete_json(self, system, user):
-            self.calls.append({"system": system, "user": user})
+        def complete_json(self, system, user, schema=None):
+            self.calls.append({"system": system, "user": user, "schema": schema})
             return self.responses.pop(0)
 
     llm = SequenceLLM()

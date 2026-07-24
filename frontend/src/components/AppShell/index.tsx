@@ -47,6 +47,7 @@ export default function AppShell() {
   const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [isAgentStudioOpen, setIsAgentStudioOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isThemeReady, setIsThemeReady] = useState(false);
 
   const drawnSampleBoundary: GeoJSONMultiPolygon | null = drawnGeometry
     ? polygonToMultiPolygon(drawnGeometry)
@@ -57,15 +58,19 @@ export default function AppShell() {
     const frame = window.requestAnimationFrame(() => {
       const savedTheme = window.localStorage.getItem("locato-theme");
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setIsDarkMode(savedTheme ? savedTheme === "dark" : prefersDark);
+      const useDarkTheme = savedTheme ? savedTheme === "dark" : prefersDark;
+      document.documentElement.dataset.theme = useDarkTheme ? "dark" : "light";
+      setIsDarkMode(useDarkTheme);
+      setIsThemeReady(true);
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
+    if (!isThemeReady) return;
     document.documentElement.dataset.theme = isDarkMode ? "dark" : "light";
     window.localStorage.setItem("locato-theme", isDarkMode ? "dark" : "light");
-  }, [isDarkMode]);
+  }, [isDarkMode, isThemeReady]);
 
   const handleModeChange = useCallback((mode: GeographyMode) => {
     setGeographyMode(mode);
@@ -166,6 +171,9 @@ export default function AppShell() {
         drawnGeometry={drawnGeometry}
         resultFeatures={
           lastResponse?.status === "ok" ? lastResponse.features : null
+        }
+        resultDisplayField={
+          lastResponse?.status === "ok" ? lastResponse.display_field : null
         }
         onViewChange={setMapView}
         onGeometryDrawn={handleGeometryDrawn}

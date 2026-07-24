@@ -10,6 +10,9 @@ export interface CatalogLayer {
   name: string;
   description: string;
   tags: string[];
+  entity_field?: string | null;
+  display_field?: string | null;
+  profiles: string[];
 }
 
 export interface LayersResponse {
@@ -30,6 +33,8 @@ export interface CreateLayerRequest {
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
   entity_field?: string;
+  display_field?: string;
+  profiles?: string[];
   tyche_geometry_field?: string;
   tyche_geo_query_field?: string;
   tyche_time_field?: string;
@@ -40,6 +45,14 @@ export interface UpdateLayerRequest {
   name: string;
   description: string;
   tags: string[];
+  entity_field?: string | null;
+  display_field?: string | null;
+  profiles?: string[];
+}
+
+export interface LayerFieldsResponse {
+  layer_id: string;
+  fields: string[];
 }
 
 export interface GenerateLayerMetadataRequest {

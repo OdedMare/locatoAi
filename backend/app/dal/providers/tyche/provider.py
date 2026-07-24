@@ -13,6 +13,7 @@ from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
+from app.bl.providers.provider import TEMPORAL_PUSHDOWN
 from app.common.utils.geo_utils import empty_features_gdf
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.tyche.feature_mapper import TycheFeatureMapper
@@ -23,6 +24,7 @@ from app.dal.providers.tyche.source import TycheSource
 
 
 class TycheProvider:
+    capabilities = frozenset({TEMPORAL_PUSHDOWN})
     _MAX_SAMPLE_CHARS = 80
 
     def __init__(
@@ -42,10 +44,11 @@ class TycheProvider:
         if rows is None and not source.is_our_forces:
             rows = self._fetch_rows(source, None, None, 100, None)
             self._samples[layer.id] = rows
-        return self._schema_builder.build(
+        schema = self._schema_builder.build(
             layer, rows or [], source.time_field, source.geometry_field,
-            source.entity_field, source.is_our_forces,
+            layer.entity_field or source.entity_field, source.is_our_forces,
         )
+        return schema.model_copy(update={"display_field": layer.display_field})
 
     def fetch_features(
         self,
@@ -54,6 +57,7 @@ class TycheProvider:
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
+        attribute_filters: Optional[List[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
         source = TycheSource.parse(layer.source_url)
         if limit is not None and limit < 1:

@@ -6,6 +6,7 @@ import type {
   GeneratedLayerMetadataResponse,
   GenerateLayerMetadataRequest,
   LayersResponse,
+  LayerFieldsResponse,
   MqsSyncResponse,
   RemoteMqsLayersResponse,
   UpdateLayerRequest,
@@ -15,6 +16,20 @@ import type {
 export async function getLayers(): Promise<LayersResponse> {
   const res = await fetch("/api/layers");
   if (!res.ok) throw new Error(`טעינת השכבות נכשלה (${res.status})`);
+  return res.json();
+}
+
+export async function getLayerFields(
+  layerId: string
+): Promise<LayerFieldsResponse> {
+  const res = await fetch(
+    `/api/layers/${encodeURIComponent(layerId)}/fields`,
+    { cache: "no-store" }
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `טעינת שדות השכבה נכשלה (${res.status})`);
+  }
   return res.json();
 }
 

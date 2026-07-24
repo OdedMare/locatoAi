@@ -90,7 +90,7 @@ export default function QueryPanel({
           onClick={onOpenAgentStudio}
         >
           <Bot size={17} />
-          Agent Studio
+          סטודיו לסוכן
         </button>
         <button
           type="button"
@@ -124,12 +124,12 @@ export default function QueryPanel({
         <header className="query-panel-header">
           <div className="header-row">
             <div>
-              <h1>מרכז חקירה <span className="model-pill"><Activity size={10} /> LIVE</span></h1>
+              <h1>מרכז חקירה <span className="model-pill"><Activity size={10} /> פעיל</span></h1>
               <p className="header-context">מודיעין גיאוגרפי מבוסס סוכן</p>
             </div>
             <div className="header-actions">
               <div className="mobile-header-actions">
-                <button type="button" onClick={onOpenAgentStudio} aria-label="פתיחת Agent Studio" title="Agent Studio">
+                <button type="button" onClick={onOpenAgentStudio} aria-label="פתיחת סטודיו לסוכן" title="סטודיו לסוכן">
                   <Bot size={18} />
                 </button>
                 <button type="button" onClick={onOpenLayers} aria-label="פתיחת שכבות זמינות" title="שכבות זמינות">
@@ -165,7 +165,7 @@ export default function QueryPanel({
                 <span className="welcome-orbit orbit-two" />
                 <span className="welcome-mark"><Radar size={27} /></span>
               </div>
-              <span className="welcome-eyebrow"><Sparkles size={12} /> GEO AGENT ONLINE</span>
+              <span className="welcome-eyebrow"><Sparkles size={12} /> הסוכן הגיאוגרפי פעיל</span>
               <h2>מה תרצו לגלות על המרחב?</h2>
               <p>חברו בין מיקומים, זמן ותנועה. הסוכן יבחר שכבות, יבנה תוכנית ויציג את התוצאה על המפה.</p>
               <div className="capability-strip">

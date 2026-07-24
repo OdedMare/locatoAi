@@ -10,6 +10,7 @@ function failedResponse(
   return {
     status: "error", request_id: requestId, clarify: message,
     plan: null, features: null, scalar_result: null, timing_ms: null,
+    display_field: null,
     token_usage: null, selected_layers: [], reasoning: "", tool_calls: [],
     pipeline_trace: trace,
   };

@@ -22,6 +22,7 @@ export interface LeafletMapProps {
   initialView: MapViewState;
   /** Query results to draw + zoom to (null = nothing to show). */
   resultFeatures: GeoJSON.FeatureCollection | null;
+  resultDisplayField?: string | null;
   /** Reports center/zoom/bbox whenever the user pans or zooms. */
   onViewChange: (view: MapViewState) => void;
   /** Called when the user finishes drawing a polygon or rectangle. */
@@ -59,6 +60,7 @@ export default function LeafletMap({
   drawnGeometry,
   initialView,
   resultFeatures,
+  resultDisplayField,
   onViewChange,
   onGeometryDrawn,
 }: LeafletMapProps) {
@@ -81,7 +83,10 @@ export default function LeafletMap({
         value={drawnGeometry}
         onChange={onGeometryDrawn}
       />
-      <MapResults features={resultFeatures} />
+      <MapResults
+        features={resultFeatures}
+        displayField={resultDisplayField}
+      />
       <LayerPicker activeLayer={activeLayerId} onLayerChange={setActiveLayerId} />
       <ZoomControl position="bottomleft" />
     </MapContainer>

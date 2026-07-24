@@ -48,13 +48,10 @@ class FlapiClientFactory:
 
     @staticmethod
     def _headers(token: str, username: Optional[str] = None) -> dict:
-        authorization = token.strip()
-        if not authorization.casefold().startswith("bearer "):
-            authorization = f"Bearer {authorization}"
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Authorization": authorization,
+            "Authorization": token.strip(),
         }
         if username:
             headers["username"] = username

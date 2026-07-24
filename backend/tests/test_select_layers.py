@@ -79,7 +79,7 @@ def test_selector_prompt_requires_all_multi_reference_layers(catalog):
     assert [layer.id for layer in selection.layers] == [
         "schools", "roundabouts", "accidents"
     ]
-    assert "Never drop the second reference layer" in llm.last_system
+    assert "Never drop a required second reference layer" in llm.last_system
     assert "`profile:<id>` tag" in llm.last_system
     assert "`tyche`" not in llm.last_system
 

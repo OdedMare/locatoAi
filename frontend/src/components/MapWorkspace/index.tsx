@@ -68,8 +68,8 @@ export default function MapWorkspace({ view, ...props }: MapWorkspaceProps) {
       </div>
       <div className="coordinate-console" dir="ltr">
         <div className="coordinate-console-head">
-          <span><Crosshair size={13} /> MAP CENTER</span>
-          <small>ZOOM {view.zoom}</small>
+          <span dir="rtl"><Crosshair size={13} /> מרכז המפה</span>
+          <small dir="rtl">זום {view.zoom}</small>
         </div>
         <strong>{lat.toFixed(6)}° N&nbsp;&nbsp;{lng.toFixed(6)}° E</strong>
         <div className="coordinate-formats">

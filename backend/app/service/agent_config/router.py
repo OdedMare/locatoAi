@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.bl.agent.skill_field_references import SkillFieldReferences
 from app.service.agent_config.config_response import AgentConfigResponse
 from app.service.agent_config.content_response import AgentContentResponse
 from app.service.agent_config.create_skill_request import CreateAgentSkillRequest
@@ -25,6 +26,9 @@ class AgentConfigRouter:
         body: UpdateAgentContentRequest, request: Request,
     ) -> AgentContentResponse:
         try:
+            AgentConfigRouter._validate_references(
+                kind, body.content, request
+            )
             return AgentContentResponse(
                 **request.app.state.agent_content.update(
                     kind, content_id, body.content
@@ -40,12 +44,20 @@ class AgentConfigRouter:
         body: CreateAgentSkillRequest, request: Request,
     ) -> AgentContentResponse:
         try:
+            AgentConfigRouter._validate_references(
+                "skill", body.content, request
+            )
             item = request.app.state.agent_content.add_skill(
                 body.title, body.content
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         return AgentContentResponse(**item)
+
+    @staticmethod
+    def _validate_references(kind: str, content: str, request: Request) -> None:
+        if kind == "skill" and "@field[" in content:
+            SkillFieldReferences(request.app.state.catalog).validate(content)
 
 
 router.add_api_route(

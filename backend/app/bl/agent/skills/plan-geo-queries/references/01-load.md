@@ -4,4 +4,4 @@
 
 **Do not use when:** A layer is only a spatial reference for `near`, `nearest_n`, `near_all`, `between`, `crosses`, `touches`, or `contains`; those operations load references internally.
 
-Use only a subject layer id supplied in `LAYERS`. A plain request to show a layer may end after this step.
+**Compose:** Use only a subject layer id supplied in `LAYERS`. A plain request to show a layer may end after this step.

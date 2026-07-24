@@ -55,7 +55,7 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
     case "contains":
       return `מכיל ישות מתוך ${layerName(step.target_layer)}`;
     case "directional":
-      return `${EXTREME_DIRECTION_HE[step.direction ?? ""] ?? step.direction}${(step.count ?? 1) > 1 ? ` (${step.count})` : ""}`;
+      return `${EXTREME_DIRECTION_HE[step.direction ?? ""] ?? step.direction}${step.count && step.count > 1 ? ` (${step.count})` : ""}`;
     case "temporal_filter":
       return `סינון זמן: ${step.from} עד ${step.to}`;
     case "cluster":

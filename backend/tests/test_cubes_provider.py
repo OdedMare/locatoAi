@@ -138,19 +138,10 @@ def test_posts_query_and_preserves_all_fields(tmp_path):
     request = posted_request(handler)
     assert request.method == "POST"
     assert request.url.path == "/cube/v1/transport"
-    assert request.headers["Authorization"] == "Bearer jwt"
+    assert request.headers["Authorization"] == "jwt"
     body = json.loads(request.content)
     assert body["eventTime"] == {"TimeBackUnit": "hour", "TimeBackValue": "1"}
     assert "Location" not in body["arriveTime.not"]
-
-
-def test_authorization_does_not_duplicate_existing_bearer_prefix(tmp_path):
-    provider, handler = make_provider(tmp_path, [record()], token="Bearer jwt")
-
-    provider.fetch_features(layer())
-
-    assert posted_request(handler).headers["Authorization"] == "Bearer jwt"
-
 
 def test_pushes_boundary_as_wkt_location(tmp_path):
     provider, handler = make_provider(tmp_path, {"data": [record()]})

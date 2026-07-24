@@ -25,7 +25,6 @@ _LEGACY_DESCRIPTIONS = {
     ),
 }
 _TAGS = [
-    "profile:our-force", "entity_field:netId",
     "כוחותינו", "כוחות", "חיילים", "טנקים", "כלי רכב", "יחידות",
     "סימן קריאה",
     "מיקום בזמן אמת", "תנועת כוחות", "מסלול תנועה", "כיוון נסיעה",
@@ -44,7 +43,14 @@ class TycheLayerActivator:
         sample = provider.fetch_features(candidate, limit=1)
         activated, created = repository.upsert_layer(candidate)
         persisted = repository.update_layer_metadata(
-            activated.id, _NAME, self._description(existing), self._tags(existing)
+            LayerMeta(
+                id=activated.id, name=_NAME,
+                description=self._description(existing),
+                tags=self._tags(existing), provider="tyche",
+                source_url=TYCHE_SOURCE, entity_field="netId",
+                display_field="callSign",
+                profiles=self._profiles(existing),
+            )
         )
         return persisted, created, len(sample)
 
@@ -53,6 +59,8 @@ class TycheLayerActivator:
         return LayerMeta(
             id=str(uuid4()), name=_NAME, description=_DESCRIPTION, tags=_TAGS,
             provider="tyche", source_url=TYCHE_SOURCE,
+            entity_field="netId", display_field="callSign",
+            profiles=["our-force"],
         )
 
     @staticmethod
@@ -66,6 +74,11 @@ class TycheLayerActivator:
     def _tags(existing: Optional[LayerMeta]) -> List[str]:
         tags = existing.tags if existing is not None else []
         return list(dict.fromkeys([*_TAGS, *tags]))
+
+    @staticmethod
+    def _profiles(existing: Optional[LayerMeta]) -> List[str]:
+        profiles = existing.profiles if existing is not None else []
+        return list(dict.fromkeys(["our-force", *profiles]))
 
     @staticmethod
     def _description(existing: Optional[LayerMeta]) -> str:

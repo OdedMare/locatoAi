@@ -4,4 +4,4 @@
 
 **Do not use when:** The relationship is only proximity (`near`), boundary contact without interior overlap (`touches`), containment (`contains`), or a broad corridor between two references (`between`).
 
-Use the latest subject-chain step as input. A named reference requires its complete target filter. Add the reference layer to `context_layers`.
+**Compose:** Use the latest subject-chain step as input. A named reference requires its complete target filter. Add the reference layer to `context_layers`.

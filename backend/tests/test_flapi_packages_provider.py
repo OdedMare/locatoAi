@@ -121,7 +121,7 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(tmp_path):
     assert get_request.url.path == "/package/v1/quick/466192"
     assert post_request.url.path == "/package/v3/466192"
     assert post_request.url.params.get_list("queries") == ["FinalCube"]
-    assert post_request.headers["Authorization"] == "Bearer jwt"
+    assert post_request.headers["Authorization"] == "jwt"
     assert post_request.headers["username"] == "oded"
     assert json.loads(post_request.content) == {
         "Terms": [

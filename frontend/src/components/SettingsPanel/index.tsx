@@ -251,7 +251,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           {availableModels.length > 0 && (
             <p className="models-status">נמצאו {availableModels.length} מודלים זמינים</p>
           )}
-          {modelsError && <p className="models-status error" dir="auto">{modelsError}</p>}
+          {modelsError && <p className="models-status error" role="alert" dir="auto">{modelsError}</p>}
           <label className="field-label" htmlFor="set-base-url">
             כתובת בסיס{" "}
             <span className="optional">(שרת תואם OpenAI; ריק = OpenAI)</span>
@@ -300,7 +300,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             dir="ltr"
             type="password"
             className="settings-input"
-            placeholder={settings?.cubes_token_set ? "השאירו ריק כדי לשמור" : "JWT or Bearer token"}
+            placeholder={settings?.cubes_token_set ? "השאירו ריק כדי לשמור" : "Authorization token"}
             value={cubesToken}
             onChange={(e) => setCubesToken(e.target.value)}
           />

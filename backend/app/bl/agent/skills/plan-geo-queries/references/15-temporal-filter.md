@@ -4,4 +4,4 @@
 
 **Do not use when:** The layer has no declared `time` role or the user did not request a time restriction. Preserve provider behavior when no window is requested.
 
-Resolve relative dates from `UTC now`. Put this before movement or trajectory analysis and before collapsing repeated observations.
+**Compose:** Resolve relative dates from `UTC now`. Put this before movement or trajectory analysis and before collapsing repeated observations.

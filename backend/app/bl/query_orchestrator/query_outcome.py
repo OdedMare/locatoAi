@@ -15,6 +15,8 @@ class QueryOutcome:
     features: Optional[gpd.GeoDataFrame] = None
     scalar_result: Optional[int] = None
     """For count plans, set while features remains None."""
+    display_field: Optional[str] = None
+    """Preferred property used to label result features."""
     timing_ms: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
     # Agent trace — what the model chose and why (the UI's "thinking" view).

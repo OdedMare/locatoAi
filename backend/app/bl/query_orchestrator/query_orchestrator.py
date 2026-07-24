@@ -71,6 +71,7 @@ class QueryOrchestrator:
             plan=plan,
             features=result.features,
             scalar_result=result.scalar_result,
+            display_field=self._result_display_field(plan),
             timing_ms=timer.timing,
             pipeline_trace=self._explicit_trace(plan, result),
         )
@@ -248,8 +249,7 @@ class QueryOrchestrator:
             pipeline_trace=trace,
         )
 
-    @staticmethod
-    def _success(selection: LayerSelection, build: PlanBuildResult,
+    def _success(self, selection: LayerSelection, build: PlanBuildResult,
                  plan: GeoQueryPlan, result: ExecutionOutput,
                  trace: List[dict], timer: StageTimer,
                  usage: Optional[Dict[str, int]], event_sink=None) -> QueryOutcome:
@@ -259,6 +259,7 @@ class QueryOrchestrator:
         return QueryOutcome(
             status="ok", plan=plan, features=result.features,
             scalar_result=result.scalar_result, timing_ms=timer.timing,
+            display_field=self._result_display_field(plan),
             token_usage=usage, selected_layers=selection.layers,
             reasoning=selection.reasoning, tool_calls=build.tool_calls,
             pipeline_trace=trace,
@@ -277,6 +278,15 @@ class QueryOrchestrator:
                                 boundaries: Optional[BaseGeometry]) -> None:
         known_ids = {layer.id for layer in self._catalog.list_queryable_layers()}
         validate_plan(plan, known_ids, has_user_geometry=boundaries is not None)
+
+    def _result_display_field(self, plan: GeoQueryPlan) -> Optional[str]:
+        layer_id = next(
+            (step.layer for step in plan.steps if step.op == "load"), None
+        )
+        return (
+            self._catalog.get_schema(layer_id).display_field
+            if layer_id is not None else None
+        )
 
     @staticmethod
     def _explicit_trace(plan: GeoQueryPlan, result: ExecutionOutput) -> List[dict]:

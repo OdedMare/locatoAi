@@ -10,7 +10,7 @@ from app.service.catalog.flapi_resource_type import FlapiResourceType
 class CreateLayerRequest(CubesParameterValues):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     provider: str = Field(default="mqs", min_length=1, max_length=50)
     source_url: str = Field(min_length=1, max_length=2000)
     flapi_resource_type: FlapiResourceType = "cube"
@@ -22,6 +22,10 @@ class CreateLayerRequest(CubesParameterValues):
     entity_field: Optional[str] = Field(
         default=None, min_length=1, max_length=60
     )
+    display_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=60
+    )
+    profiles: List[str] = Field(default_factory=list, max_length=10)
     tyche_geometry_field: Optional[str] = Field(
         default=None, min_length=1, max_length=200
     )

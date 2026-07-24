@@ -4,4 +4,4 @@
 
 **Do not use when:** Comparing a subject with another reference layer (`near`, `nearest_n`, or `near_all`). For repeated moving observations, run `latest_per_entity` first so one entity cannot form a group with itself.
 
-Set `min_group_size` from the request. Set a requested distance; otherwise omit it so the contract supplies the default. Results contain `cluster_id` and may include several groups.
+**Compose:** Set `min_group_size` from the request. Set a requested distance; otherwise omit it so the contract supplies the default. Results contain `cluster_id` and may include several groups.

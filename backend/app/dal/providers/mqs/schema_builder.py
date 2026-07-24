@@ -35,6 +35,7 @@ class MqsSchemaBuilder:
             fields=list(self._mapper.FIXED_FIELDS) + list(dynamic.values()),
             entity_field=self._source.entity_field(layer),
             temporal_field=self._source.temporal_field(layer),
+            display_field=layer.display_field,
         )
 
     def _add_sample(
