@@ -19,7 +19,7 @@ from app.common.config.settings_provider import get_settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.catalog.layers_repository import PostgresLayersRepository
 from app.dal.llm.openai_client import OpenAIJsonClient
-from app.dal.providers.cubes.provider import CubesProvider
+from app.dal.providers.flapi.provider import FlapiProvider
 from app.dal.providers.mqs.provider import MqsProvider
 from app.dal.providers.registry import InMemoryProviderRegistry
 from app.dal.providers.tyche.provider import TycheProvider
@@ -117,7 +117,9 @@ def main() -> int:
 
     providers = InMemoryProviderRegistry()
     providers.register("mqs", MqsProvider(store))
-    providers.register("cubes", CubesProvider(store))
+    flapi = FlapiProvider(store)
+    providers.register("cubes", flapi)
+    providers.register("flapi", flapi)
     providers.register("tyche", TycheProvider(store))
     catalog = CatalogService(PostgresLayersRepository(store), providers)
     selector = LayerSelector(OpenAIJsonClient(store), catalog)

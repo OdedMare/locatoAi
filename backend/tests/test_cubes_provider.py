@@ -10,7 +10,8 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.cubes.provider import (
+from app.dal.providers.flapi.client_factory import FlapiClientFactory
+from app.dal.providers.flapi.cube_provider import (
     CubesProvider,
     cubes_database_name,
     cubes_query_mode,
@@ -48,13 +49,14 @@ def make_provider(tmp_path, payload, base_url="https://cubes.test", token="jwt")
         cubes_token=token,
     ))
     handler = RecordingHandler(payload)
-    return CubesProvider(store, httpx.MockTransport(handler)), handler
+    clients = FlapiClientFactory(store, httpx.MockTransport(handler))
+    return CubesProvider(clients), handler
 
 
-def layer(source_url="cubes://db/transport"):
+def layer(source_url="cubes://db/transport", tags=None):
     return LayerMeta(
         id="cube-layer", name="אוטובוסים", provider="cubes",
-        source_url=source_url,
+        source_url=source_url, tags=tags or [],
     )
 
 
@@ -172,8 +174,11 @@ def test_rechecks_boundary_when_cube_ignores_location(tmp_path):
 
 def test_schema_declares_event_time_and_point_geometry(tmp_path):
     provider, handler = make_provider(tmp_path, [record()])
-    schema = provider.describe_schema(layer())
+    schema = provider.describe_schema(
+        layer(tags=["entity_field:netId"])
+    )
     assert schema.geometry_type == "Point"
+    assert schema.entity_field == "netId"
     assert schema.temporal_field == "eventTime"
     assert {field.name for field in schema.fields} >= {"id", "callSign", "eventTime"}
     assert [request.method for request in handler.requests] == ["GET", "POST"]
@@ -472,7 +477,9 @@ def test_result_limit_adaptively_chunks_boundary_and_deduplicates(tmp_path):
         cubes_base_url="https://cubes.test",
         cubes_token="jwt",
     ))
-    provider = CubesProvider(store, httpx.MockTransport(handler))
+    provider = CubesProvider(
+        FlapiClientFactory(store, httpx.MockTransport(handler))
+    )
 
     features = provider.fetch_features(layer(), geometry=box(34.7, 32.0, 34.9, 32.2))
 
@@ -534,7 +541,9 @@ def test_capped_result_without_boundary_chunks_by_time_window(tmp_path):
         cubes_base_url="https://cubes.test",
         cubes_token="jwt",
     ))
-    provider = CubesProvider(store, httpx.MockTransport(handler))
+    provider = CubesProvider(
+        FlapiClientFactory(store, httpx.MockTransport(handler))
+    )
 
     features = provider.fetch_features(
         layer("cubes://db/transport?query_mode=match_not"),

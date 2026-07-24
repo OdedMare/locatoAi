@@ -29,7 +29,9 @@ class PlanBuilder:
         self._skills = GeoSkillCatalog(content_repository=content_repository)
         self._diet_mode = diet_mode or self._diet_disabled
         self._formatter = LayerPromptFormatter(catalog)
-        self._loop = PlanBuildLoop(llm, catalog)
+        self._loop = PlanBuildLoop(
+            llm, catalog, skill_loader=self._skills.load_custom
+        )
 
     def build(
         self, query: str, layers: List[LayerMeta],
@@ -59,7 +61,10 @@ class PlanBuilder:
         return (
             template.replace("{now}", now.isoformat())
             .replace("{has_boundaries}", "yes" if has_boundaries else "no")
-            .replace("{geo_skills}", self._skills.render(diet=diet))
+            .replace(
+                "{geo_skills}",
+                self._skills.render(diet=diet, profile_ids=self._profile_ids(layers)),
+            )
             .replace("{layers}", self._formatter.format(layers, diet))
         )
 
@@ -82,3 +87,12 @@ class PlanBuilder:
     @staticmethod
     def _diet_disabled() -> bool:
         return False
+
+    @staticmethod
+    def _profile_ids(layers) -> set:
+        prefix = "profile:"
+        return {
+            tag[len(prefix):].strip()
+            for layer in layers for tag in layer.tags
+            if tag.startswith(prefix) and tag[len(prefix):].strip()
+        }

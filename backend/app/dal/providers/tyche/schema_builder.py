@@ -1,6 +1,6 @@
 """Build Tyche schemas."""
 
-from typing import List
+from typing import List, Optional
 
 from app.bl.catalog.models.layer_field import LayerField
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -26,7 +26,7 @@ class TycheSchemaBuilder:
     def build(
         self, layer: LayerMeta, rows: List[dict],
         temporal_field: str = "eventTime", geometry_field: str = "geometry",
-        our_forces: bool = True,
+        entity_field: Optional[str] = None, our_forces: bool = True,
     ) -> LayerSchema:
         definitions = (
             self._FIELDS if our_forces
@@ -45,6 +45,7 @@ class TycheSchemaBuilder:
                 "Tyche own-force events and geographic positions"
                 if our_forces else layer.description
             ),
+            entity_field=entity_field,
             temporal_field=temporal_field,
         )
 

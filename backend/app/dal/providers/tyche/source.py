@@ -1,6 +1,7 @@
 """Parse a catalog Tyche source into its route and field mapping."""
 
 from dataclasses import dataclass
+from typing import Optional
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from app.common.errors.provider_error import ProviderError
@@ -12,10 +13,12 @@ class TycheSource:
     geometry_field: str
     geo_query_field: str
     time_field: str
+    entity_field: Optional[str]
 
     DEFAULT_GEOMETRY_FIELD = "geometry"
     DEFAULT_GEO_QUERY_FIELD = "location"
     DEFAULT_TIME_FIELD = "eventTime"
+    DEFAULT_ENTITY_FIELD = "netId"
     _ROUTE_PREFIX = "/coordinate/v1/"
 
     @classmethod
@@ -34,6 +37,11 @@ class TycheSource:
                 query, "geo_query_field", cls.DEFAULT_GEO_QUERY_FIELD
             ),
             time_field=cls._field(query, "time_field", cls.DEFAULT_TIME_FIELD),
+            entity_field=cls._optional_field(
+                query, "entity_field",
+                cls.DEFAULT_ENTITY_FIELD
+                if route == cls._ROUTE_PREFIX + "ourforces" else None,
+            ),
         )
         source._validate_query_fields()
         return source
@@ -57,6 +65,15 @@ class TycheSource:
             raise ProviderError(f"Tyche {name} must be a valid field name")
         return value
 
+    @classmethod
+    def _optional_field(
+        cls, query: dict, name: str, default: Optional[str]
+    ) -> Optional[str]:
+        if name not in query:
+            return default
+        value = query[name][-1].strip()
+        return cls._field(query, name, value) if value else None
+
     def _validate_query_fields(self) -> None:
         reserved = {"size", "fetchPaging", "pageTracker"}
         fields = {self.geo_query_field, self.time_field}
@@ -64,6 +81,10 @@ class TycheSource:
             raise ProviderError(
                 "Tyche geography and time request fields must be distinct "
                 "and cannot use paging field names"
+            )
+        if self.entity_field in reserved or self.entity_field == self.time_field:
+            raise ProviderError(
+                "Tyche entity field must differ from time and paging fields"
             )
 
     @property
@@ -73,4 +94,5 @@ class TycheSource:
             and self.geometry_field == self.DEFAULT_GEOMETRY_FIELD
             and self.geo_query_field == self.DEFAULT_GEO_QUERY_FIELD
             and self.time_field == self.DEFAULT_TIME_FIELD
+            and self.entity_field == self.DEFAULT_ENTITY_FIELD
         )

@@ -80,7 +80,8 @@ def test_selector_prompt_requires_all_multi_reference_layers(catalog):
         "schools", "roundabouts", "accidents"
     ]
     assert "Never drop the second reference layer" in llm.last_system
-    assert "`tyche` כוחותינו/OurForce layer as the subject" in llm.last_system
+    assert "`profile:<id>` tag" in llm.last_system
+    assert "`tyche`" not in llm.last_system
 
 
 def test_diet_selector_keeps_contract_with_shorter_prompt(catalog):
@@ -97,7 +98,8 @@ def test_diet_selector_keeps_contract_with_shorter_prompt(catalog):
     assert "schools|arcgis|בתי ספר|" in diet_llm.last_system
     assert '"layer_ids"' in diet_llm.last_system
     assert "A near B and C" in diet_llm.last_system
-    assert "`tyche` כוחותינו layer as subject" in diet_llm.last_system
+    assert "`profile:<id>` tags" in diet_llm.last_system
+    assert "`tyche`" not in diet_llm.last_system
 
 
 def test_extract_json_plain():

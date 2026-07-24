@@ -28,3 +28,6 @@ class GenerateLayerMetadataRequest(CubesParameterValues):
     tyche_time_field: Optional[str] = Field(
         default=None, min_length=1, max_length=200
     )
+    tyche_entity_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )

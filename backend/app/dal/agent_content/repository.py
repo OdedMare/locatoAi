@@ -9,6 +9,7 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 _AGENT_ROOT = Path(__file__).parents[2] / "bl" / "agent"
 _PROMPTS = _AGENT_ROOT / "prompts"
 _SKILLS = _AGENT_ROOT / "skills" / "plan-geo-queries" / "references"
+_PROFILES = _AGENT_ROOT / "skills" / "plan-geo-queries" / "profiles"
 _REQUIRED_PROMPT_FIELDS = {
     "select_layers.md": ("{catalog}",),
     "select_layers_diet.md": ("{catalog}",),
@@ -23,10 +24,12 @@ class AgentContentRepository:
     def __init__(
         self, settings: RuntimeSettingsStore,
         prompts: Path = _PROMPTS, skills: Path = _SKILLS,
+        profiles: Path = _PROFILES,
     ) -> None:
         self._settings = settings
         self._prompts = prompts
         self._skills = skills
+        self._profiles = profiles
 
     def list_prompts(self) -> List[dict]:
         return [
@@ -36,21 +39,56 @@ class AgentContentRepository:
         ]
 
     def list_skills(self) -> List[dict]:
-        defaults = [
+        return [
+            *self.list_operation_skills(),
+            *self.list_profiles(),
+            *(
+                self._custom_item(content_id, item)
+                for content_id, item in self._custom_skills().items()
+            ),
+        ]
+
+    def list_operation_skills(self) -> List[dict]:
+        return [
             self._default_item("skill", path)
             for path in sorted(self._skills.glob("*.md"))
         ]
-        defaults.extend(
-            self._custom_item(content_id, item)
-            for content_id, item in self._custom_skills().items()
-        )
-        return defaults
+
+    def list_profiles(self) -> List[dict]:
+        return [
+            self._default_item("skill", path)
+            for path in sorted(self._profiles.glob("*.md"))
+        ]
 
     def prompt(self, content_id: str) -> str:
         return self._find(self.list_prompts(), content_id)["content"]
 
     def skill_contents(self) -> List[str]:
-        return [item["content"] for item in self.list_skills()]
+        return self.operation_skill_contents()
+
+    def operation_skill_contents(self) -> List[str]:
+        return [item["content"] for item in self.list_operation_skills()]
+
+    def profile_contents(self, profile_ids) -> List[str]:
+        requested = set(profile_ids)
+        return [
+            item["content"] for item in self.list_profiles()
+            if Path(item["id"]).stem in requested
+        ]
+
+    def custom_skill_index(self) -> List[dict]:
+        return [
+            {
+                "id": content_id,
+                "title": str(item.get("title") or content_id),
+                "description": self._use_when(str(item.get("content") or "")),
+            }
+            for content_id, item in self._custom_skills().items()
+        ]
+
+    def custom_skill(self, content_id: str) -> str:
+        item = self._custom_skills().get(content_id)
+        return str(item.get("content") or "") if item else ""
 
     def update(self, kind: str, content_id: str, content: str) -> dict:
         content = self._clean_content(content)
@@ -169,3 +207,13 @@ class AgentContentRepository:
         if first.startswith("# "):
             return first[2:].replace("`", "").strip()
         return fallback.replace("_", " ").replace("-", " ")
+
+    @staticmethod
+    def _use_when(content: str) -> str:
+        prefix = "**Use when:**"
+        line = next(
+            (line.strip() for line in content.splitlines()
+             if line.strip().startswith(prefix)),
+            "",
+        )
+        return line[len(prefix):].strip()[:240]

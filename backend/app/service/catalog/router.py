@@ -18,7 +18,7 @@ from app.service.catalog.create_layer_request import CreateLayerRequest
 from app.service.catalog.cubes_autocomplete_option_response import CubesAutocompleteOptionResponse
 from app.service.catalog.cubes_autocomplete_request import CubesAutocompleteRequest
 from app.service.catalog.cubes_autocomplete_response import CubesAutocompleteResponse
-from app.service.catalog.cubes_parameter_response import CubesParameterResponse
+from app.service.catalog.flapi_parameter_response import FlapiParameterResponse
 from app.service.catalog.generate_layer_metadata_request import GenerateLayerMetadataRequest
 from app.service.catalog.generated_layer_metadata_response import GeneratedLayerMetadataResponse
 from app.service.catalog.layers_response import LayersResponse
@@ -34,6 +34,7 @@ _TYCHE_FIELDS = {
     "geometry_field": "geometry",
     "geo_query_field": "location",
     "time_field": "eventTime",
+    "entity_field": "",
 }
 
 
@@ -116,6 +117,7 @@ class CatalogRouter:
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
+                tyche_entity_field=body.tyche_entity_field,
             ),
             sample_geometry=cls._sample_geometry(body),
         )
@@ -124,7 +126,7 @@ class CatalogRouter:
             sample_count=result.sample_count,
             dynamic_parameters=result.dynamic_parameters,
             configurable_parameters=[
-                CubesParameterResponse(
+                FlapiParameterResponse(
                     name=item.name,
                     display_name=item.display_name,
                     description=item.description,
@@ -162,7 +164,7 @@ class CatalogRouter:
             source_url=cls.normalized_source("cubes", body.source_url),
         )
         options = cls._autocomplete_options(
-            request.app.state.cubes_provider, layer, body.parameter_name
+            request.app.state.flapi_provider, layer, body.parameter_name
         )
         return CubesAutocompleteResponse(options=[
             CubesAutocompleteOptionResponse(value=item.value, name=item.name)
@@ -191,6 +193,7 @@ class CatalogRouter:
         tyche_geometry_field: Optional[str] = None,
         tyche_geo_query_field: Optional[str] = None,
         tyche_time_field: Optional[str] = None,
+        tyche_entity_field: Optional[str] = None,
     ) -> str:
         source = source_url.strip()
         if provider.strip().lower() == "cubes":
@@ -212,7 +215,7 @@ class CatalogRouter:
             source = source if "://" in source else f"tyche://{source.strip('/')}"
             return cls.with_tyche_fields(
                 source, tyche_geometry_field,
-                tyche_geo_query_field, tyche_time_field,
+                tyche_geo_query_field, tyche_time_field, tyche_entity_field,
             )
         return source
 
@@ -241,10 +244,11 @@ class CatalogRouter:
     def with_tyche_fields(
         source: str, geometry_field: Optional[str],
         geo_query_field: Optional[str], time_field: Optional[str],
+        entity_field: Optional[str] = None,
     ) -> str:
         parsed = urlsplit(source)
         query = parse_qs(parsed.query, keep_blank_values=True)
-        values = (geometry_field, geo_query_field, time_field)
+        values = (geometry_field, geo_query_field, time_field, entity_field)
         for (key, default), value in zip(_TYCHE_FIELDS.items(), values):
             if value is None:
                 continue
@@ -307,7 +311,8 @@ class CatalogRouter:
     def _new_layer(cls, body: CreateLayerRequest) -> LayerMeta:
         return LayerMeta(
             id=str(uuid4()), name=body.name.strip(),
-            description=body.description.strip(), tags=cls.clean_tags(body.tags, 20),
+            description=body.description.strip(),
+            tags=cls._layer_tags(body.tags, body.entity_field),
             provider=body.provider.strip(),
             source_url=cls.normalized_source(
                 body.provider, body.source_url, body.cubes_query_mode,
@@ -318,8 +323,18 @@ class CatalogRouter:
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
+                tyche_entity_field=body.tyche_entity_field,
             ),
         )
+
+    @classmethod
+    def _layer_tags(
+        cls, tags: List[str], entity_field: Optional[str]
+    ) -> List[str]:
+        role = (
+            [f"entity_field:{entity_field.strip()}"] if entity_field else []
+        )
+        return cls.clean_tags([*role, *tags], 20)
 
     @staticmethod
     def _remote_layer(layer) -> RemoteMqsLayerResponse:

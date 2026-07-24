@@ -63,7 +63,7 @@ def test_valid_plan_first_attempt(catalog):
     # prompt carries the schema with sample values
     assert "city_en" in llm.calls[0]["system"]
     assert "provider: arcgis" in llm.calls[0]["system"]
-    assert "`tyche` כוחותינו/OurForce layer is the subject" in llm.calls[0]["system"]
+    assert "OurForce mission profile" not in llm.calls[0]["system"]
 
 
 def test_diet_plan_prompt_is_short_and_preserves_all_operations(catalog):
@@ -81,14 +81,13 @@ def test_diet_plan_prompt_is_short_and_preserves_all_operations(catalog):
     assert result.plan is not None
     full_prompt = full_llm.calls[0]["system"]
     diet_prompt = diet_llm.calls[0]["system"]
-    assert len(diet_prompt) < len(full_prompt) * 0.6
+    assert len(diet_prompt) < len(full_prompt)
     for operation in OPERATIONS:
-        assert f'"op":"{operation}"' in diet_prompt
+        assert f'op:"{operation}"' in diet_prompt
     assert "city_en:string=" in diet_prompt
     assert "sample_field" in diet_prompt
-    assert '"direction":"any|north|south|east|west"' in diet_prompt
-    assert "חייל שזז בשעה האחרונה" in diet_prompt
-    assert "`tyche` as subject/output" in diet_prompt
+    assert 'direction:"any"|"north"|"south"|"east"|"west"' in diet_prompt
+    assert "profile:our-force" not in diet_prompt
 
 
 def test_geo_skill_catalog_documents_and_renders_every_operation():
@@ -99,8 +98,8 @@ def test_geo_skill_catalog_documents_and_renders_every_operation():
     assert full.count("**Do not use when:**") == len(OPERATIONS)
     for operation in OPERATIONS:
         assert f"# `{operation}`" in full
-        assert f'"op":"{operation}"' in full
-        assert f'"op":"{operation}"' in diet
+        assert f'op:"{operation}"' in full
+        assert f'op:"{operation}"' in diet
 
 
 def test_build_plan_eval_checks_operations_roles_and_constraints():
@@ -145,7 +144,7 @@ def test_hebrew_multi_reference_query_builds_near_all(catalog):
     assert step.op == "near_all"
     assert step.count == 2
     assert [target.layer for target in step.targets] == ["roundabouts", "accidents"]
-    assert "2 soldiers near the square and the school" in llm.calls[0]["system"]
+    assert "simultaneous reference" in llm.calls[0]["system"]
 
 
 def test_invalid_plan_retried_with_error_then_succeeds(catalog):

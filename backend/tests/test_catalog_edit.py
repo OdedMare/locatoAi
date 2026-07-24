@@ -51,3 +51,18 @@ def test_edit_unknown_layer_returns_404():
         json={"name": "name", "description": "", "tags": []},
     )
     assert response.status_code == 404
+
+
+def test_create_layer_persists_declared_entity_role_as_metadata():
+    repository = FakeLayersRepository([])
+    response = TestClient(make_app(repository)).post(
+        "/api/layers",
+        json={
+            "name": "Tracks", "provider": "flapi",
+            "source_url": "flapi://cube/tracks",
+            "entity_field": "trackId", "tags": ["movement"],
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["tags"] == ["entity_field:trackId", "movement"]

@@ -44,7 +44,7 @@ export default function GeographyControls({
       {needsDrawing && (
         <p className={`draw-status${hasDrawnGeometry ? " done" : ""}`}>
           {hasDrawnGeometry
-            ? "✓ הצורה נשמרה — ציירו שוב במפה כדי להחליף אותה."
+            ? "הצורה נשמרה — ציירו שוב במפה כדי להחליף אותה."
             : mode === "polygon"
               ? "לחצו על נקודות במפה, ולסיום לחצו על הנקודה הראשונה."
               : "לחצו וגררו על המפה כדי לצייר מלבן."}

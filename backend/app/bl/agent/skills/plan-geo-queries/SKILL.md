@@ -45,5 +45,5 @@ Choose the smallest valid operation chain that answers the request. Treat the Py
 - Use `trajectory_relation` for relationships between different entities. Use `origin_movement` for one entity leaving its inferred starting place or returning to it.
 - “Same destination” compares final positions and arrival times; “same place at different times” compares any visited positions with a minimum time separation.
 - Use `between` for a buffered corridor; use `crosses`, `touches`, or `contains` only for exact topological relationships.
-- For repeated moving observations, use the stable identity and time fields declared by that layer's schema; never assume every layer uses `netId`/`eventTime`.
+- For repeated moving observations, use the schema's declared `entity` and `time` roles. Clarify if a required role is absent.
 - Apply `latest_per_entity` before returning, counting, or clustering distinct entities. Do not collapse observations before `movement_direction`, `trajectory_relation`, or `origin_movement`; each already returns one result row per matching entity.

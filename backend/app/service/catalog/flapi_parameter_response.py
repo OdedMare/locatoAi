@@ -1,11 +1,11 @@
-"""Cubes parameter response."""
+"""FLAPI resource parameter response."""
 
 from typing import List
 
 from pydantic import BaseModel
 
 
-class CubesParameterResponse(BaseModel):
+class FlapiParameterResponse(BaseModel):
     name: str
     display_name: str = ""
     description: str = ""

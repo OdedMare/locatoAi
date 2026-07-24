@@ -11,28 +11,23 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_parameter import LayerParameter
 from app.bl.catalog.models.layer_parameter_option import LayerParameterOption
 from app.bl.catalog.models.layer_schema import LayerSchema
-from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.cubes.client_factory import CubesClientFactory
-from app.dal.providers.cubes.gateway import CubesGateway
-from app.dal.providers.cubes.metadata_gateway import CubesMetadataGateway
-from app.dal.providers.cubes.parameter_loader import CubesParameterLoader
-from app.dal.providers.cubes.query_builder import CubesQueryBuilder
-from app.dal.providers.cubes.schema_mapper import CubesSchemaMapper
-from app.dal.providers.cubes.source import CubesSource
+from app.dal.providers.flapi.client_factory import FlapiClientFactory
+from app.dal.providers.flapi.cube_gateway import CubesGateway
+from app.dal.providers.flapi.cube_metadata_gateway import CubesMetadataGateway
+from app.dal.providers.flapi.cube_parameter_loader import CubesParameterLoader
+from app.dal.providers.flapi.cube_query_builder import CubesQueryBuilder
+from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
+from app.dal.providers.flapi.cube_source import CubesSource
 
 
 class CubesProvider:
     _SCHEMA_SAMPLE_LIMIT = 100
 
-    def __init__(
-        self,
-        settings_store: RuntimeSettingsStore,
-        transport: Optional[httpx.BaseTransport] = None,
-    ) -> None:
+    def __init__(self, clients: FlapiClientFactory) -> None:
         self._source = CubesSource()
         self._query = CubesQueryBuilder()
-        self._mapper = CubesSchemaMapper()
-        self._clients = CubesClientFactory(settings_store, transport)
+        self._mapper = FlapiSchemaMapper()
+        self._clients = clients
         self._metadata = CubesMetadataGateway(
             self._clients, self._source, CubesParameterLoader()
         )
@@ -56,7 +51,9 @@ class CubesProvider:
         if sampled is None:
             self.fetch_features(layer, limit=self._SCHEMA_SAMPLE_LIMIT)
             sampled = self._schema_cache.get(cache_key)
-        return self._mapper.merge_schema(layer.id, metadata, sampled)
+        return self._mapper.with_layer_roles(
+            self._mapper.merge_schema(layer.id, metadata, sampled), layer
+        )
 
     def list_dynamic_parameters(self, layer: LayerMeta) -> List[LayerParameter]:
         parameters = self._configured_parameters(layer)

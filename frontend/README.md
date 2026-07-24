@@ -181,8 +181,9 @@ MQS and Cubes TLS verification is enabled by default and independently editable.
 Lists every live model-facing prompt and geo operation skill in one editor. Existing
 content can be changed and additional planner instruction skills can be created. Saves
 are persisted by the backend and affect the next agent request without a restart.
-The editor protects unsaved drafts and explains that a skill can compose existing typed
-operations, while a genuinely new executable tool still needs backend implementation.
+The editor protects unsaved drafts. Custom skill descriptions are indexed in every plan
+prompt, but their bodies load only when requested by the planner. A skill can compose
+existing typed operations; a genuinely new executable tool still needs backend work.
 
 ### `RequestPreview`
 
@@ -245,9 +246,9 @@ upstream Tyche 404 is normalized by FastAPI to a provider error (HTTP 502), whil
 
 The TypeScript interfaces intentionally mirror Pydantic DTOs. When an API contract changes, update both sides in the same change.
 
-Moving Tyche/Cubes entities use `netId` as their stable identity. Agent traces describe
-`latest_per_entity` deduplication and `movement_direction` trajectory detection, including
-movement without a requested compass direction.
+Moving layers declare stable identity and observation-time fields in their schema.
+Agent traces describe `latest_per_entity` deduplication and `movement_direction`
+trajectory detection, including movement without a requested compass direction.
 
 ## Styling and directionality
 

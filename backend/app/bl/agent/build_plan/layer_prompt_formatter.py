@@ -22,11 +22,20 @@ class LayerPromptFormatter:
         return "\n".join(lines)
 
     def _layer_line(self, layer, schema, diet: bool) -> str:
-        return "- id: {id} | provider: {provider} | name: {name} | geometry: {geom}\n  fields: {fields}".format(
+        return "- id: {id} | provider: {provider} | name: {name} | geometry: {geom}{roles}\n  fields: {fields}".format(
             id=layer.id, provider=layer.provider, name=layer.name,
-            geom=schema.geometry_type,
+            geom=schema.geometry_type, roles=self._roles(schema),
             fields=self._fields(schema, diet),
         )
+
+    @staticmethod
+    def _roles(schema) -> str:
+        roles = [
+            f"entity={schema.entity_field}" if schema.entity_field else "",
+            f"time={schema.temporal_field}" if schema.temporal_field else "",
+        ]
+        rendered = ", ".join(role for role in roles if role)
+        return " | roles: " + rendered if rendered else ""
 
     def _fields(self, schema, diet: bool) -> str:
         if not schema.fields:

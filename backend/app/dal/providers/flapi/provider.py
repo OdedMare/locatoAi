@@ -1,7 +1,7 @@
 """Top-level FLAPI provider dispatching Cube and Flow Package resources."""
 
-from app.dal.providers.cubes.client_factory import CubesClientFactory
-from app.dal.providers.cubes.provider import CubesProvider
+from app.dal.providers.flapi.client_factory import FlapiClientFactory
+from app.dal.providers.flapi.cube_provider import CubesProvider
 from app.dal.providers.flapi.package_provider import FlowPackageProvider
 from app.dal.providers.flapi.source import FlapiSource
 
@@ -9,9 +9,9 @@ from app.dal.providers.flapi.source import FlapiSource
 class FlapiProvider:
     def __init__(self, settings_store, transport=None) -> None:
         self._source = FlapiSource()
-        self.cubes = CubesProvider(settings_store, transport)
-        clients = CubesClientFactory(settings_store, transport)
-        self.packages = FlowPackageProvider(clients)
+        clients = FlapiClientFactory(settings_store, transport)
+        self._cube = CubesProvider(clients)
+        self._package = FlowPackageProvider(clients)
 
     def describe_schema(self, layer):
         return self._provider(layer).describe_schema(layer)
@@ -38,7 +38,7 @@ class FlapiProvider:
 
     def _provider(self, layer):
         return (
-            self.packages
+            self._package
             if self._source.resource_type(layer) == "package"
-            else self.cubes
+            else self._cube
         )

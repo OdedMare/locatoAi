@@ -1,12 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  Bot, CheckCircle2, Database, Network, RefreshCw, Save, ServerCog, Settings2,
+  ShieldCheck, X,
+} from "lucide-react";
 import { getModels, getSettings, updateSettings } from "@/services/settingsService";
 import type { AppSettings } from "@/types/settings";
 
 interface SettingsPanelProps {
   onClose: () => void;
 }
+
+type SettingsSection = "agent" | "flapi" | "tyche" | "mqs" | "database";
+
+const SETTINGS_SECTIONS = [
+  { id: "agent" as const, label: "סוכן ומודל", description: "מודל, כתובת ומפתח API", icon: Bot },
+  { id: "flapi" as const, label: "שרת FLAPI", description: "קוביות וחבילות תהליך", icon: ServerCog },
+  { id: "tyche" as const, label: "שרת Tyche", description: "שכבות מיקום וכוחותינו", icon: ShieldCheck },
+  { id: "mqs" as const, label: "שרת MQS", description: "שכבות מוריה", icon: Network },
+  { id: "database" as const, label: "מסד הנתונים", description: "קטלוג שכבות ומשוב", icon: Database },
+];
 
 async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
   return getModels({
@@ -21,6 +35,7 @@ async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
  * apply immediately — the catalog status line confirms the DB connection.
  */
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
+  const [activeSection, setActiveSection] = useState<SettingsSection>("agent");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState(""); // empty = keep existing
   const [model, setModel] = useState("");
@@ -130,7 +145,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       setCubesToken("");
       setTycheToken("");
       setDatabasePassword("");
-      setMessage("נשמר ✓");
+      setMessage("ההגדרות נשמרו בהצלחה");
     } catch (err) {
       console.error("Settings save failed", err);
       setMessage(err instanceof Error ? err.message : "השמירה נכשלה");
@@ -142,18 +157,60 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div
-        className="settings-card"
+        className="settings-card settings-workspace-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="הגדרות"
+        aria-modal="true"
+        aria-labelledby="settings-title"
       >
-        <header className="settings-header">
-          <h2>הגדרות</h2>
-          <button type="button" className="settings-close" onClick={onClose}>
-            ✕
+        <header className="settings-header settings-workspace-header">
+          <div className="settings-title">
+            <span className="settings-title-icon"><Settings2 size={20} /></span>
+            <div>
+              <h2 id="settings-title">הגדרות המערכת</h2>
+              <p>ניהול מודל הבינה, מקורות המידע והחיבור למסד הנתונים</p>
+            </div>
+          </div>
+          <button type="button" className="settings-close" onClick={onClose} aria-label="סגירת הגדרות">
+            <X size={20} />
           </button>
         </header>
 
+        <div className="settings-workspace-layout">
+          <nav className="settings-nav" aria-label="קטגוריות הגדרות">
+            <p className="settings-nav-label">קטגוריות</p>
+            {SETTINGS_SECTIONS.map(({ id, label, description, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={activeSection === id ? "active" : ""}
+                onClick={() => setActiveSection(id)}
+                aria-current={activeSection === id ? "page" : undefined}
+              >
+                <Icon size={18} />
+                <span>
+                  <strong>{label}</strong>
+                  <small>{description}</small>
+                </span>
+              </button>
+            ))}
+            {settings && (
+              <div className={`settings-connection ${settings.catalog.ok ? "ok" : "bad"}`}>
+                {settings.catalog.ok ? <CheckCircle2 size={17} /> : <Database size={17} />}
+                <span>
+                  <strong>{settings.catalog.ok ? "הקטלוג מחובר" : "הקטלוג לא מחובר"}</strong>
+                  <small>
+                    {settings.catalog.ok
+                      ? `${settings.catalog.layer_count ?? 0} שכבות זמינות`
+                      : "בדקו את פרטי החיבור"}
+                  </small>
+                </span>
+              </div>
+            )}
+          </nav>
+
+          <div className="settings-content">
+        {activeSection === "agent" && (
         <section className="settings-section">
           <h3>מודל בינה מלאכותית</h3>
           <label className="field-label" htmlFor="set-api-key">
@@ -175,7 +232,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <div className="model-field-header">
             <label className="field-label" htmlFor="set-model">מודל</label>
             <button type="button" className="models-refresh" onClick={loadModels} disabled={modelsLoading}>
-              {modelsLoading ? "טוען…" : "רענון רשימת מודלים"}
+              <RefreshCw className={modelsLoading ? "submit-spinner" : ""} size={14} />
+              {modelsLoading ? "טוען…" : "רענון מודלים"}
             </button>
           </div>
           <input
@@ -213,10 +271,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={(e) => setDietMode(e.target.checked)}
             />
             מצב חסכוני בטוקנים
-            <span className="optional"> (prompts קצרים ו־output מוגבל)</span>
+            <span className="optional"> (הנחיות קצרות ופלט מוגבל)</span>
           </label>
         </section>
+        )}
 
+        {activeSection === "flapi" && (
         <section className="settings-section">
           <h3>שרת FLAPI</h3>
           <label className="field-label" htmlFor="set-cubes-url">
@@ -232,7 +292,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             onChange={(e) => setCubesBaseUrl(e.target.value)}
           />
           <label className="field-label" htmlFor="set-cubes-token">
-            Authorization token
+            אסימון הרשאה
             {settings?.cubes_token_set && <span className="key-hint"> (נשמר)</span>}
           </label>
           <input
@@ -245,7 +305,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             onChange={(e) => setCubesToken(e.target.value)}
           />
           <label className="field-label" htmlFor="set-flapi-username">
-            username header
+            כותרת שם משתמש
           </label>
           <input
             id="set-flapi-username"
@@ -264,7 +324,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             FLAPI: flapi://cube/&lt;name&gt; או flapi://package/&lt;id&gt;
           </p>
         </section>
+        )}
 
+        {activeSection === "tyche" && (
         <section className="settings-section">
           <h3>שרת Tyche</h3>
           <label className="field-label" htmlFor="set-tyche-url">
@@ -280,7 +342,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             onChange={(e) => setTycheBaseUrl(e.target.value)}
           />
           <label className="field-label" htmlFor="set-tyche-username">
-            username header
+            כותרת שם משתמש
           </label>
           <input
             id="set-tyche-username"
@@ -291,7 +353,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             onChange={(e) => setTycheUsername(e.target.value)}
           />
           <label className="field-label" htmlFor="set-tyche-token">
-            Authorization token
+            אסימון הרשאה
             {settings?.tyche_token_set && <span className="key-hint"> (נשמר)</span>}
           </label>
           <input
@@ -312,7 +374,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             שכבת קטלוג: provider=tyche, source_url=tyche://ourforces
           </p>
         </section>
+        )}
 
+        {activeSection === "mqs" && (
         <section className="settings-section">
           <h3>שרת MQS (מוריה)</h3>
           <label className="field-label" htmlFor="set-mqs-url">
@@ -347,7 +411,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             אימות תעודת TLS
           </label>
         </section>
+        )}
 
+        {activeSection === "database" && (
         <section className="settings-section">
           <h3>קטלוג שכבות (PostgreSQL)</h3>
           <label className="field-label" htmlFor="set-db-url">
@@ -450,21 +516,25 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           {settings && (
             <p className={`catalog-status ${settings.catalog.ok ? "ok" : "bad"}`}>
               {settings.catalog.ok
-                ? `✓ מחובר — נמצאו ${settings.catalog.layer_count} שכבות`
-                : `✗ ${settings.catalog.error}`}
+                ? `מחובר — נמצאו ${settings.catalog.layer_count} שכבות`
+                : settings.catalog.error}
             </p>
           )}
         </section>
+        )}
+          </div>
+        </div>
 
         <footer className="settings-footer">
-          {message && <span className="settings-message">{message}</span>}
+          {message && <span className="settings-message" role="status">{message}</span>}
           <button
             type="button"
             className="run-query-button settings-save"
             onClick={handleSave}
             disabled={saving || settings === null}
           >
-            {saving ? "שומר…" : "שמירת הגדרות"}
+            <Save size={17} />
+            {saving ? "שומר…" : "שמירת שינויים"}
           </button>
         </footer>
       </div>

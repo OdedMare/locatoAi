@@ -137,8 +137,8 @@ export interface GeoQueryResponse {
   selected_layers: SelectedLayer[];
   /** The model's short Hebrew reasoning for the choice. */
   reasoning: string;
-  /** sample_field rounds the plan builder ran ({layer_id, field} each). */
-  tool_calls: { layer_id: string; field: string }[];
+  /** Bounded sample_field and load_skill rounds used while planning. */
+  tool_calls: { layer_id?: string; field?: string; skill_id?: string }[];
   /** Operational pipeline trace (not private model chain-of-thought). */
   pipeline_trace: PipelineTraceEntry[];
 }
@@ -149,7 +149,7 @@ export interface PipelineTraceEntry {
   duration_ms?: number;
   explanation?: string | null;
   attempts?: number;
-  tool_calls?: { layer_id: string; field: string }[];
+  tool_calls?: { layer_id?: string; field?: string; skill_id?: string }[];
   selected_layer_ids?: string[];
   selected_layer_names?: string[];
   requested_layer_ids?: string[];

@@ -167,9 +167,11 @@ def test_cubes_database_name_normalizes_to_catalog_source_url():
         tyche_geometry_field="geo",
         tyche_geo_query_field="area",
         tyche_time_field="observedAt",
+        tyche_entity_field="alertId",
     ) == (
         "tyche://coordinate/v1/alerts?"
         "geometry_field=geo&geo_query_field=area&time_field=observedAt"
+        "&entity_field=alertId"
     )
     assert _normalized_source(
         "cubes", "transport", "match_not"

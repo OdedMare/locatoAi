@@ -89,7 +89,8 @@ def test_moving_entity_steps_parse():
         {"id": "s2", "op": "movement_direction", "input": "s1",
          "direction": "south", "entity_field": "netId",
          "time_field": "eventTime", "min_distance_m": 100},
-        {"id": "s3", "op": "latest_per_entity", "input": "s2"},
+        {"id": "s3", "op": "latest_per_entity", "input": "s2",
+         "entity_field": "netId", "time_field": "eventTime"},
     ], output="s3")
     validate_plan(plan, KNOWN_LAYERS, has_user_geometry=False)
 
@@ -127,12 +128,20 @@ def test_trajectory_relation_and_origin_movement_parse_with_schema_fields():
     validate_plan(origin_plan, KNOWN_LAYERS, has_user_geometry=False)
 
 
-@pytest.mark.parametrize("op", ["trajectory_relation", "origin_movement"])
+@pytest.mark.parametrize(
+    "op",
+    [
+        "latest_per_entity", "movement_direction",
+        "trajectory_relation", "origin_movement",
+    ],
+)
 def test_new_trajectory_operations_require_schema_identity_and_time_fields(op):
     values = {"id": "s2", "op": op, "input": "s1"}
-    if op == "trajectory_relation":
+    if op == "movement_direction":
+        values["direction"] = "any"
+    elif op == "trajectory_relation":
         values["relation"] = "together"
-    else:
+    elif op == "origin_movement":
         values.update({
             "pattern": "departed",
             "start_at": "2026-07-15T20:00:00Z",

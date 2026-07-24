@@ -1,4 +1,4 @@
-"""Create authenticated Cubes HTTP clients."""
+"""Create authenticated FLAPI HTTP clients."""
 
 from typing import Optional
 
@@ -8,7 +8,7 @@ from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 
-class CubesClientFactory:
+class FlapiClientFactory:
     def __init__(
         self,
         settings_store: RuntimeSettingsStore,

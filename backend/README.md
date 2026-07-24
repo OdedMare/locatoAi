@@ -83,7 +83,7 @@ app/
 │   ├── feedback/            # configurable PostgreSQL feedback repository
 │   ├── providers/
 │   │   ├── mqs/             # MQS REST adapter + collaborators
-│   │   ├── cubes/           # generic Cubes adapter + collaborators
+│   │   ├── flapi/           # Cubes + Flow Packages, shared FLAPI client/schema
 │   │   ├── tyche/           # Tyche adapter + collaborators
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
@@ -164,7 +164,7 @@ Plans are DAGs of steps chained by `id`/`input`. Validators guarantee every
 | `nearest_n` | globally nearest N features to a target layer | adds `distance_to_target_m` |
 | `near_all` | require proximity to every one of 2–5 targets | AND semantics; optional ranking limit |
 | `cluster` | find mutually close groups within the input layer | adds `cluster_id` |
-| `latest_per_entity` | newest observation per identity | Cubes defaults: `netId` + `eventTime` |
+| `latest_per_entity` | newest observation per identity | uses provider-declared entity/time schema roles |
 | `movement_direction` | movement in any or a dominant compass direction | latest matching position + path distance/displacement |
 | `trajectory_relation` | compare different entities' tracks | together, same destination/time, or same place at different times |
 | `origin_movement` | departure or round trip from an inferred origin | explicit time window, distance/time buffers, and path |
@@ -276,8 +276,9 @@ the response and listed in the UI agent panel. Backed by `Provider.sample_field_
 compacts catalog descriptions and schema samples, limits sampled tool values, and sends
 `max_tokens=1200` to the OpenAI-compatible completion endpoint. All plan operations,
 validation retries, sampling rounds, and zero-result replanning remain available. The
-fixed build prompt remains roughly half the full profile by rendering only each skill's
-use/avoid rules and JSON shape; actual size varies with the catalog and selected schemas.
+fixed build prompt remains smaller than the full profile by rendering only each skill's
+use/avoid rules beside compact contracts generated from Pydantic; actual size varies with
+the catalog and selected schemas.
 Set `AILOCATOR_LLM_DIET_MODE=false` or clear the UI toggle to run the full prompts for
 quality comparison.
 
@@ -286,9 +287,10 @@ the operation-skill catalog. `PUT /api/agent-config/{kind}/{id}` saves an overri
 `POST /api/agent-config/skills` creates a new planner instruction skill. Overrides and
 custom skills persist in `runtime-settings.json`; the selector, planner, and metadata
 generator read them on every call, so the next agent request uses the edit without a
-backend restart. Required prompt placeholders are validated before saving. These skills
-compose existing typed plan operations; adding a new executable operation still requires
-its model, validator, executor, trace, and tests.
+backend restart. The prompt receives only a compact custom-skill index; the planner may
+load at most two relevant bodies through `load_skill`. Required prompt placeholders are
+validated before saving. These skills compose existing typed plan operations; adding a
+new executable operation still requires its model, validator, executor, trace, and tests.
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
@@ -312,7 +314,8 @@ The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-opti
 
 The catalog's `provider` column routes each layer to a registered adapter
 ([`registry.py`](app/dal/providers/registry.py), wired in `main.py`). **Production
-registers `mqs`, `cubes`, and `tyche`** — `arcgis` is not a real provider anymore.
+registers `mqs`, `flapi`, `cubes`, and `tyche`** — `cubes` is a compatibility alias
+for the FLAPI provider, and `arcgis` is not a real provider anymore.
 Layer selection and explicit-plan validation ignore catalog rows whose provider is not
 registered, while the catalog UI still lists them for repair/editing. If no queryable
 layers remain, selection returns a clarification instead of failing during planning.
@@ -320,7 +323,7 @@ layers remain, selection returns a clarification instead of failing during plann
 Provider modules follow one-class-per-file composition. The public provider classes are
 thin use-case coordinators; source parsing, request building, HTTP/pagination, response
 mapping, schema inference, and dense-result splitting live in named collaborators such as
-`MqsGateway`, `MqsEntityStream`, `CubesQueryBuilder`, `CubesSchemaMapper`,
+`MqsGateway`, `MqsEntityStream`, `CubesQueryBuilder`, `FlapiSchemaMapper`,
 `TycheGateway`, and `TycheFeatureMapper`. Provider files stay below 250 lines, and new
 provider behavior belongs in the collaborator that owns that single responsibility.
 
@@ -364,11 +367,13 @@ provider behavior belongs in the collaborator that owns that single responsibili
 
 - **`flapi`** — [`provider.py`](app/dal/providers/flapi/provider.py): the top-level
   dispatcher for `flapi://cube/<name>` and `flapi://package/<id>`. The Cube path
-  delegates to the existing Cubes adapter; `provider="cubes"` remains registered for
-  existing catalog rows. Both paths share the configured base URL, Authorization
-  token, optional `username` header, and TLS policy.
+  delegates to `CubesProvider`; the same facade is also registered as
+  `provider="cubes"` for existing catalog rows. Both paths share one client factory,
+  the configured base URL, Authorization token, optional `username` header, TLS
+  policy, and response/schema mapper.
 
-- **`cubes`** — [`provider.py`](app/dal/providers/cubes/provider.py): time-varying entity
+- **Cubes** — [`cube_provider.py`](app/dal/providers/flapi/cube_provider.py):
+  time-varying entity
   locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
   reads metadata with `GET /cube/v1/<dbname>` and falls back to
   `GET /cube/v1/<dbname>/parameters` when parameter definitions are not embedded.
@@ -391,8 +396,8 @@ provider behavior belongs in the collaborator that owns that single responsibili
   New requests use `cubes_parameters`; `cubes_dynamic_parameters` is retained for
   compatibility. A declared `polygon` receives `{"value": [<boundary WKT>]}` and a
   plain `date` receives `{"TimeBackUnit":"no_time","TimeBackValue":1}`.
-  Moving-entity plans use schema-backed identity/time fields (`netId`/`eventTime` for
-  typical Cubes layers). `latest_per_entity`, `movement_direction`,
+  Moving-entity plans use provider-declared identity/time schema roles.
+  `latest_per_entity`, `movement_direction`,
   `trajectory_relation`, and `origin_movement` prevent repeated observations from being
   mistaken for multiple vehicles and support single- and multi-track questions.
   `ResultsLimit` controls truncation detection (default 10,000). When a bounded request
@@ -428,7 +433,7 @@ provider behavior belongs in the collaborator that owns that single responsibili
   catalog source URL, validated and serialized just before execution, and sent by
   `POST /package/v3/<id>`. With no selected query the request uses
   `lastQueries=true`; otherwise it repeats the `queries` option. Result entries are
-  parsed independently through `CubesSchemaMapper`, tagged with `_package_query`, and
+  parsed independently through `FlapiSchemaMapper`, tagged with `_package_query`, and
   merged into one GeoDataFrame. Partial-success trace IDs and capped queries are logged,
   and a 100,000-row safety ceiling prevents an unbounded response from exhausting the
   process.
@@ -436,8 +441,9 @@ provider behavior belongs in the collaborator that owns that single responsibili
 - **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): Tyche coordinate
   APIs, including Our Forces at `POST /coordinate/v1/ourforces`. The canonical row uses
   `source_url="tyche://ourforces"`. Additional rows can select another route and store
-  `geometry_field`, `geo_query_field`, and `time_field` query parameters in that URL;
-  omitted mappings retain the Our Forces defaults. The live base URL, `username` header,
+  `geometry_field`, `geo_query_field`, `time_field`, and optional `entity_field` query
+  parameters in that URL. The entity mapping declares the stable identity role used by
+  moving operations; custom layers do not guess one. The live base URL, `username` header,
   write-only `Authorization` token, and TLS verification setting are read on
   every request. The adapter is request-scoped and stores no entity mirror.
   Every fetch sends Tyche's required `eventTime.match.gte/lte` values in

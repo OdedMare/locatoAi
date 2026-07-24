@@ -8,8 +8,8 @@ import httpx
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
-from app.dal.providers.cubes.client_factory import CubesClientFactory
-from app.dal.providers.cubes.schema_mapper import CubesSchemaMapper
+from app.dal.providers.flapi.client_factory import FlapiClientFactory
+from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
 from app.dal.providers.flapi.source import FlapiSource
 
 
@@ -19,9 +19,9 @@ class FlowPackageGateway:
 
     def __init__(
         self,
-        clients: CubesClientFactory,
+        clients: FlapiClientFactory,
         source: FlapiSource,
-        rows: CubesSchemaMapper,
+        rows: FlapiSchemaMapper,
     ) -> None:
         self._clients = clients
         self._source = source

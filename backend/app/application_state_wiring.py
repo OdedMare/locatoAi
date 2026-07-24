@@ -38,13 +38,12 @@ class ApplicationStateWiring:
         registry = InMemoryProviderRegistry()
         mqs = MqsProvider(store, detail_concurrency=settings.mqs_detail_concurrency)
         flapi = FlapiProvider(store)
-        cubes = flapi.cubes
         tyche = TycheProvider(store)
         registry.register("mqs", mqs)
-        registry.register("cubes", cubes)
+        registry.register("cubes", flapi)
         registry.register("flapi", flapi)
         registry.register("tyche", tyche)
-        return registry, mqs, flapi, cubes, tyche
+        return registry, mqs, flapi, tyche
 
     @staticmethod
     def _services(
@@ -79,7 +78,7 @@ class ApplicationStateWiring:
         app, store, repository, provider_bundle, services, settings,
         agent_content,
     ) -> None:
-        providers, mqs, flapi, cubes, tyche = provider_bundle
+        providers, mqs, flapi, tyche = provider_bundle
         catalog, llm, selector, metadata, orchestrator = services
         app.state.settings_store = store
         app.state.agent_content = agent_content
@@ -87,7 +86,6 @@ class ApplicationStateWiring:
         app.state.feedback_repository = PostgresFeedbackRepository(store)
         app.state.mqs_provider = mqs
         app.state.flapi_provider = flapi
-        app.state.cubes_provider = cubes
         app.state.tyche_provider = tyche
         app.state.catalog = catalog
         app.state.layer_selector = selector

@@ -2,12 +2,12 @@ import { useState } from "react";
 
 import type {
   CubesAutocompleteOption,
-  CubesParameterDefinition,
+  FlapiParameterDefinition,
 } from "@/types/catalog";
 import CubesParameterOptionPicker from "./CubesParameterOptionPicker";
 
 interface CubesParametersFieldsetProps {
-  definitions: CubesParameterDefinition[];
+  definitions: FlapiParameterDefinition[];
   options: Record<string, CubesAutocompleteOption[]>;
   values: Record<string, string>;
   loadingParameter: string | null;

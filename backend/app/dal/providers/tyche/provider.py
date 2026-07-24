@@ -44,7 +44,7 @@ class TycheProvider:
             self._samples[layer.id] = rows
         return self._schema_builder.build(
             layer, rows or [], source.time_field, source.geometry_field,
-            source.is_our_forces,
+            source.entity_field, source.is_our_forces,
         )
 
     def fetch_features(

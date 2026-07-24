@@ -61,7 +61,7 @@ function describeStep(step: GeoPlanStep, layerName: (id?: string) => string): st
     case "cluster":
       return `איתור קבוצות של ${step.min_group_size ?? 2}+ ישויות קרובות זו לזו (עד ${step.max_distance_m ?? 300} מ')`;
     case "latest_per_entity":
-      return `המיקום האחרון לכל ישות לפי ${step.entity_field ?? "netId"}`;
+      return `המיקום האחרון לכל ישות לפי ${step.entity_field ?? "תפקיד הזהות בסכמה"}`;
     case "movement_direction":
       return `ישויות שנעו ${MOVEMENT_DIRECTION_HE[step.direction ?? ""] ?? step.direction} לפחות ${step.min_distance_m ?? 50} מ'`;
     case "trajectory_relation":
@@ -280,9 +280,10 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
             </p>
           )}
           {(response!.tool_calls ?? []).map((call, index) => (
-            <p key={`${call.layer_id}-${call.field}-${index}`} className="agent-step done" dir="auto">
-              🔍 דגימת ערכים: {layerName(call.layer_id)}
-              <span dir="ltr"> ({call.field})</span>
+            <p key={`${call.skill_id ?? call.layer_id}-${call.field ?? ""}-${index}`} className="agent-step done" dir="auto">
+              {call.skill_id
+                ? `🧩 טעינת מיומנות: ${call.skill_id}`
+                : `🔍 דגימת ערכים: ${layerName(call.layer_id ?? "")}${call.field ? ` · ${call.field}` : ""}`}
             </p>
           ))}
           <p className="agent-step done">✓ השכבות שנבחרו מהקטלוג:</p>

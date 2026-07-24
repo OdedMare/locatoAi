@@ -22,26 +22,28 @@ from app.bl.plan.models.touches_step import TouchesStep
 from app.bl.plan.models.trajectory_relation_step import TrajectoryRelationStep
 from app.bl.plan.models.within_geometry_step import WithinGeometryStep
 
+STEP_MODELS = (
+    LoadStep,
+    WithinGeometryStep,
+    AttributeFilterStep,
+    NearStep,
+    NearestNStep,
+    NearAllStep,
+    BetweenStep,
+    CrossesStep,
+    TouchesStep,
+    ContainsStep,
+    DirectionalStep,
+    TemporalFilterStep,
+    ClusterStep,
+    LatestPerEntityStep,
+    MovementDirectionStep,
+    TrajectoryRelationStep,
+    OriginMovementStep,
+    CountStep,
+)
+
 Step = Annotated[
-    Union[
-        LoadStep,
-        WithinGeometryStep,
-        AttributeFilterStep,
-        NearStep,
-        NearestNStep,
-        NearAllStep,
-        BetweenStep,
-        CrossesStep,
-        TouchesStep,
-        ContainsStep,
-        DirectionalStep,
-        TemporalFilterStep,
-        ClusterStep,
-        LatestPerEntityStep,
-        MovementDirectionStep,
-        TrajectoryRelationStep,
-        OriginMovementStep,
-        CountStep,
-    ],
+    Union[STEP_MODELS],
     Field(discriminator="op"),
 ]

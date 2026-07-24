@@ -1,4 +1,4 @@
-"""Map Cubes metadata and rows into application models."""
+"""Map FLAPI metadata and rows into application models."""
 
 from datetime import datetime
 from typing import List, Optional
@@ -7,13 +7,14 @@ import geopandas as gpd
 from shapely import wkt
 
 from app.bl.catalog.models.layer_field import LayerField
+from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_parameter import LayerParameter
 from app.bl.catalog.models.layer_schema import LayerSchema
 from app.common.errors.provider_error import ProviderError
 from app.common.utils.geo_utils import WGS84, empty_features_gdf
 
 
-class CubesSchemaMapper:
+class FlapiSchemaMapper:
     _LIST_KEYS = (
         "data", "Data", "results", "Results", "items", "Items",
         "entities", "Entities",
@@ -31,7 +32,7 @@ class CubesSchemaMapper:
             for key in self._LIST_KEYS:
                 if isinstance(payload.get(key), list):
                     return self._dicts(payload[key])
-        raise ProviderError("Cubes returned an unrecognized response shape")
+        raise ProviderError("FLAPI returned an unrecognized response shape")
 
     def infer_schema(self, layer_id: str, rows: List[dict]) -> LayerSchema:
         fields = [self._inferred_field(name, rows) for name in self._field_names(rows)]
@@ -71,6 +72,18 @@ class CubesSchemaMapper:
             attributes, geometry=[geometry for _, geometry in valid], crs=WGS84
         )
 
+    @staticmethod
+    def with_layer_roles(
+        schema: LayerSchema, layer: LayerMeta
+    ) -> LayerSchema:
+        prefix = "entity_field:"
+        entity = next(
+            (tag[len(prefix):].strip() for tag in layer.tags
+             if tag.startswith(prefix) and tag[len(prefix):].strip()),
+            None,
+        )
+        return schema.model_copy(update={"entity_field": entity})
+
     def metadata_fields(self, payload: dict) -> List[LayerField]:
         fields = self._value(payload, "Fields", "fields") or []
         return [
@@ -89,7 +102,7 @@ class CubesSchemaMapper:
 
     @staticmethod
     def results_limit(metadata: dict) -> int:
-        value = CubesSchemaMapper._value(
+        value = FlapiSchemaMapper._value(
             metadata, "ResultsLimit", "resultsLimit", "results_limit"
         )
         return value if isinstance(value, int) and value > 0 else 10000
@@ -177,41 +190,41 @@ class CubesSchemaMapper:
 
     @staticmethod
     def _metadata_parameter(item: dict) -> LayerParameter:
-        name = str(CubesSchemaMapper._value(item, "Name", "name"))
-        role = CubesSchemaMapper._value(item, "Role", "role")
+        name = str(FlapiSchemaMapper._value(item, "Name", "name"))
+        role = FlapiSchemaMapper._value(item, "Role", "role")
         dynamic = (name.casefold().endswith(":dynamic")
                    or str(role or "").casefold() == "dynamic")
-        options = [] if dynamic else CubesSchemaMapper._options(item)
+        options = [] if dynamic else FlapiSchemaMapper._options(item)
         return LayerParameter(
             name=name,
-            type=str(CubesSchemaMapper._value(item, "Type", "type") or "string").lower(),
-            display_name=str(CubesSchemaMapper._value(
+            type=str(FlapiSchemaMapper._value(item, "Type", "type") or "string").lower(),
+            display_name=str(FlapiSchemaMapper._value(
                 item, "DisplayName", "displayName", "display_name"
             ) or ""),
-            description=str(CubesSchemaMapper._value(
+            description=str(FlapiSchemaMapper._value(
                 item, "Description", "description"
             ) or ""),
-            required=CubesSchemaMapper._bool_value(
+            required=FlapiSchemaMapper._bool_value(
                 item, False, "IsRequired", "isRequired", "is_required", "required"
             ),
-            single_value=CubesSchemaMapper._bool_value(
+            single_value=FlapiSchemaMapper._bool_value(
                 item, True, "IsSingleValue", "isSingleValue", "is_single_value"
             ),
             options=options, is_dynamic=dynamic,
-            configured_value=None if dynamic else CubesSchemaMapper._value(
+            configured_value=None if dynamic else FlapiSchemaMapper._value(
                 item, "Value", "value"
             ),
         )
 
     @staticmethod
     def _options(item: dict) -> List[str]:
-        raw = CubesSchemaMapper._value(item, "Options", "options") or []
+        raw = FlapiSchemaMapper._value(item, "Options", "options") or []
         if not isinstance(raw, list):
             return []
         values = []
         for option in raw:
             value = (
-                CubesSchemaMapper._value(option, "Value", "value")
+                FlapiSchemaMapper._value(option, "Value", "value")
                 if isinstance(option, dict)
                 else option
             )
@@ -225,7 +238,7 @@ class CubesSchemaMapper:
 
     @staticmethod
     def _bool_value(item: dict, default: bool, *keys: str) -> bool:
-        value = CubesSchemaMapper._value(item, *keys)
+        value = FlapiSchemaMapper._value(item, *keys)
         if value is None:
             return default
         if isinstance(value, str):

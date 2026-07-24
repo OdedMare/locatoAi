@@ -29,9 +29,11 @@ export interface CreateLayerRequest {
   cubes_dynamic_parameters?: Record<string, string>;
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
+  entity_field?: string;
   tyche_geometry_field?: string;
   tyche_geo_query_field?: string;
   tyche_time_field?: string;
+  tyche_entity_field?: string;
 }
 
 export interface UpdateLayerRequest {
@@ -54,6 +56,7 @@ export interface GenerateLayerMetadataRequest {
   tyche_geometry_field?: string;
   tyche_geo_query_field?: string;
   tyche_time_field?: string;
+  tyche_entity_field?: string;
 }
 
 export interface CubesAutocompleteRequest {
@@ -75,11 +78,11 @@ export interface GeneratedLayerMetadataResponse {
   tags: string[];
   sample_count: number;
   dynamic_parameters: string[];
-  configurable_parameters: CubesParameterDefinition[];
+  configurable_parameters: FlapiParameterDefinition[];
   requires_sample_polygon: boolean;
 }
 
-export interface CubesParameterDefinition {
+export interface FlapiParameterDefinition {
   name: string;
   display_name: string;
   description: string;

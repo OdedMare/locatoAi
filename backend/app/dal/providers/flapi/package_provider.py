@@ -9,7 +9,7 @@ from shapely.geometry.base import BaseGeometry
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_parameter import LayerParameter
 from app.bl.catalog.models.layer_schema import LayerSchema
-from app.dal.providers.cubes.schema_mapper import CubesSchemaMapper
+from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
 from app.dal.providers.flapi.package_gateway import FlowPackageGateway
 from app.dal.providers.flapi.package_metadata import FlowPackageMetadata
 from app.dal.providers.flapi.package_serializer import FlowPackageSerializer
@@ -22,7 +22,7 @@ class FlowPackageProvider:
     def __init__(self, clients) -> None:
         self._source = FlapiSource()
         self._metadata = FlowPackageMetadata()
-        self._rows = CubesSchemaMapper()
+        self._rows = FlapiSchemaMapper()
         self._gateway = FlowPackageGateway(clients, self._source, self._rows)
         self._serializer = FlowPackageSerializer(self._metadata)
         self._definitions: Dict[str, List[dict]] = {}
@@ -113,12 +113,13 @@ class FlowPackageProvider:
         self, layer: LayerMeta, rows: List[dict], definitions: List[dict]
     ) -> LayerSchema:
         inferred = self._rows.infer_schema(layer.id, rows)
-        return inferred.model_copy(update={
+        schema = inferred.model_copy(update={
             "parameters": self._metadata.parameters(
                 definitions, self._source.package_inputs(layer)
             ),
             "source_name": f"Flow Package {self._source.package_id(layer)}",
         })
+        return self._rows.with_layer_roles(schema, layer)
 
     @staticmethod
     def _schema_key(layer: LayerMeta) -> Tuple[str, str]:

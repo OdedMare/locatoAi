@@ -52,7 +52,7 @@ here — `dal/` supplies it structurally (duck-typed, no explicit inheritance ne
 | `providers/provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | `describe_schema(layer) -> LayerSchema`; `fetch_features(layer, now=None, geometry=None, limit=None, attribute_filters=None) -> gpd.GeoDataFrame` (geometry/limit/attribute_filters are pushdown *hints* — correctness never depends on the provider honoring them); `sample_field_values(layer, field, limit=20) -> List[str]` | `CubesProvider`, `MqsProvider`, `TycheProvider` |
 | `providers/registry.py` | `ProviderRegistry(Protocol)` | `get(provider_name) -> Provider`, `has(provider_name) -> bool` | `InMemoryProviderRegistry` |
 | `catalog/models/layer_meta.py` | `LayerMeta(BaseModel)` | data only — one catalog row: `id, name, description="", tags=[], provider, source_url` | n/a |
-| `catalog/models/layer_schema.py` | `LayerSchema(BaseModel)` | data only: `layer_id, geometry_type, fields: List[LayerField], parameters: List[LayerParameter]=[], source_name="", source_description="", temporal_field: Optional[str]` | n/a |
+| `catalog/models/layer_schema.py` | `LayerSchema(BaseModel)` | data only: `layer_id, geometry_type, fields: List[LayerField], parameters: List[LayerParameter]=[], source_name="", source_description="", entity_field: Optional[str], temporal_field: Optional[str]` | n/a |
 | `catalog/models/layer_field.py` | `LayerField(BaseModel)` | data only: `name, type, description="", samples: List[str]=[], metadata_relevant=True` | n/a |
 | `catalog/models/layer_parameter.py` | `LayerParameter(BaseModel)` | data only: `name, type, display_name="", description="", required=False, single_value=True, options=[], is_dynamic=False, resolved_value=None, configured_value: Any` (excluded from serialization — may hold secrets) | n/a |
 | `catalog/models/layer_parameter_option.py` | `LayerParameterOption(BaseModel)` | data only: `value, name=""` | n/a |
@@ -106,11 +106,11 @@ referencing an earlier step's `id`. Optional target-filter triples
 `NearestNStep`, `BetweenStep`, `NearAllStep`'s `ProximityTarget`, and
 `SpatialRelationStep`.
 
-Representative examples: `NearStep` — `distance_m: float = Field(gt=0, le=5000)`;
+Representative examples: `NearStep` — `distance_m: float = Field(default=300, gt=0, le=5000)`;
 `MovementDirectionStep` — `direction: Literal["any","north","south","east","west"],
-entity_field="netId", time_field="eventTime", min_distance_m: float =
-Field(default=50, ge=0, le=50000)`; `LatestPerEntityStep` — `entity_field="netId",
-time_field="eventTime"` (Cubes/Tyche trajectory defaults).
+entity_field: str, time_field: str, min_distance_m: float =
+Field(default=50, ge=0, le=50000)`; `LatestPerEntityStep` requires explicit
+`entity_field` and `time_field` values from the selected layer schema.
 
 ### `validators.py` — `PlanValidator` / `validate_plan = PlanValidator().validate`
 
@@ -234,17 +234,19 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
 - **`plan_builder.py`** — `PlanBuilder(llm, catalog, diet_mode=None)`:
   - `build(query, layers, has_boundaries, now) -> PlanBuildResult` — builds the system
     prompt (`{now}`/`{has_boundaries}`/`{geo_skills}`/`{layers}`), delegates to
-    `PlanBuildLoop.run`. `GeoSkillCatalog` loads one reference per operation; diet mode
-    keeps each skill's routing contrast and exact JSON shape.
+    `PlanBuildLoop.run`. `GeoSkillCatalog` combines Pydantic-derived compact operation
+    contracts, one provider-neutral routing reference per operation, profiles activated
+    by selected-layer `profile:<id>` tags, and a compact custom-skill index.
   - `replan_after_empty(query, layers, previous, has_boundaries, now) ->
     PlanBuildResult` — the zero-result diagnosis path: appends "executed successfully
     but returned zero rows... never widen time, distance, geography, counts, targets,
     or movement thresholds" plus the previous plan JSON, calls `build()` again, then
     runs `preserves_constraints(previous, result.plan)` — on failure, discards the
     revision and returns a fixed clarify.
-- **`plan_build_loop.py`** — `PlanBuildLoop` (`_MAX_ATTEMPTS=2`, `_MAX_TOOL_ROUNDS=3`,
-  tool `sample_field`). `run(...)` is the bounded LLM/tool/validation loop: each turn
-  either (a) handles a `sample_field` tool call via `catalog.sample_field` and loops
+- **`plan_build_loop.py`** — `PlanBuildLoop` (`_MAX_ATTEMPTS=2`, three
+  `sample_field` rounds, two distinct `load_skill` rounds). `run(...)` is the bounded
+  LLM/tool/validation loop: each turn either (a) handles a field sample or indexed
+  custom-skill load and loops
   again (doesn't count against `_MAX_ATTEMPTS`), (b) accepts a `clarify`, or (c)
   validates the JSON via `GeoQueryPlan.model_validate` + `validate_plan` — failure
   appends a correction message and retries up to `_MAX_ATTEMPTS`; exhaustion returns a
@@ -302,7 +304,9 @@ prompts/
 ```
 Geo operation selection rules live beside these shells under
 `bl/agent/skills/plan-geo-queries/references/`, one reference per operation. The full
-prompt gets complete references; diet mode gets their use/avoid lines and JSON shapes.
+prompt gets complete references; diet mode gets their use/avoid lines. Both receive the
+same compact operation contracts generated from Pydantic. Conditional domain profiles
+live under `profiles/`; custom skill bodies load only after an indexed `load_skill`.
 
 `llm_diet_mode` picks the diet files at runtime via a `diet_mode: Callable[[], bool]`
 passed into `LayerSelector`/`PlanBuilder` (default `False` = full prompts when not

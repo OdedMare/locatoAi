@@ -8,9 +8,9 @@ import httpx
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_parameter_option import LayerParameterOption
 from app.common.errors.provider_error import ProviderError
-from app.dal.providers.cubes.client_factory import CubesClientFactory
-from app.dal.providers.cubes.parameter_loader import CubesParameterLoader
-from app.dal.providers.cubes.source import CubesSource
+from app.dal.providers.flapi.client_factory import FlapiClientFactory
+from app.dal.providers.flapi.cube_parameter_loader import CubesParameterLoader
+from app.dal.providers.flapi.cube_source import CubesSource
 
 
 class CubesMetadataGateway:
@@ -18,7 +18,7 @@ class CubesMetadataGateway:
 
     def __init__(
         self,
-        clients: CubesClientFactory,
+        clients: FlapiClientFactory,
         source: CubesSource,
         parameters: CubesParameterLoader,
     ) -> None:

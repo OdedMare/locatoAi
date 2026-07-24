@@ -13,7 +13,7 @@ import {
 import type {
   CatalogLayer,
   CubesAutocompleteOption,
-  CubesParameterDefinition,
+  FlapiParameterDefinition,
   CubesQueryMode,
   FlapiResourceType,
   RemoteMqsLayer,
@@ -39,7 +39,7 @@ function mergeTags(current: string[], value: string, limit: number): string[] {
   })].slice(0, limit);
 }
 
-function isGeometryParameter(definition: CubesParameterDefinition): boolean {
+function isGeometryParameter(definition: FlapiParameterDefinition): boolean {
   return [definition.name, definition.type, definition.ontology_type]
     .join(" ")
     .toLowerCase()
@@ -68,13 +68,14 @@ export default function LayersPanel({
   const [tycheGeometryField, setTycheGeometryField] = useState("geometry");
   const [tycheGeoQueryField, setTycheGeoQueryField] = useState("location");
   const [tycheTimeField, setTycheTimeField] = useState("eventTime");
+  const [tycheEntityField, setTycheEntityField] = useState("");
   const [flapiResourceType, setFlapiResourceType] =
     useState<FlapiResourceType>("cube");
   const [packageQuery, setPackageQuery] = useState("");
   const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
   const [parameterDefinitions, setParameterDefinitions] =
-    useState<CubesParameterDefinition[]>([]);
+    useState<FlapiParameterDefinition[]>([]);
   const [manualDynamicParameterNames, setManualDynamicParameterNames] = useState<string[]>([]);
   const [dynamicParameterOptions, setDynamicParameterOptions] =
     useState<Record<string, CubesAutocompleteOption[]>>({});
@@ -208,9 +209,11 @@ export default function LayersPanel({
         cubes_parameters: dynamicParameterValues,
         package_parameters: isFlowPackage ? dynamicParameterValues : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
+        entity_field: tycheEntityField.trim() || undefined,
         tyche_geometry_field: tycheGeometryField.trim(),
         tyche_geo_query_field: tycheGeoQueryField.trim(),
         tyche_time_field: tycheTimeField.trim(),
+        tyche_entity_field: tycheEntityField.trim() || undefined,
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -221,6 +224,7 @@ export default function LayersPanel({
       setTycheGeometryField("geometry");
       setTycheGeoQueryField("location");
       setTycheTimeField("eventTime");
+      setTycheEntityField("");
       setFlapiResourceType("cube");
       setPackageQuery("");
       setCubesQueryMode("auto");
@@ -304,6 +308,7 @@ export default function LayersPanel({
       tyche_geometry_field: tycheGeometryField.trim(),
       tyche_geo_query_field: tycheGeoQueryField.trim(),
       tyche_time_field: tycheTimeField.trim(),
+      tyche_entity_field: tycheEntityField.trim() || undefined,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
@@ -502,6 +507,7 @@ export default function LayersPanel({
     setTycheGeometryField("geometry");
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
+    setTycheEntityField("");
     setFlapiResourceType("cube");
     setPackageQuery("");
     setCubesQueryMode("auto");
@@ -527,6 +533,7 @@ export default function LayersPanel({
     setTycheGeometryField("geometry");
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
+    setTycheEntityField("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
@@ -551,6 +558,7 @@ export default function LayersPanel({
     setTycheGeometryField("geometry");
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
+    setTycheEntityField("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setManualDynamicParameterNames([]);
@@ -574,6 +582,7 @@ export default function LayersPanel({
     setTycheGeometryField("geometry");
     setTycheGeoQueryField("location");
     setTycheTimeField("eventTime");
+    setTycheEntityField("");
     setFlapiResourceType("cube");
     setPackageQuery("");
     setCubesQueryMode("auto");
@@ -717,6 +726,7 @@ export default function LayersPanel({
                     setTycheGeometryField("geometry");
                     setTycheGeoQueryField("location");
                     setTycheTimeField("eventTime");
+                    setTycheEntityField("");
                     setFlapiResourceType("cube");
                     setPackageQuery("");
                     setDynamicParameterNames([]);
@@ -765,6 +775,17 @@ export default function LayersPanel({
                 dir="auto"
               />
             </div>
+            <label className="field-label" htmlFor="layer-entity-field">
+              שדה מזהה ישות יציב <span className="optional">(אופציונלי)</span>
+            </label>
+            <input
+              id="layer-entity-field"
+              className="settings-input"
+              value={tycheEntityField}
+              onChange={(event) => setTycheEntityField(event.target.value)}
+              placeholder="entityId"
+              dir="ltr"
+            />
             <label className="field-label" htmlFor="layer-source-url">
               {isFlowPackage
                 ? "Flow Package ID"

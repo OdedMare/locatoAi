@@ -15,6 +15,8 @@ class LayerSchema(BaseModel):
     parameters: List[LayerParameter] = []
     source_name: str = ""
     source_description: str = ""
+    entity_field: Optional[str] = None
+    """Stable identity field for repeated observations, when declared."""
     temporal_field: Optional[str] = None
     """Name of the field holding this layer's event time, if any — set by
     the provider. None means the layer has no temporal dimension."""

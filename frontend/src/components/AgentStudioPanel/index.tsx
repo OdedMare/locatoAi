@@ -19,9 +19,10 @@ const SKILL_TEMPLATE = `# \`new-skill\`
 
 **Do not use when:** Describe the closest cases where another skill is better.
 
-**Emit:** Describe the exact existing plan operation JSON to produce.
+**Compose:** Name the existing operations and their dependency order.
 
-Add concise step-by-step guidance here.
+Describe semantic constraints using layer/schema roles. Do not hard-code layer ids,
+step ids, provider names, field names, or operation defaults.
 `;
 
 const itemKey = (item: AgentContent) => `${item.kind}:${item.id}`;
@@ -208,8 +209,8 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                   aria-label="תוכן ההוראה"
                 />
                 <p className="agent-editor-note">
-                  מיומנויות מנחות את ה-planner להשתמש בפעולות הקיימות. הוספת tool
-                  executable חדש עדיין דורשת מימוש backend ובדיקות.
+                  תוכן מיומנות מותאמת נטען רק כשה-planner מבקש אותה לפי Use when.
+                  מיומנויות מרכיבות פעולות קיימות; tool חדש עדיין דורש backend ובדיקות.
                 </p>
                 {message && <p className="settings-message" dir="auto">{message}</p>}
               </>

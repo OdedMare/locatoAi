@@ -4,6 +4,4 @@
 
 **Do not use when:** `boundaries=no`. Never invent geometry or apply this to separately loaded reference layers.
 
-**Emit:** `{"id":"s2","op":"within_geometry","input":"s1","geometry":"user_polygon"}`
-
-The operation uses intersection, so lines or polygons partially inside the boundary still match. A request with boundaries is invalid without this step.
+Use the latest subject-chain step as input. The operation uses intersection, so lines or polygons partially inside the boundary still match.

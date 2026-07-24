@@ -29,3 +29,12 @@ class MqsSource:
             if tag.startswith("temporal_field:"):
                 return tag[len("temporal_field:"):].strip() or None
         return "date"
+
+    @staticmethod
+    def entity_field(layer: LayerMeta) -> Optional[str]:
+        prefix = "entity_field:"
+        return next(
+            (tag[len(prefix):].strip() for tag in layer.tags
+             if tag.startswith(prefix) and tag[len(prefix):].strip()),
+            None,
+        )

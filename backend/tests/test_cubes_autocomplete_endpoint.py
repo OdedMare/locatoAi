@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.common.config.settings import Settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.cubes.provider import CubesProvider
+from app.dal.providers.flapi.provider import FlapiProvider
 from app.main import _register_error_handlers
 from app.service.catalog import router as catalog_router
 
@@ -19,7 +19,9 @@ def make_app(handler, tmp_path) -> FastAPI:
         cubes_base_url="https://cubes.test",
         cubes_token="jwt",
     ))
-    app.state.cubes_provider = CubesProvider(store, httpx.MockTransport(handler))
+    app.state.flapi_provider = FlapiProvider(
+        store, httpx.MockTransport(handler)
+    )
     return app
 
 

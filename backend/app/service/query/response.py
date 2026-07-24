@@ -23,7 +23,7 @@ class QueryResponse(BaseModel):
     reasoning: str = ""
     """The model's short Hebrew 'why' for its layer choice."""
     tool_calls: List[Dict[str, str]] = []
-    """sample_field rounds the plan builder ran ({layer_id, field} each)."""
+    """Bounded sample_field and load_skill rounds used while planning."""
     pipeline_trace: List[Dict[str, Any]] = []
     """Structured, user-visible record of pipeline stages and execution."""
 

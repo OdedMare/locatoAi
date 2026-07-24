@@ -48,7 +48,7 @@ locatoAi/
 │   │   ├── main.py                   # composition root and FastAPI app
 │   │   ├── service/                  # HTTP routers and DTO translation
 │   │   ├── bl/                       # business rules, agents, plans, executor
-│   │   ├── dal/                      # PostgreSQL, MQS, Cubes, and LLM adapters
+│   │   ├── dal/                      # PostgreSQL, MQS, FLAPI, Tyche, and LLM adapters
 │   │   └── common/                   # settings, errors, CRS, logging
 │   ├── data/                         # test-only fixtures; excluded from image
 │   ├── scripts/                      # evaluation and tag enrichment tools
@@ -331,7 +331,7 @@ seed future regression cases.
 ## Extension map
 
 - Add a plan operation: define its Pydantic step, add semantic checks if needed, create a registered handler under `backend/app/bl/executor/ops/`, import it in the operations package, and mirror the type/description in the frontend trace.
-- Add a GIS provider: implement the small `Provider` protocol, register it in `main.py`, and write catalog rows using its provider name. Current production registrations are `mqs` and `cubes`.
+- Add a GIS provider: implement the small `Provider` protocol, register it in `main.py`, and write catalog rows using its provider name. Current production registrations are `mqs`, `flapi` (with the legacy `cubes` alias), and `tyche`.
 - Add an API endpoint: add a router in `service/`, mount it in `main.py`, and mirror its DTO in `frontend/src/types` if the UI consumes it.
 - Add a frontend workflow: keep cross-workspace state in `AppShell`, HTTP details in `services/`, and contract types synchronized with backend DTOs.
 - Tune the agent: edit the prompt files and run the scored evaluation; keep validation and execution rules in code.

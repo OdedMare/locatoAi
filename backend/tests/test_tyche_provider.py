@@ -112,7 +112,7 @@ def test_custom_layer_uses_its_route_and_field_mapping(tmp_path):
     }])
     custom = layer(
         "tyche://coordinate/v1/alerts?geometry_field=geo"
-        "&geo_query_field=area&time_field=observedAt"
+        "&geo_query_field=area&time_field=observedAt&entity_field=id"
     )
     boundary = box(34.7, 32.0, 34.9, 32.2)
 
@@ -127,6 +127,7 @@ def test_custom_layer_uses_its_route_and_field_mapping(tmp_path):
     assert body["area"] == {"match": boundary.wkt}
     assert "observedAt" in body
     assert schema.temporal_field == "observedAt"
+    assert schema.entity_field == "id"
     assert {field.name for field in schema.fields} == {
         "observedAt", "id", "severity",
     }
@@ -222,6 +223,7 @@ def test_schema_is_documented_and_enriched_with_sample_fields(tmp_path):
     fields = {field.name: field for field in schema.fields}
 
     assert schema.geometry_type == "Geometry"
+    assert schema.entity_field == "netId"
     assert schema.temporal_field == "eventTime"
     assert fields["callSign"].samples == ["Alpha"]
     assert fields["quality"].samples == ["95"]
@@ -272,4 +274,9 @@ def test_rejects_invalid_catalog_source(tmp_path):
         provider.fetch_features(layer(
             "tyche://alerts?time_field=observedAt"
             "&geo_query_field=observedAt"
+        ))
+    with pytest.raises(ProviderError, match="entity field"):
+        provider.fetch_features(layer(
+            "tyche://alerts?time_field=observedAt"
+            "&entity_field=observedAt"
         ))

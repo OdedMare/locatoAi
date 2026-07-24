@@ -15,4 +15,4 @@ class ClusterStep(BaseModel):
     op: Literal["cluster"]
     input: str
     min_group_size: int = Field(ge=2, le=20)
-    max_distance_m: float = Field(gt=0, le=5000)
+    max_distance_m: float = Field(default=300, gt=0, le=5000)

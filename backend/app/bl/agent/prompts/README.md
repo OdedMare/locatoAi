@@ -14,15 +14,13 @@ clarification behavior as their full counterparts.
 GeoQueryPlan operation guidance lives in
 `../skills/plan-geo-queries/references/`, one file per operation. `PlanBuilder` injects
 the catalog into both build prompts through `{geo_skills}`. The full profile receives
-each complete skill; diet mode receives the same skill's name, use/avoid rules, and exact
-JSON shape. Update the operation skill instead of duplicating its explanation in both
-prompt files.
+each complete skill; diet mode receives the same skill's name and use/avoid rules.
+Required fields, optional fields, defaults, and numeric bounds are rendered directly
+from the Pydantic step models instead of being duplicated in Markdown.
 
-The primary mission overlay locates OurForce entities from Tyche and uses matching MQS or
-Cubes layers as nearby spatial context. It is a priority path, not a global provider rule:
-queries unrelated to OurForce keep the generic subject/reference behavior. Both prompt
-stages receive each catalog layer's provider so this choice is based on metadata rather
-than names or hardcoded layer IDs.
+Domain profiles live under `../skills/plan-geo-queries/profiles/` and are injected only
+when a selected layer has the matching `profile:<id>` tag. The OurForce profile is
+therefore metadata-activated rather than a global provider/name rule.
 
 ## Pipeline position
 
@@ -34,6 +32,7 @@ user query
             └─ build_plan.md + selected provider schemas + current time
                  ├─ shared plan-geo-queries operation skills
                  ├─ optional sample_field request (maximum three rounds)
+                 ├─ optional indexed load_skill request (maximum two distinct skills)
                  ├─ typed GeoQueryPlan
                  └─ or short Hebrew clarification
 ```
@@ -58,10 +57,14 @@ Used by `PlanBuilder` for model call two. Runtime substitutions are:
 
 - `{now}`: one UTC timestamp shared by planning and execution.
 - `{has_boundaries}`: whether `within_geometry` is legal for this request.
-- `{geo_skills}`: the shared operation catalog rendered for full or diet mode.
-- `{layers}`: selected layer metadata and provider-reported schemas, including safe sample values.
+- `{geo_skills}`: code-derived contracts, routing guidance, active profiles, and the custom-skill index.
+- `{layers}`: selected layer metadata and provider-reported schemas, including safe sample values and declared entity/time roles.
 
 The model may return a `sample_field` tool request to inspect additional distinct values for a selected layer field. The builder allows at most three tool rounds. Tool rounds do not consume the separate validation-retry budget.
+
+The model may also request a custom skill body by id from the injected index. At most two
+different skill bodies are loaded, each with a bounded length; they are not placed in
+every planning prompt.
 
 The final response must be either a plan matching `GeoQueryPlan` or a short Hebrew clarification. Invalid plans receive one correction attempt containing a bounded validation error and the rejected JSON.
 
@@ -110,9 +113,7 @@ When introducing a new plan operation, add its skill reference and update the Py
 model, validator/executor behavior, frontend plan trace, tests, and architecture
 documentation together. Both build prompt templates consume the skill automatically.
 
-Agent Studio may also add instruction skills at runtime. They are injected into the same
-catalog immediately and should compose operations already supported by `GeoQueryPlan`.
-They do not register executable Python tools or bypass validation.
-
-Cubes trajectory recipes use `netId` as entity identity and `eventTime` as observation
-time. Apply temporal filtering before `latest_per_entity` or `movement_direction`.
+Agent Studio may also add instruction skills at runtime. Their compact index is available
+immediately, while bodies load only when selected by `load_skill`. They should compose
+operations already supported by `GeoQueryPlan`; they do not register executable Python
+tools or bypass validation.

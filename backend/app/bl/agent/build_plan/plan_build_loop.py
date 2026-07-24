@@ -13,13 +13,16 @@ from app.common.errors.plan_validation_error import PlanValidationError
 
 class PlanBuildLoop:
     _MAX_ATTEMPTS = 2
-    _MAX_TOOL_ROUNDS = 3
-    _TOOL_NAME = "sample_field"
+    _MAX_SAMPLE_ROUNDS = 3
+    _MAX_SKILL_ROUNDS = 2
+    _SAMPLE_TOOL = "sample_field"
+    _SKILL_TOOL = "load_skill"
     _FALLBACK = "לא הצלחתי לבנות שאילתה מהבקשה — אפשר לנסח אותה אחרת?"
 
-    def __init__(self, llm, catalog) -> None:
+    def __init__(self, llm, catalog, skill_loader=None) -> None:
         self._llm = llm
         self._catalog = catalog
+        self._skill_loader = skill_loader
 
     def run(self, query, system, selected_ids, has_boundaries, diet) -> PlanBuildResult:
         state = PlanBuildState(query)
@@ -56,11 +59,28 @@ class PlanBuildLoop:
         state.diagnostics.append(
             self._diagnostic(data, "tool_requested", state.attempt + 1)
         )
+        if data.get("tool") == self._SKILL_TOOL:
+            self._handle_skill(data, state, diet)
+            return
         layer_id = str(data.get("layer_id") or "").strip()
         field = str(data.get("field") or "").strip()
         state.tool_calls.append({"layer_id": layer_id, "field": field})
         values = self._sample(layer_id, field, selected_ids, diet)
         state.tool_notes.append(self._sample_note(layer_id, field, values, diet))
+        state.user = self._with_tool_notes(state.query, state.tool_notes)
+
+    def _handle_skill(self, data, state, diet) -> None:
+        skill_id = str(data.get("skill_id") or "").strip()
+        state.tool_calls.append({"skill_id": skill_id})
+        try:
+            content = self._skill_loader(skill_id, diet) if self._skill_loader else ""
+        except Exception:
+            content = ""
+        note = (
+            f"Loaded custom skill {skill_id}:\n{content}"
+            if content else f"No custom skill available with id {skill_id}."
+        )
+        state.tool_notes.append(note)
         state.user = self._with_tool_notes(state.query, state.tool_notes)
 
     def _sample(self, layer_id, field, selected_ids, diet):
@@ -106,10 +126,17 @@ class PlanBuildLoop:
             diagnostic.update({"error_type": type(error).__name__, "error": str(error)})
         return diagnostic
 
-    @staticmethod
-    def _is_tool_request(data, state) -> bool:
-        return (data.get("tool") == PlanBuildLoop._TOOL_NAME
-                and len(state.tool_calls) < PlanBuildLoop._MAX_TOOL_ROUNDS)
+    @classmethod
+    def _is_tool_request(cls, data, state) -> bool:
+        if data.get("tool") == cls._SAMPLE_TOOL:
+            used = sum("layer_id" in call for call in state.tool_calls)
+            return used < cls._MAX_SAMPLE_ROUNDS
+        if data.get("tool") != cls._SKILL_TOOL:
+            return False
+        skill_id = str(data.get("skill_id") or "").strip()
+        loaded = {call.get("skill_id") for call in state.tool_calls}
+        used = sum("skill_id" in call for call in state.tool_calls)
+        return bool(skill_id) and skill_id not in loaded and used < cls._MAX_SKILL_ROUNDS
 
     @staticmethod
     def _build_result(state, plan=None, clarify=None) -> PlanBuildResult:

@@ -1,18 +1,18 @@
-import type { CubesParameterDefinition } from "@/types/catalog";
+import type { FlapiParameterDefinition } from "@/types/catalog";
 
 interface PackageParametersFieldsetProps {
-  definitions: CubesParameterDefinition[];
+  definitions: FlapiParameterDefinition[];
   values: Record<string, string>;
   busy: boolean;
   onChange: (name: string, value: string) => void;
 }
 
-function isTime(definition: CubesParameterDefinition): boolean {
+function isTime(definition: FlapiParameterDefinition): boolean {
   return definition.ontology_type.toLowerCase() === "time"
     || ["time", "datetime", "date"].includes(definition.type.toLowerCase());
 }
 
-function isGeometry(definition: CubesParameterDefinition): boolean {
+function isGeometry(definition: FlapiParameterDefinition): boolean {
   return [definition.name, definition.type, definition.ontology_type]
     .join(" ")
     .toLowerCase()

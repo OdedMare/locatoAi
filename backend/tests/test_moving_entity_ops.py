@@ -30,7 +30,10 @@ def observations():
 
 def test_latest_per_entity_returns_one_newest_observation():
     ctx = SimpleNamespace(results={"input": observations()})
-    step = LatestPerEntityStep(id="latest", op="latest_per_entity", input="input")
+    step = LatestPerEntityStep(
+        id="latest", op="latest_per_entity", input="input",
+        entity_field="netId", time_field="eventTime",
+    )
     result = LatestPerEntityOp().run(step, ctx)
     assert len(result) == 3
     assert result.loc[result["netId"] == "bus-south"].geometry.iloc[0].y == 32.08
@@ -39,7 +42,8 @@ def test_latest_per_entity_returns_one_newest_observation():
 def test_movement_direction_returns_latest_matching_vehicle_position():
     ctx = SimpleNamespace(results={"input": observations()})
     step = MovementDirectionStep(id="move", op="movement_direction", input="input",
-                                 direction="south", min_distance_m=100)
+                                 direction="south", entity_field="netId",
+                                 time_field="eventTime", min_distance_m=100)
     result = MovementDirectionOp().run(step, ctx)
     assert list(result["netId"]) == ["bus-south"]
     assert result.geometry.iloc[0].y == 32.08
@@ -53,7 +57,8 @@ def test_movement_direction_returns_latest_matching_vehicle_position():
 def test_movement_direction_ignores_single_observation_entities():
     ctx = SimpleNamespace(results={"input": observations()})
     step = MovementDirectionStep(id="move", op="movement_direction", input="input",
-                                 direction="west", min_distance_m=0)
+                                 direction="west", entity_field="netId",
+                                 time_field="eventTime", min_distance_m=0)
     assert MovementDirectionOp().run(step, ctx).empty
 
 
@@ -70,7 +75,8 @@ def test_movement_without_direction_uses_traveled_path():
     ctx = SimpleNamespace(results={"input": data})
     step = MovementDirectionStep(
         id="move", op="movement_direction", input="input",
-        direction="any", min_distance_m=100,
+        direction="any", entity_field="netId", time_field="eventTime",
+        min_distance_m=100,
     )
 
     result = MovementDirectionOp().run(step, ctx)
