@@ -28,6 +28,8 @@ Choose the smallest valid operation chain that answers the request. Treat the Py
 - Find close groups inside the same layer: [cluster](references/07-cluster.md)
 - Keep one newest observation per moving entity: [latest_per_entity](references/08-latest-per-entity.md)
 - Detect movement or travel direction: [movement_direction](references/09-movement-direction.md)
+- Compare different entities' trajectories in space and time: [trajectory_relation](references/17-trajectory-relation.md)
+- Detect leaving and returning to the starting place: [round_trip](references/18-round-trip.md)
 - Select geographic extremes: [directional](references/10-directional.md)
 - Find features in a corridor between references: [between](references/11-between.md)
 - Match geometries whose interiors cross: [crosses](references/12-crosses.md)
@@ -40,5 +42,8 @@ Choose the smallest valid operation chain that answers the request. Treat the Py
 
 - Use `near` for one reference and a distance threshold, `nearest_n` for a global top-N ranking, `near_all` for AND proximity to multiple references, and `cluster` for same-layer groups.
 - Use `directional` for static geographic extremes and `movement_direction` for an entity's change across observations.
+- Use `trajectory_relation` for relationships between different entities. Use `round_trip` for one entity returning to its own starting place.
+- “Same destination” compares final positions and arrival times; “same place at different times” compares any visited positions with a minimum time separation.
 - Use `between` for a buffered corridor; use `crosses`, `touches`, or `contains` only for exact topological relationships.
-- For repeated Tyche/Cubes observations, apply `latest_per_entity` before returning, counting, or clustering distinct entities. Do not combine it with `movement_direction`, which already returns one latest row per matching entity.
+- For repeated moving observations, use the stable identity and time fields declared by that layer's schema; never assume every layer uses `netId`/`eventTime`.
+- Apply `latest_per_entity` before returning, counting, or clustering distinct entities. Do not collapse observations before `movement_direction`, `trajectory_relation`, or `round_trip`; each already returns one result row per matching entity.

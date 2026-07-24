@@ -20,10 +20,14 @@ RULES
 - Layer and target IDs must come from LAYERS. Fields must exist in their schema.
 - A named target's optional filter is all-or-none. Match sample language/format.
 - `near_all` is mandatory for simultaneous multi-reference proximity.
-- Tyche/Cubes moving data: apply requested temporal_filter; use netId/eventTime. For a
-  vehicle near a reference or between two places: apply the spatial relation, then
-  latest_per_entity. Before cluster, collapse observations. For moved/זז or travel
-  direction, use movement_direction; direction any means movement without a named bearing.
+- Moving data: apply requested temporal_filter and use the layer schema's actual stable
+  identity and time fields (Tyche/Cubes commonly use netId/eventTime, but other layers
+  may not). For a vehicle near a reference or between two places: apply the spatial
+  relation, then latest_per_entity. Before cluster, collapse observations.
+- One entity's movement uses movement_direction. Relations between entities—move/stay
+  together, same destination, same movement time with a buffer, or the same place at
+  different times—use trajectory_relation. Leave-and-return uses round_trip. Never
+  collapse observations before or after these trajectory operations.
 - Mission path, without changing generic queries: OurForce/soldier/tank/unit/callSign uses
   `tyche` as subject/output and matching `mqs`/`cubes` layers as references. Use load →
   boundary → requested time → sampled entity filters → near/near_all/between →
@@ -31,10 +35,17 @@ RULES
   ops load targets internally; list them in context_layers, not as unused load steps.
 - Count distinct forces only after latest_per_entity. For movement use movement_direction
   after filters, without latest_per_entity.
+- Set trajectory_relation min_movement_distance_m=0 only for stayed/was together.
+  Bare clock times missing a date, AM/PM, or timezone require clarification before
+  round_trip. Sample the identity field or clarify if no stable identity is evident.
 - Tyche examples: "חייל שזז בשעה האחרונה" => time + soldier forceType + direction any;
   "טנק שזז מצפון לדרום" (also typo לדרם) => tank forceType + direction south;
   "חייל שהיה על הציר בין תל אביב להרצליה" => soldier forceType + between two filtered
   locality targets + latest_per_entity.
+- Friends moving together => trajectory_relation=together. Same destination =>
+  same_destination. Same movement time within N minutes => same_time with that buffer.
+  Same place at different times => same_place_different_times. Left and returned =>
+  temporal_filter + round_trip with explicit ISO instants.
 - Ask sample_field when field/value is uncertain. At most 3 tool rounds are available.
 - Clarify only if layers/operations truly cannot answer the query; do not clarify before
   using sample_field for a plausible field.

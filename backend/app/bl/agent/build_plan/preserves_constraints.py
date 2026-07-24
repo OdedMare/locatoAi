@@ -11,6 +11,16 @@ _CONSTRAINT_FIELDS = {
     "temporal_filter": ("from", "to"),
     "cluster": ("min_group_size", "max_distance_m"),
     "movement_direction": ("direction", "entity_field", "time_field", "min_distance_m"),
+    "trajectory_relation": (
+        "relation", "entity_field", "time_field", "max_distance_m",
+        "time_tolerance_minutes", "max_gap_minutes", "min_duration_minutes",
+        "min_time_separation_minutes", "min_movement_distance_m",
+    ),
+    "round_trip": (
+        "depart_at", "return_at", "entity_field", "time_field",
+        "time_tolerance_minutes", "min_departure_distance_m",
+        "max_return_distance_m",
+    ),
     "latest_per_entity": ("entity_field", "time_field"),
     "within_geometry": ("geometry",),
 }
