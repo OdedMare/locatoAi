@@ -52,7 +52,7 @@ here — `dal/` supplies it structurally (duck-typed, no explicit inheritance ne
 | `providers/provider.py` | `Provider(Protocol)` — intentionally the whole surface (ISP) | declares pushdown `capabilities`; `describe_schema(layer) -> LayerSchema`; `fetch_features(..., attribute_filters=None, temporal_range=None)` (all are hints — correctness never depends on them); `sample_field_values(...)` | `FlapiProvider`, `MqsProvider`, `TycheProvider` |
 | `providers/registry.py` | `ProviderRegistry(Protocol)` | `get(provider_name) -> Provider`, `has(provider_name) -> bool` | `InMemoryProviderRegistry` |
 | `catalog/models/layer_meta.py` | `LayerMeta(BaseModel)` | data only — one catalog row: `id, name, description="", tags=[], provider, source_url` | n/a |
-| `catalog/models/layer_schema.py` | `LayerSchema(BaseModel)` | data only: `layer_id, geometry_type, fields: List[LayerField], parameters: List[LayerParameter]=[], source_name="", source_description="", entity_field: Optional[str], temporal_field: Optional[str]` | n/a |
+| `catalog/models/layer_schema.py` | `LayerSchema(BaseModel)` | data only: provider fields plus typed `entity_field`, `temporal_field`, and `display_field` roles | n/a |
 | `catalog/models/layer_field.py` | `LayerField(BaseModel)` | data only: `name, type, description="", samples: List[str]=[], metadata_relevant=True` | n/a |
 | `catalog/models/layer_parameter.py` | `LayerParameter(BaseModel)` | data only: `name, type, display_name="", description="", required=False, single_value=True, options=[], is_dynamic=False, resolved_value=None, configured_value: Any` (excluded from serialization — may hold secrets) | n/a |
 | `catalog/models/layer_parameter_option.py` | `LayerParameterOption(BaseModel)` | data only: `value, name=""` | n/a |
@@ -267,7 +267,7 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
   `cluster`, `movement_direction`, `latest_per_entity`, `within_geometry`. Returns
   `True` only if **every** signature from `original` still exists in `revised` — the
   code-level backstop that rejects removing or widening any of: filters, time,
-  geography, distances, counts, targets, netId identity, movement thresholds, during
+  geography, distances, counts, targets, declared identity roles, movement thresholds, during
   zero-result replanning.
 - **`usage_accumulator.py`** — `UsageAccumulator.add(usage)` sums token counts across
   build attempts.
