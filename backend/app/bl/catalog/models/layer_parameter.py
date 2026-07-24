@@ -13,6 +13,7 @@ class LayerParameter(BaseModel):
     required: bool = False
     single_value: bool = True
     ontology_type: str = ""
+    has_default: bool = False
     options: List[str] = []
     is_dynamic: bool = False
     resolved_value: Optional[Any] = None

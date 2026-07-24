@@ -124,7 +124,7 @@ class CatalogRouter:
                     required=item.required,
                     single_value=item.single_value,
                     ontology_type=item.ontology_type,
-                    has_default=item.configured_value not in (None, "", [], {}),
+                    has_default=item.has_default,
                     dynamic=item.is_dynamic,
                     options=item.options,
                 )

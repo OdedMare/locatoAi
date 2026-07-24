@@ -27,10 +27,10 @@ class CubesClientFactory:
     def create(self) -> httpx.Client:
         settings = self._store.get()
         if not settings.cubes_base_url:
-            raise ProviderError("Cubes base URL is not configured — set cubes_base_url")
+            raise ProviderError("FLAPI base URL is not configured — set cubes_base_url")
         if not settings.cubes_token:
             raise ProviderError(
-                "Cubes authorization token is not configured — set cubes_token"
+                "FLAPI authorization token is not configured — set cubes_token"
             )
         return httpx.Client(
             base_url=settings.cubes_base_url,

@@ -323,14 +323,20 @@ def test_metadata_api_contract_persists_values_without_exposing_fixed_values():
         "sample_count": 0,
         "dynamic_parameters": ["fl:dynamic"],
         "configurable_parameters": [
-            {
-                "name": "fl:dynamic", "display_name": "",
-                "required": True, "dynamic": True, "options": [],
-            },
-            {
-                "name": "environment", "display_name": "",
-                "required": True, "dynamic": False, "options": ["prod"],
-            },
+                {
+                    "name": "fl:dynamic", "display_name": "",
+                    "description": "", "type": "string",
+                    "required": True, "dynamic": True, "options": [],
+                    "single_value": True, "ontology_type": "",
+                    "has_default": False,
+                },
+                {
+                    "name": "environment", "display_name": "",
+                    "description": "", "type": "string",
+                    "required": True, "dynamic": False, "options": ["prod"],
+                    "single_value": True, "ontology_type": "",
+                    "has_default": False,
+                },
         ],
         "requires_sample_polygon": False,
     }

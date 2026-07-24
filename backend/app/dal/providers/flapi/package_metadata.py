@@ -84,6 +84,9 @@ class FlowPackageMetadata:
             ontology_type=str(self.value(
                 item, "OntologyType", "ontologyType", "ontology_type"
             ) or ""),
+            has_default=self.value(item, "Value", "value") not in (
+                None, "", [], {},
+            ),
             options=self._options(item),
             resolved_value=resolved.get(name),
             configured_value=self.value(item, "Value", "value"),
