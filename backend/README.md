@@ -43,6 +43,7 @@ app/
 │   ├── query/               # POST /api/query + request/response DTOs and event sink
 │   ├── plan/                # POST /api/execute-plan + request DTO
 │   ├── agent/               # POST /api/select-layers + DTOs
+│   ├── agent_config/        # GET/PUT prompts + skills; POST custom skill
 │   ├── catalog/             # Layer CRUD, MQS sync/browse, Tyche activation + DTOs
 │   ├── settings/            # GET/PUT /api/settings + DTOs
 │   ├── models/              # GET/POST /api/models + DTOs
@@ -76,6 +77,7 @@ app/
 │       └── mqs_sync/            # MQS layer inventory → catalog upserts (tags preserved)
 │
 ├── dal/                     # ── Data access tier (implements BL interfaces) ──
+│   ├── agent_content/       # file defaults + persisted live UI overrides
 │   ├── database/postgres.py # shared live-settings PostgreSQL connection factory
 │   ├── catalog/             # configurable PostgreSQL catalog repository
 │   ├── feedback/            # configurable PostgreSQL feedback repository
@@ -276,6 +278,15 @@ fixed build prompt remains roughly half the full profile by rendering only each 
 use/avoid rules and JSON shape; actual size varies with the catalog and selected schemas.
 Set `AILOCATOR_LLM_DIET_MODE=false` or clear the UI toggle to run the full prompts for
 quality comparison.
+
+**Agent Studio.** `GET /api/agent-config` exposes the five active prompt templates and
+the operation-skill catalog. `PUT /api/agent-config/{kind}/{id}` saves an override, and
+`POST /api/agent-config/skills` creates a new planner instruction skill. Overrides and
+custom skills persist in `runtime-settings.json`; the selector, planner, and metadata
+generator read them on every call, so the next agent request uses the edit without a
+backend restart. Required prompt placeholders are validated before saving. These skills
+compose existing typed plan operations; adding a new executable operation still requires
+its model, validator, executor, trace, and tests.
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a

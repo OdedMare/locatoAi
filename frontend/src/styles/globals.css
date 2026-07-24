@@ -752,6 +752,182 @@ body {
   color: var(--text-muted);
 }
 
+/* ---------- Agent studio ---------- */
+
+.agent-studio-card {
+  width: min(980px, 96vw);
+  max-width: none;
+  height: min(780px, 90vh);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-studio-header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-studio-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-studio-header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.agent-studio-body {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.agent-content-nav {
+  min-height: 0;
+  padding: 16px 12px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.agent-content-nav .add-layer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.agent-studio-group {
+  margin-top: 18px;
+}
+
+.agent-studio-group h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 9px 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.agent-studio-group h3 span {
+  font-weight: 400;
+}
+
+.agent-content-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  color: var(--text);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.agent-content-item:hover,
+.agent-content-item.active {
+  background: var(--accent-soft);
+}
+
+.agent-content-item.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.agent-content-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-content-item small {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.agent-content-editor {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px 16px;
+}
+
+.agent-editor-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.agent-editor-title span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.agent-editor-title h3 {
+  margin-top: 3px;
+  font-size: 17px;
+}
+
+.agent-save-button {
+  width: auto;
+  min-width: 92px;
+  padding: 8px 13px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.agent-content-textarea {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  padding: 16px;
+  resize: none;
+  color: var(--code-text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  background: var(--code-bg);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: left;
+  tab-size: 2;
+}
+
+.agent-content-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.agent-editor-note {
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.agent-content-editor .settings-message {
+  margin-top: 6px;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
@@ -764,6 +940,10 @@ body {
     max-height: 55vh;
     border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+
+  .agent-studio-body {
+    grid-template-columns: 190px minmax(0, 1fr);
   }
 }
 
@@ -1184,6 +1364,26 @@ body {
 
   .map-workspace {
     height: 45vh;
+  }
+
+  .agent-studio-card {
+    height: 94vh;
+  }
+
+  .agent-studio-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .agent-content-nav {
+    max-height: 210px;
+    border-left: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-content-editor {
+    min-height: 360px;
+    flex: 1;
   }
 }
 

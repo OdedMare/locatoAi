@@ -18,6 +18,7 @@ The frontend:
 - Keeps up to eight completed turns in memory and carries direct clarification replies forward as context.
 - Copies map-center coordinates in four formats and exports complete request/response debug bundles.
 - Provides searchable layer catalog and remote MQS browsing workflows.
+- Provides Agent Studio for live prompt and planner-skill creation/editing.
 - Provides live-editable LLM, MQS, Cubes, PostgreSQL, and table settings.
 - Persists light/dark theme preference in browser local storage.
 - Sends thumbs-up/down feedback to backend PostgreSQL persistence.
@@ -41,6 +42,7 @@ src/app/layout.tsx
           │  └─ RequestPreview
           ├─ SettingsPanel → settingsService
           ├─ LayersPanel → catalogService
+          ├─ AgentStudioPanel → agentConfigService
           └─ MapWorkspace
              └─ dynamic LeafletMap (SSR disabled)
                 ├─ MapLayers + LayerPicker
@@ -66,7 +68,7 @@ src/app/layout.tsx
 | `lastDisplayQuery` | User-visible text for the active turn; may differ from the contextual backend query. |
 | `history` | Up to eight completed in-memory request/response turns rendered in the conversation. |
 | `isSubmitting` | Prevents duplicate submissions and drives loading UI. |
-| Dialog flags | Settings and layer-browser visibility. |
+| Dialog flags | Settings, layer-browser, and Agent Studio visibility. |
 | `isDarkMode` | Theme state synchronized with `data-theme` and local storage. |
 
 Component-local state is used for modal forms, catalog searches, feedback voting, map base-layer choice, and drawing internals.
@@ -163,6 +165,14 @@ chosen, running metadata generation again sends those values, samples the normal
 Loads runtime settings, populates editable LLM/MQS/Cubes/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, Cubes token, and database password fields mean “keep the saved secret.” The response includes a live catalog connection status.
 
 MQS and Cubes TLS verification is enabled by default and independently editable. Environment variables provide deployment defaults; saved UI values remain live overrides.
+
+### `AgentStudioPanel`
+
+Lists every live model-facing prompt and geo operation skill in one editor. Existing
+content can be changed and additional planner instruction skills can be created. Saves
+are persisted by the backend and affect the next agent request without a restart.
+The editor protects unsaved drafts and explains that a skill can compose existing typed
+operations, while a genuinely new executable tool still needs backend implementation.
 
 ### `RequestPreview`
 

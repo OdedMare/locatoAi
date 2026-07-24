@@ -6,7 +6,7 @@ import AgentTrace from "@/components/AgentTrace";
 import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
 import {
-  Activity, Clock3, Layers, MessageSquarePlus, Moon, PanelLeft, Radar,
+  Activity, Bot, Clock3, Layers, MessageSquarePlus, Moon, PanelLeft, Radar,
   Settings, Sparkles, Sun,
 } from "lucide-react";
 import type {
@@ -33,6 +33,7 @@ interface QueryPanelProps {
   }>;
   onOpenSettings: () => void;
   onOpenLayers: () => void;
+  onOpenAgentStudio: () => void;
   onNewChat: () => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
@@ -53,6 +54,7 @@ export default function QueryPanel({
   history,
   onOpenSettings,
   onOpenLayers,
+  onOpenAgentStudio,
   onNewChat,
   isDarkMode,
   onToggleTheme,
@@ -86,6 +88,14 @@ export default function QueryPanel({
         <button
           type="button"
           className="chat-settings-button chat-sidebar-bottom"
+          onClick={onOpenAgentStudio}
+        >
+          <Bot size={17} />
+          Agent Studio
+        </button>
+        <button
+          type="button"
+          className="chat-settings-button"
           onClick={onOpenLayers}
         >
           <Layers size={17} />

@@ -62,7 +62,7 @@ class AgentContentRepository:
             return self._update_custom(content_id, content)
         items = self.list_prompts() if kind == "prompt" else self.list_skills()
         self._find(items, content_id)
-        overrides = dict(self._settings.get().agent_content_overrides)
+        overrides = self._overrides()
         overrides[f"{kind}:{content_id}"] = content
         self._settings.update({"agent_content_overrides": overrides})
         return self._find(items, content_id, content)
@@ -72,6 +72,8 @@ class AgentContentRepository:
         if not title:
             raise ValueError("Skill name is required")
         custom = self._custom_skills()
+        if len(custom) >= 100:
+            raise ValueError("Custom skill limit reached")
         content_id = f"custom-{uuid4().hex[:12]}"
         custom[content_id] = {
             "title": title[:120], "content": self._clean_content(content),
@@ -82,7 +84,7 @@ class AgentContentRepository:
     def _default_item(self, kind: str, path: Path) -> dict:
         content_id = path.name
         source = path.read_text(encoding="utf-8")
-        override = self._settings.get().agent_content_overrides.get(
+        override = self._overrides().get(
             f"{kind}:{content_id}"
         )
         content = override if isinstance(override, str) else source
@@ -113,6 +115,15 @@ class AgentContentRepository:
         return {
             key: dict(value) for key, value in saved.items()
             if isinstance(key, str) and isinstance(value, dict)
+        }
+
+    def _overrides(self) -> Dict[str, str]:
+        saved = self._settings.get().agent_content_overrides
+        if not isinstance(saved, dict):
+            return {}
+        return {
+            key: value for key, value in saved.items()
+            if isinstance(key, str) and isinstance(value, str)
         }
 
     def _update_custom(self, content_id: str, content: str) -> dict:

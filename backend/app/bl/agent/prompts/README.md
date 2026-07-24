@@ -1,6 +1,10 @@
 # Agent prompts
 
-The prompt files are the model-facing policy layer for LocatoAI's query pipeline and catalog-metadata assistant. They are loaded by the business layer at runtime, populated with sanitized context, and sent through the OpenAI-compatible LLM port. Keeping prompts outside Python makes model tuning reviewable without mixing wording changes with orchestration code.
+The prompt files are the default model-facing policy layer for LocatoAI's query pipeline
+and catalog-metadata assistant. They are loaded by the business layer at runtime,
+populated with sanitized context, and sent through the OpenAI-compatible LLM port.
+Agent Studio can persist overrides in `runtime-settings.json`; file defaults remain
+reviewable and are used whenever no override exists.
 
 `select_layers_diet.md` and `build_plan_diet.md` are the compact production profile.
 `llm_diet_mode` selects them at runtime without restarting the backend. Diet prompts must
@@ -105,6 +109,10 @@ Do not rely on prompt wording as the only enforcement for a rule that protects d
 When introducing a new plan operation, add its skill reference and update the Pydantic
 model, validator/executor behavior, frontend plan trace, tests, and architecture
 documentation together. Both build prompt templates consume the skill automatically.
+
+Agent Studio may also add instruction skills at runtime. They are injected into the same
+catalog immediately and should compose operations already supported by `GeoQueryPlan`.
+They do not register executable Python tools or bypass validation.
 
 Cubes trajectory recipes use `netId` as entity identity and `eventTime` as observation
 time. Apply temporal filtering before `latest_per_entity` or `movement_direction`.

@@ -12,6 +12,7 @@ Browser
   │ Hebrew/English query + required GeoJSON MultiPolygon
   ▼
 Next.js 16 / React 18 frontend
+  │  Agent Studio edits live prompts/skills
   │  /api/* rewrite (same-origin browser requests)
   ▼
 FastAPI service tier
@@ -76,7 +77,7 @@ locatoAi/
 8. The model returns a `GeoQueryPlan`. Shape and semantic errors are fed back for one bounded correction.
 9. The executor records per-step counts. Zero rows permit one tool-assisted diagnosis and replan; code rejects any revision that removes or widens an original user constraint before re-execution.
 10. The backend returns GeoJSON features or a `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans return only the scalar and omit redundant geometry.
-11. The frontend shows the pipeline timeline, agent trace, results, bounded conversation history, and copyable debug data. GeoJSON is drawn with Leaflet and the map fits the result bounds.
+11. The frontend shows the pipeline timeline, agent trace, results, bounded conversation history, and copyable debug data. GeoJSON is drawn with Leaflet and the map fits the result bounds. Agent Studio exposes the live prompts and planner skills for editing and skill creation.
 12. A thumbs-up/down vote posts the selection context to the configurable PostgreSQL feedback table.
 
 Clarification is a successful product outcome, not an exception. Either agent stage can return `status: "clarify"` when the request is ambiguous or unsupported, and an unsafe zero-result revision is also returned as a clarification. The UI threads the next reply into the previous request as explicit clarification context. Infrastructure and domain failures use typed errors mapped to HTTP status codes and produce structured console/file diagnostics.

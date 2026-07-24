@@ -5,6 +5,7 @@ import QueryPanel from "@/components/QueryPanel";
 import MapWorkspace from "@/components/MapWorkspace";
 import SettingsPanel from "@/components/SettingsPanel";
 import LayersPanel from "@/components/LayersPanel";
+import AgentStudioPanel from "@/components/AgentStudioPanel";
 import { submitQuery } from "@/services/geoQueryService";
 import {
   bboxToMultiPolygon,
@@ -44,6 +45,7 @@ export default function AppShell() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayersOpen, setIsLayersOpen] = useState(false);
+  const [isAgentStudioOpen, setIsAgentStudioOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const drawnSampleBoundary: GeoJSONMultiPolygon | null = drawnGeometry
@@ -141,6 +143,7 @@ export default function AppShell() {
         history={history}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenLayers={() => setIsLayersOpen(true)}
+        onOpenAgentStudio={() => setIsAgentStudioOpen(true)}
         onNewChat={handleNewChat}
         isDarkMode={isDarkMode}
         onToggleTheme={() => setIsDarkMode((dark) => !dark)}
@@ -154,6 +157,9 @@ export default function AppShell() {
           drawnSampleBoundary={drawnSampleBoundary}
           viewportSampleBoundary={viewportSampleBoundary}
         />
+      )}
+      {isAgentStudioOpen && (
+        <AgentStudioPanel onClose={() => setIsAgentStudioOpen(false)} />
       )}
       <MapWorkspace
         mode={geographyMode}
