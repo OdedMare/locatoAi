@@ -176,6 +176,7 @@ class CatalogRouter:
                 for item in result.configurable_parameters
             ],
             requires_sample_polygon=result.requires_sample_polygon,
+            output_fields=result.output_fields,
         )
 
     @staticmethod
