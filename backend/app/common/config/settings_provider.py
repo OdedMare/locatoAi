@@ -1,15 +1,10 @@
-"""Cached environment-settings provider."""
+"""Cached environment settings."""
 
 from functools import lru_cache
 
 from app.common.config.settings import Settings
 
 
-class SettingsProvider:
-    @staticmethod
-    @lru_cache
-    def get() -> Settings:
-        return Settings()
-
-
-get_settings = SettingsProvider.get
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

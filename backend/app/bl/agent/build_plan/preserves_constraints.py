@@ -26,25 +26,24 @@ _CONSTRAINT_FIELDS = {
 }
 
 
-class ConstraintPreserver:
-    @classmethod
-    def preserves(cls, original: GeoQueryPlan, revised: GeoQueryPlan) -> bool:
-        revised_signatures = cls._signatures(revised)
-        return all(
-            signature in revised_signatures for signature in cls._signatures(original)
-        )
-
-    @staticmethod
-    def _signatures(plan: GeoQueryPlan):
-        result = []
-        for step in plan.steps:
-            fields = _CONSTRAINT_FIELDS.get(step.op)
-            if fields:
-                data = step.model_dump(by_alias=True)
-                result.append((step.op, tuple(json.dumps(data.get(name), sort_keys=True,
-                                                         ensure_ascii=False)
-                                              for name in fields)))
-        return result
+def preserves_constraints(
+    original: GeoQueryPlan, revised: GeoQueryPlan
+) -> bool:
+    revised_signatures = _signatures(revised)
+    return all(signature in revised_signatures for signature in _signatures(original))
 
 
-preserves_constraints = ConstraintPreserver.preserves
+def _signatures(plan: GeoQueryPlan):
+    result = []
+    for step in plan.steps:
+        fields = _CONSTRAINT_FIELDS.get(step.op)
+        if fields:
+            data = step.model_dump(by_alias=True)
+            result.append((
+                step.op,
+                tuple(
+                    json.dumps(data.get(name), sort_keys=True, ensure_ascii=False)
+                    for name in fields
+                ),
+            ))
+    return result

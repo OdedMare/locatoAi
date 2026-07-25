@@ -30,17 +30,12 @@ _FINAL_LETTERS = str.maketrans({
 _WHITESPACE_RE = re.compile(r"[\s\-_.]+")
 
 
-class TextNormalizer:
-    @staticmethod
-    def normalize(value: str) -> str:
-        if not value:
-            return ""
-        text = unicodedata.normalize("NFKC", value)
-        text = _NIQQUD_RE.sub("", text)
-        text = _HEBREW_PUNCTUATION_RE.sub("", text)
-        text = text.translate(_FINAL_LETTERS)
-        text = _WHITESPACE_RE.sub(" ", text)
-        return text.strip().casefold()
-
-
-normalize_text = TextNormalizer.normalize
+def normalize_text(value: str) -> str:
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFKC", value)
+    text = _NIQQUD_RE.sub("", text)
+    text = _HEBREW_PUNCTUATION_RE.sub("", text)
+    text = text.translate(_FINAL_LETTERS)
+    text = _WHITESPACE_RE.sub(" ", text)
+    return text.strip().casefold()

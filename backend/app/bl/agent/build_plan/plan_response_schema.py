@@ -3,40 +3,36 @@
 from app.bl.plan.models.geo_query_plan import GeoQueryPlan
 
 
-class PlanResponseSchema:
-    @classmethod
-    def build(cls) -> dict:
-        plan = GeoQueryPlan.model_json_schema()
-        definitions = plan.pop("$defs", {})
-        return {
-            "$defs": definitions,
-            "anyOf": [
-                plan,
-                cls._tool(
-                    "sample_field",
-                    {"layer_id": {"type": "string"}, "field": {"type": "string"}},
-                ),
-                cls._tool(
-                    "load_skill", {"skill_id": {"type": "string"}},
-                ),
-                {
-                    "type": "object",
-                    "properties": {"clarify": {"type": "string"}},
-                    "required": ["clarify"],
-                    "additionalProperties": False,
-                },
-            ]
-        }
-
-    @staticmethod
-    def _tool(name: str, fields: dict) -> dict:
-        properties = {"tool": {"const": name}, **fields}
-        return {
-            "type": "object",
-            "properties": properties,
-            "required": list(properties),
-            "additionalProperties": False,
-        }
+def _tool(name: str, fields: dict) -> dict:
+    properties = {"tool": {"const": name}, **fields}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
 
 
-PLAN_RESPONSE_SCHEMA = PlanResponseSchema.build()
+def _build() -> dict:
+    plan = GeoQueryPlan.model_json_schema()
+    definitions = plan.pop("$defs", {})
+    return {
+        "$defs": definitions,
+        "anyOf": [
+            plan,
+            _tool(
+                "sample_field",
+                {"layer_id": {"type": "string"}, "field": {"type": "string"}},
+            ),
+            _tool("load_skill", {"skill_id": {"type": "string"}}),
+            {
+                "type": "object",
+                "properties": {"clarify": {"type": "string"}},
+                "required": ["clarify"],
+                "additionalProperties": False,
+            },
+        ],
+    }
+
+
+PLAN_RESPONSE_SCHEMA = _build()

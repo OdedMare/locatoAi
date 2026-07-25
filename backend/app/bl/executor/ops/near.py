@@ -4,9 +4,8 @@ from app.bl.executor.ops.base.execution_context import ExecutionContext
 from app.bl.executor.ops.base.op_handler import OpHandler
 from app.bl.executor.ops.base.op_registry import register_op
 from app.bl.executor.ops.proximity_result_builder import ProximityResultBuilder
-from app.bl.executor.ops.reference_entity_filter import ReferenceEntityFilter
+from app.bl.executor.ops.reference_entity_filter import filter_reference_entities
 from app.bl.plan.models.near_step import NearStep
-from app.common.errors.execution_error import ExecutionError
 from app.common.utils.geo_utils import metric_crs_for, to_metric
 
 # Computed distance to the nearest target-layer feature, in meters — added
@@ -16,7 +15,6 @@ _result_builder = ProximityResultBuilder()
 DISTANCE_COLUMN = ProximityResultBuilder.DISTANCE_COLUMN
 MATCH_REASON_COLUMN = ProximityResultBuilder.MATCH_REASON_COLUMN
 NEAREST_TARGET_COLUMN = ProximityResultBuilder.NEAREST_TARGET_COLUMN
-filter_reference_entities = ReferenceEntityFilter.apply
 enrich_proximity_results = _result_builder.build
 _feature_from_row = _result_builder._feature
 
