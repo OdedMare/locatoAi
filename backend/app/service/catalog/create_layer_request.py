@@ -13,8 +13,11 @@ class CreateLayerRequest(BaseModel):
         default_factory=dict, max_length=50
     )
     package_query: Optional[str] = Field(default=None, max_length=200)
-    package_input_parameter: Optional[str] = Field(default=None, max_length=200)
-    package_output_fields: List[str] = Field(default_factory=list, max_length=50)
+    package_input_cube_name: Optional[str] = Field(default=None, max_length=200)
+    package_input_cube_parameter: Optional[str] = Field(
+        default=None, max_length=200
+    )
+    package_output_cube_name: Optional[str] = Field(default=None, max_length=200)
     entity_field: Optional[str] = Field(
         default=None, min_length=1, max_length=60
     )

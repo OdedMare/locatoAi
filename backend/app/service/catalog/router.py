@@ -140,7 +140,9 @@ class CatalogRouter:
                 body.provider, body.source_url,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
-                package_input_parameter=body.package_input_parameter,
+                package_input_cube_name=body.package_input_cube_name,
+                package_input_cube_parameter=body.package_input_cube_parameter,
+                package_output_cube_name=body.package_output_cube_name,
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
@@ -191,8 +193,9 @@ class CatalogRouter:
         cls, provider: str, source_url: str,
         package_parameters: Optional[Dict[str, Any]] = None,
         package_query: Optional[str] = None,
-        package_input_parameter: Optional[str] = None,
-        package_output_fields: Optional[List[str]] = None,
+        package_input_cube_name: Optional[str] = None,
+        package_input_cube_parameter: Optional[str] = None,
+        package_output_cube_name: Optional[str] = None,
         tyche_geometry_field: Optional[str] = None,
         tyche_geo_query_field: Optional[str] = None,
         tyche_time_field: Optional[str] = None,
@@ -206,7 +209,8 @@ class CatalogRouter:
         if provider_name == "flapi":
             return cls._normalized_flapi_source(
                 source, package_parameters, package_query,
-                package_input_parameter, package_output_fields,
+                package_input_cube_name, package_input_cube_parameter,
+                package_output_cube_name,
             )
         if provider_name == "tyche":
             return cls._normalized_tyche_source(
@@ -222,8 +226,9 @@ class CatalogRouter:
         cls, source: str,
         package_parameters: Optional[Dict[str, Any]],
         package_query: Optional[str],
-        package_input_parameter: Optional[str] = None,
-        package_output_fields: Optional[List[str]] = None,
+        package_input_cube_name: Optional[str] = None,
+        package_input_cube_parameter: Optional[str] = None,
+        package_output_cube_name: Optional[str] = None,
     ) -> str:
         source = (
             source if "://" in source
@@ -231,7 +236,8 @@ class CatalogRouter:
         )
         return cls.with_package_config(
             source, package_parameters or {}, package_query,
-            package_input_parameter, package_output_fields,
+            package_input_cube_name, package_input_cube_parameter,
+            package_output_cube_name,
         )
 
     @classmethod
@@ -287,16 +293,18 @@ class CatalogRouter:
     def with_package_config(
         source: str, parameters: Dict[str, Any],
         selected_query: Optional[str] = None,
-        input_parameter: Optional[str] = None,
-        output_fields: Optional[List[str]] = None,
+        input_cube_name: Optional[str] = None,
+        input_cube_parameter: Optional[str] = None,
+        output_cube_name: Optional[str] = None,
     ) -> str:
         parsed = urlsplit(source)
         query = parse_qs(parsed.query, keep_blank_values=True)
         for key in [key for key in query if key.startswith(_PACKAGE_INPUT_PREFIX)]:
             query.pop(key)
-        query.pop("query", None)
-        query.pop("input_cube_param", None)
-        query.pop("output_fields", None)
+        for key in (
+            "query", "input_cube_name", "input_cube_parameter", "output_cube_name",
+        ):
+            query.pop(key, None)
         for name, value in parameters.items():
             if name and value not in (None, ""):
                 query[f"{_PACKAGE_INPUT_PREFIX}{name}"] = [
@@ -304,12 +312,12 @@ class CatalogRouter:
                 ]
         if selected_query:
             query["query"] = [selected_query.strip()]
-        if input_parameter:
-            query["input_cube_param"] = [input_parameter.strip()]
-        if output_fields:
-            query["output_fields"] = [
-                json.dumps(output_fields, ensure_ascii=False, separators=(",", ":"))
-            ]
+        if input_cube_name and input_cube_name.strip():
+            query["input_cube_name"] = [input_cube_name.strip()]
+        if input_cube_parameter and input_cube_parameter.strip():
+            query["input_cube_parameter"] = [input_cube_parameter.strip()]
+        if output_cube_name and output_cube_name.strip():
+            query["output_cube_name"] = [output_cube_name.strip()]
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @staticmethod
@@ -346,8 +354,9 @@ class CatalogRouter:
                 body.provider, body.source_url,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
-                package_input_parameter=body.package_input_parameter,
-                package_output_fields=body.package_output_fields,
+                package_input_cube_name=body.package_input_cube_name,
+                package_input_cube_parameter=body.package_input_cube_parameter,
+                package_output_cube_name=body.package_output_cube_name,
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,

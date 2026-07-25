@@ -24,7 +24,7 @@ class FlowPackageProvider:
         self._metadata = FlowPackageMetadata()
         self._rows = FlapiSchemaMapper()
         self._gateway = FlowPackageGateway(clients, self._source, self._rows)
-        self._serializer = FlowPackageSerializer(self._metadata)
+        self._serializer = FlowPackageSerializer()
         self._definitions: Dict[str, List[dict]] = {}
         self._schemas: Dict[Tuple[str, str], LayerSchema] = {}
 
@@ -71,19 +71,13 @@ class FlowPackageProvider:
         attribute_filters: Optional[List[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
         definitions = self._parameter_definitions(layer)
-        configured = self._source.package_inputs(layer)
         input_cube = self._serializer.build_input_cube(
-            definitions, configured, temporal_range,
-            self._source.package_input_parameter(layer),
+            self._source.package_input_cube_name(layer),
+            self._source.package_input_cube_parameter(layer),
+            temporal_range,
         )
-        static_parameters = self._serializer.build_static_parameters(
-            definitions, configured, geometry, temporal_range,
-            skip=input_cube.cube_name,
-        )
-        queries = self._source.package_queries(layer)
-        output_fields = self._source.package_output_fields(layer)
         rows = self._gateway.execute(
-            layer, input_cube, static_parameters, queries, output_fields,
+            layer, input_cube, self._source.package_output_cube_name(layer),
         )
         schema = self._schema(layer, rows, definitions)
         self._schemas[self._schema_key(layer)] = schema

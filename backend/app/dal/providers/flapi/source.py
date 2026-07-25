@@ -45,23 +45,22 @@ class FlapiSource:
         return [value for value in query.get("query", []) if value]
 
     @staticmethod
-    def package_input_parameter(layer: LayerMeta) -> Optional[str]:
+    def package_input_cube_name(layer: LayerMeta) -> Optional[str]:
         query = parse_qs(urlsplit(layer.source_url).query)
-        value = query.get("input_cube_param", [None])[0]
+        value = query.get("input_cube_name", [None])[0]
         return value or None
 
-    def package_output_fields(self, layer: LayerMeta) -> List[str]:
+    @staticmethod
+    def package_input_cube_parameter(layer: LayerMeta) -> Optional[str]:
         query = parse_qs(urlsplit(layer.source_url).query)
-        raw = query.get("output_fields", [None])[0]
-        if not raw:
-            return []
-        try:
-            fields = json.loads(raw)
-        except (TypeError, ValueError) as exc:
-            raise ProviderError(
-                "Flow Package output_fields is not valid JSON"
-            ) from exc
-        return [str(field) for field in fields] if isinstance(fields, list) else []
+        value = query.get("input_cube_parameter", [None])[0]
+        return value or None
+
+    @staticmethod
+    def package_output_cube_name(layer: LayerMeta) -> Optional[str]:
+        query = parse_qs(urlsplit(layer.source_url).query)
+        value = query.get("output_cube_name", [None])[0]
+        return value or None
 
     def execution_params(self, layer: LayerMeta):
         query = parse_qs(urlsplit(layer.source_url).query)

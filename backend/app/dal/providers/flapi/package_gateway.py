@@ -1,7 +1,7 @@
 """Flow Package metadata discovery and flunks-backed execution."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from urllib.parse import quote
 
 import httpx
@@ -67,16 +67,12 @@ class FlowPackageGateway:
         self,
         layer: LayerMeta,
         input_cube: PackageInputCube,
-        static_parameters: Dict[str, Any],
-        queries: List[str],
-        output_fields: Optional[List[str]] = None,
+        output_cube_name: Optional[str],
     ) -> List[dict]:
         package_id = self._source.package_id(layer)
-        runner = self._build_runner(
-            package_id, input_cube, static_parameters, queries, output_fields,
-        )
+        runner = self._build_runner(package_id, input_cube, output_cube_name)
         try:
-            flow_results = runner.run()
+            records = runner.run()
         except Exception as exc:
             raise ProviderError(
                 f"FLAPI package request failed (package/v3/{package_id}): {exc}"
@@ -84,25 +80,21 @@ class FlowPackageGateway:
         finally:
             self.success_chunks = getattr(runner, "success_chunks", 0)
             self.failed_chunks = getattr(runner, "failed_chunks", 0)
-        return self._records(flow_results, queries)
+        return self._records(records, output_cube_name)
 
-    def _build_runner(
-        self, package_id, input_cube, static_parameters, queries, output_fields=None,
-    ):
+    def _build_runner(self, package_id, input_cube, output_cube_name):
         settings = self._clients.require_settings(require_username=True)
         flapi_config = FlapiConfig(
             username=settings.flapi_username, token=settings.cubes_token,
             base_url=settings.cubes_base_url,
         )
-        output_cube = PackageOutputCube(
-            cube_name=queries[0] if queries else "output",
-            cube_fields=output_fields or [],
-        )
+        if not output_cube_name:
+            raise ProviderError("Flow Package output cube name is required")
+        output_cube = PackageOutputCube(cube_name=output_cube_name)
         package_config = FlunksPackageConfig(
             package_id=package_id,
             main_input_cube=input_cube,
             output_cube=output_cube,
-            static_parameters=static_parameters,
         )
         return FlunksRunner(
             flapi_config=flapi_config,
@@ -111,62 +103,20 @@ class FlowPackageGateway:
             exceptions_config=self._exceptions_config,
         )
 
-    def _records(self, flow_results: Any, selected: List[str]) -> List[dict]:
-        results = self._results_dict(flow_results)
-        self._inspect_metadata(flow_results)
-        missing = [query for query in selected if query not in results]
-        if missing:
-            raise ProviderError(
-                "FLAPI package did not return selected queries: "
-                + ", ".join(missing)
-            )
+    def _records(self, records: object, output_cube_name: str) -> List[dict]:
+        if not isinstance(records, list):
+            raise ProviderError("FLAPI package response is not a list of records")
         rows: List[dict] = []
-        for query, result in results.items():
-            if selected and query not in selected:
+        for record in records:
+            if not isinstance(record, dict):
+                self._logger.warning(
+                    "Ignoring non-dict Flow Package record",
+                    extra={"output_cube": output_cube_name},
+                )
                 continue
-            rows.extend(self._query_records(str(query), result))
+            rows.append(dict(record, _package_query=output_cube_name))
             if len(rows) > self._MAX_ROWS:
                 raise ProviderError(
                     f"FLAPI package exceeded the {self._MAX_ROWS} row safety limit"
                 )
         return rows
-
-    @staticmethod
-    def _results_dict(flow_results: Any) -> dict:
-        results = getattr(flow_results, "results", flow_results)
-        if not isinstance(results, dict):
-            raise ProviderError("FLAPI package response has no results object")
-        return results
-
-    def _query_records(self, query: str, result: object) -> List[dict]:
-        try:
-            records = self._rows.records(result)
-        except ProviderError:
-            self._logger.warning(
-                "Ignoring unrecognized Flow Package query result",
-                extra={"query": query},
-            )
-            return []
-        return [dict(record, _package_query=query) for record in records]
-
-    def _inspect_metadata(self, flow_results: Any) -> None:
-        metadata = getattr(flow_results, "metadata", None)
-        if metadata is None:
-            return
-        trace_id = getattr(metadata, "traceId", None)
-        if getattr(metadata, "isPartialSuccess", False):
-            self._logger.warning(
-                "FLAPI package partially succeeded",
-                extra={
-                    "trace_id": trace_id,
-                    "failed_queries": getattr(
-                        metadata, "partialSuccessFailedQueries", []
-                    ),
-                },
-            )
-        limited = getattr(metadata, "queriesReachedResultsLimit", None) or []
-        if limited:
-            self._logger.warning(
-                "FLAPI package queries reached their result limit",
-                extra={"trace_id": trace_id, "queries": limited},
-            )
