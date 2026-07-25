@@ -154,11 +154,20 @@ Flow Package pipeline: `FlapiSource` parses persisted typed inputs and selected 
 → `FlowPackageGateway.definitions()` fetches `/package/v1/quick/{id}` directly via
 `httpx` → `FlowPackageMetadata` normalizes grouped definitions →
 `FlowPackageSerializer` validates exact text/number/boolean/WKT/time shapes and splits
-configured parameters into a `flunks.PackageInputCube` (the chunked dimension — the
-declared time parameter when a `temporal_range` is given, otherwise a multi-value
-identifier parameter present in `configured`, falling back to an empty values cube) plus
-a `static_parameters` dict (every other configured/declared value, serialized exactly as
-before) → `FlowPackageGateway.execute()` builds a `flunks.config.FlapiConfig` from
+configured parameters into a `flunks.PackageInputCube` (the chunked dimension) plus a
+`static_parameters` dict (every other configured/declared value, serialized exactly as
+before). The input-cube driving parameter is explicit, not guessed: the catalog UI
+persists it as `input_cube_param=<name>` in `source_url` (read by
+`FlapiSource.package_input_parameter`); `FlowPackageSerializer.build_input_cube` uses
+that named definition (time-typed → `start_time`/`end_time` from `temporal_range`,
+otherwise → identifier `values`), falling back to the first declared time parameter or
+the first configured multi-value parameter when no explicit choice was persisted (older
+catalog rows). Output field selection is likewise explicit: `output_fields=<JSON list>`
+in `source_url` (`FlapiSource.package_output_fields`) feeds `PackageOutputCube.cube_fields`;
+the catalog UI's metadata-generation step now returns `output_fields` (real field names
+inferred from a live sample, via `GeneratedLayerMetadata.output_fields`) so the user
+picks from real values instead of typing blind. →
+`FlowPackageGateway.execute()` builds a `flunks.config.FlapiConfig` from
 `RuntimeSettingsStore` (`cubes_base_url`/`cubes_token`/`flapi_username`) and a
 `flunks.config.FlunksPackageConfig` (package id, input cube, `PackageOutputCube` named
 after the first selected query, `static_parameters`), runs it through

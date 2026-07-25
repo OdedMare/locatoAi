@@ -114,6 +114,8 @@ def configured_source():
             },
         },
         package_query="FinalCube",
+        package_input_parameter="StartTime",
+        package_output_fields=["identifier", "feature_score"],
     )
 
 
