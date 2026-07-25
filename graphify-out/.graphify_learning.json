@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-07-25T08:34:58.542901+00:00",
+  "generated_at": "2026-07-25T15:57:15.950776+00:00",
   "nodes": {
     "backend_app_bl_agent_generate_layer_metadata_layer_metadata_generator_rationale_1": {
-      "code_fingerprint": "35dc3e59fe92c2a68407aa240b426baec724120095d116e348326cb1fc2b7baf",
+      "code_fingerprint": "6accd344fd245fd4baea0a9f5d13879d70a9df1794ac8fadc70afa7024a7aa03",
       "label": "Generate editable catalog metadata from a bounded provider sample.",
       "last": "2026-07-25T08:13:52.056465+00:00",
       "provenance": [
@@ -12,7 +12,7 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.999661376,
+      "score": 0.992592314,
       "source_file": "backend/app/bl/agent/generate_layer_metadata/layer_metadata_generator.py",
       "status": "tentative",
       "uses": 1
@@ -28,7 +28,7 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.999661376,
+      "score": 0.992592314,
       "source_file": "backend/app/dal/providers/mqs/gateway.py",
       "status": "tentative",
       "uses": 1
@@ -44,7 +44,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.999965152,
+      "score": 0.992893942,
       "source_file": "backend/app/dal/providers/tyche/query_builder.py",
       "status": "tentative",
       "uses": 1
@@ -60,13 +60,13 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.999965152,
+      "score": 0.992893942,
       "source_file": "backend/app/dal/providers/tyche/source.py",
       "status": "tentative",
       "uses": 1
     },
     "backend_app_service_catalog_router_catalogrouter": {
-      "code_fingerprint": "c136a0a754e02995fa7c7b39f3e189549dfa22b52199419a168f711c2408209d",
+      "code_fingerprint": "65e9969ba3fe91b1a3cb97735804862af650d9b378a31860a23c1f338d356b85",
       "label": "CatalogRouter",
       "last": "2026-07-25T08:32:48.228715+00:00",
       "provenance": [
@@ -76,13 +76,82 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.999965152,
+      "score": 0.992893942,
       "source_file": "backend/app/service/catalog/router.py",
       "status": "tentative",
       "uses": 1
     },
+    "backend_app_service_query_event_sink_queryeventsink": {
+      "code_fingerprint": "656ab0cc8c9f4ea0e1063bbd18ff827926e0f7895a38144d39712dc6b6d56346",
+      "label": "QueryEventSink",
+      "last": "2026-07-25T15:39:57.043190+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T15:39:57.043190+00:00",
+          "outcome": "useful",
+          "q": "remove any streaming its just stuck my system "
+        },
+        {
+          "date": "2026-07-25T11:45:27.600906+00:00",
+          "outcome": "useful",
+          "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
+        }
+      ],
+      "score": 1.995690124,
+      "source_file": "backend/app/service/query/event_sink.py",
+      "status": "preferred",
+      "uses": 2
+    },
+    "backend_app_service_query_router_queryrouter": {
+      "code_fingerprint": "5b204a0583d3cdae7d2613e012480f3e063b1a75a47fe55b267eec54b2ba43d0",
+      "label": "QueryRouter",
+      "last": "2026-07-25T15:39:57.043190+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T15:39:57.043190+00:00",
+          "outcome": "useful",
+          "q": "remove any streaming its just stuck my system "
+        }
+      ],
+      "score": 0.999722216,
+      "source_file": "backend/app/service/query/router.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "frontend_readme_agenttrace": {
+      "code_fingerprint": "cebec7dceb798428e2cfbdfbfb354a619f3bda686f939abab969368fce75a7c5",
+      "label": "AgentTrace",
+      "last": "2026-07-25T11:45:27.600906+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T11:45:27.600906+00:00",
+          "outcome": "useful",
+          "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
+        }
+      ],
+      "score": 0.995967908,
+      "source_file": "frontend/README.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "frontend_readme_appshell": {
+      "code_fingerprint": "cebec7dceb798428e2cfbdfbfb354a619f3bda686f939abab969368fce75a7c5",
+      "label": "AppShell",
+      "last": "2026-07-25T11:45:27.600906+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T11:45:27.600906+00:00",
+          "outcome": "useful",
+          "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
+        }
+      ],
+      "score": 0.995967908,
+      "source_file": "frontend/README.md",
+      "status": "tentative",
+      "uses": 1
+    },
     "frontend_readme_layerspanel": {
-      "code_fingerprint": "00fc70e7c5da7a16691ecd8fa25a31b5e37602109d62d7a1dde73b9d87c32e0a",
+      "code_fingerprint": "cebec7dceb798428e2cfbdfbfb354a619f3bda686f939abab969368fce75a7c5",
       "label": "LayersPanel",
       "last": "2026-07-25T08:32:48.228715+00:00",
       "provenance": [
@@ -92,8 +161,56 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.999965152,
+      "score": 0.992893942,
       "source_file": "frontend/README.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "frontend_src_components_agenttrace_index_agenttrace": {
+      "code_fingerprint": "2e87c98e3483d4bcc0dc2a5401539d318e719c435b25642498298085e53948c4",
+      "label": "AgentTrace()",
+      "last": "2026-07-25T15:39:57.043190+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T15:39:57.043190+00:00",
+          "outcome": "useful",
+          "q": "remove any streaming its just stuck my system "
+        }
+      ],
+      "score": 0.999722216,
+      "source_file": "frontend/src/components/AgentTrace/index.tsx",
+      "status": "tentative",
+      "uses": 1
+    },
+    "frontend_src_services_geoqueryservice": {
+      "code_fingerprint": "425ad42fdbe8255ce8e10c862aa16406f1e3c8e52bce337278aeb98fc59b0ab9",
+      "label": "geoQueryService.ts",
+      "last": "2026-07-25T11:45:27.600906+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T11:45:27.600906+00:00",
+          "outcome": "useful",
+          "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
+        }
+      ],
+      "score": 0.995967908,
+      "source_file": "frontend/src/services/geoQueryService.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "frontend_src_services_geoqueryservice_submitquery": {
+      "code_fingerprint": "425ad42fdbe8255ce8e10c862aa16406f1e3c8e52bce337278aeb98fc59b0ab9",
+      "label": "submitQuery()",
+      "last": "2026-07-25T15:39:57.043190+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T15:39:57.043190+00:00",
+          "outcome": "useful",
+          "q": "remove any streaming its just stuck my system "
+        }
+      ],
+      "score": 0.999722216,
+      "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1
     }
