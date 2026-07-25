@@ -82,7 +82,7 @@ def test_create_layer_persists_declared_entity_role_as_metadata():
         "/api/layers",
         json={
             "name": "Tracks", "provider": "flapi",
-            "source_url": "flapi://cube/tracks",
+            "source_url": "flapi://package/tracks",
             "entity_field": "trackId", "tags": ["movement"],
         },
     )

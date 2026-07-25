@@ -102,7 +102,7 @@ def test_between_uses_meter_corridor_between_two_references():
 def test_between_buffers_target_fetches_by_corridor_width():
     """Both reference layers must be fetched using a geometry hint buffered
     by corridor_width_m — avoids pulling the whole target layer for large
-    MQS/Cubes layers when only a narrow corridor around the request matters."""
+    MQS/FLAPI layers when only a narrow corridor around the request matters."""
     subject = frame(["between"], [Point(34.005, 32.0)])
     first = frame(["a"], [Point(34.0, 32.0)])
     second = frame(["b"], [Point(34.01, 32.0)])

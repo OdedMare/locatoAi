@@ -65,7 +65,7 @@ class LayerMetadataGenerator:
         try:
             metadata_sampler = getattr(provider, "sample_for_metadata", None)
             if callable(metadata_sampler):
-                if layer.provider in ("cubes", "flapi"):
+                if layer.provider == "flapi":
                     features, schema = metadata_sampler(
                         layer, limit=self._FETCH_LIMIT,
                         geometry=sample_geometry,
@@ -103,7 +103,7 @@ class LayerMetadataGenerator:
             return []
         # Catalog metadata is editable upstream. A fresh generation attempt
         # must see newly-required parameters instead of an old process-local
-        # Cubes metadata cache entry.
+        # metadata cache entry.
         return loader(layer, refresh=True)
 
     @staticmethod

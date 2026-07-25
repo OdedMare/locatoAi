@@ -16,7 +16,7 @@ class GeneratedLayerMetadata:
     """Required selectors the catalog must resolve before sampling. Configured
     metadata values are excluded so provider-owned secrets never reach the UI."""
     requires_sample_polygon: bool = False
-    """The Cubes preview request needs a user-selected map polygon."""
+    """The Flow Package preview request needs a user-selected map polygon."""
     output_fields: List[str] = field(default_factory=list)
     """Field names inferred from the sampled response — lets the UI pick a
     Flow Package output cube's fields without guessing."""

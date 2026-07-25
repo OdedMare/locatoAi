@@ -12,7 +12,6 @@ from app.bl.catalog.mqs_sync.browse_mqs_layers import browse_mqs_layers
 from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
 from app.bl.catalog.tyche_activation import TYCHE_SOURCE, activate_tyche_layer
 from app.bl.catalog.models.layer_meta import LayerMeta
-from app.common.errors.provider_error import ProviderError
 from app.service.catalog.catalog_layer import CatalogLayer
 from app.service.catalog.create_layer_request import CreateLayerRequest
 from app.service.catalog.flapi_parameter_response import FlapiParameterResponse
@@ -138,9 +137,7 @@ class CatalogRouter:
         result = generator.generate(
             name=body.name, provider_name=body.provider,
             source_url=cls.normalized_source(
-                body.provider, body.source_url, body.cubes_query_mode,
-                body.parameter_values(),
-                flapi_resource_type=body.flapi_resource_type,
+                body.provider, body.source_url,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
                 package_input_parameter=body.package_input_parameter,
@@ -179,7 +176,7 @@ class CatalogRouter:
 
     @staticmethod
     def _sample_geometry(body: GenerateLayerMetadataRequest):
-        if body.provider.strip().lower() not in ("cubes", "flapi"):
+        if body.provider.strip().lower() != "flapi":
             return None
         boundary = body.cubes_sample_boundary
         if boundary is None:
@@ -191,10 +188,7 @@ class CatalogRouter:
 
     @classmethod
     def normalized_source(
-        cls, provider: str, source_url: str, cubes_query_mode: str = "auto",
-        cubes_parameters: Optional[Dict[str, str]] = None,
-        cubes_dynamic_parameters: Optional[Dict[str, str]] = None,
-        flapi_resource_type: str = "cube",
+        cls, provider: str, source_url: str,
         package_parameters: Optional[Dict[str, Any]] = None,
         package_query: Optional[str] = None,
         package_input_parameter: Optional[str] = None,
@@ -209,16 +203,9 @@ class CatalogRouter:
     ) -> str:
         source = source_url.strip()
         provider_name = provider.strip().lower()
-        if provider_name == "cubes":
-            return cls._normalized_cube_source(
-                source, cubes_query_mode,
-                cubes_parameters, cubes_dynamic_parameters,
-            )
         if provider_name == "flapi":
             return cls._normalized_flapi_source(
-                source, flapi_resource_type, cubes_query_mode,
-                cubes_parameters, cubes_dynamic_parameters,
-                package_parameters, package_query,
+                source, package_parameters, package_query,
                 package_input_parameter, package_output_fields,
             )
         if provider_name == "tyche":
@@ -231,39 +218,20 @@ class CatalogRouter:
         return source
 
     @classmethod
-    def _normalized_cube_source(
-        cls, source: str, mode: str,
-        parameters: Optional[Dict[str, str]],
-        legacy_parameters: Optional[Dict[str, str]],
-    ) -> str:
-        source = (
-            source if "://" in source
-            else f"cubes://db/{source.strip('/')}"
-        )
-        source = cls.with_cubes_mode(source, mode)
-        return cls.with_parameters(
-            source, parameters or legacy_parameters or {}
-        )
-
-    @classmethod
     def _normalized_flapi_source(
-        cls, source: str, resource_type: str, mode: str,
-        parameters: Optional[Dict[str, str]],
-        legacy_parameters: Optional[Dict[str, str]],
+        cls, source: str,
         package_parameters: Optional[Dict[str, Any]],
         package_query: Optional[str],
         package_input_parameter: Optional[str] = None,
         package_output_fields: Optional[List[str]] = None,
     ) -> str:
-        source = cls._flapi_source(source, resource_type)
-        if cls._flapi_type(source) == "package":
-            return cls.with_package_config(
-                source, package_parameters or {}, package_query,
-                package_input_parameter, package_output_fields,
-            )
-        source = cls.with_cubes_mode(source, mode)
-        return cls.with_parameters(
-            source, parameters or legacy_parameters or {}
+        source = (
+            source if "://" in source
+            else f"flapi://package/{source.strip('/')}"
+        )
+        return cls.with_package_config(
+            source, package_parameters or {}, package_query,
+            package_input_parameter, package_output_fields,
         )
 
     @classmethod
@@ -280,16 +248,6 @@ class CatalogRouter:
             time_from_field, time_to_field,
         )
         return cls.with_parameters(source, parameters or {})
-
-    @staticmethod
-    def with_cubes_mode(source: str, mode: str) -> str:
-        parsed = urlsplit(source)
-        query = parse_qs(parsed.query, keep_blank_values=True)
-        if mode == "auto":
-            query.pop("query_mode", None)
-        else:
-            query["query_mode"] = [mode]
-        return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @staticmethod
     def with_parameters(source: str, parameters: Dict[str, str]) -> str:
@@ -354,24 +312,6 @@ class CatalogRouter:
             ]
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
-    @classmethod
-    def _flapi_source(cls, source: str, resource_type: str) -> str:
-        if "://" in source:
-            return source
-        return f"flapi://{resource_type}/{source.strip('/')}"
-
-    @staticmethod
-    def _flapi_type(source: str) -> str:
-        parsed = urlsplit(source)
-        if parsed.scheme.casefold() == "package":
-            return "package"
-        return (
-            "package"
-            if parsed.scheme.casefold() == "flapi"
-            and parsed.netloc.casefold() == "package"
-            else "cube"
-        )
-
     @staticmethod
     def clean_tags(tags: List[str], limit: int) -> List[str]:
         cleaned = (str(tag).strip()[:60] for tag in tags)
@@ -403,9 +343,7 @@ class CatalogRouter:
             display_field=body.display_field.strip() if body.display_field else None,
             profiles=cls.clean_profiles(body.profiles),
             source_url=cls.normalized_source(
-                body.provider, body.source_url, body.cubes_query_mode,
-                body.parameter_values(),
-                flapi_resource_type=body.flapi_resource_type,
+                body.provider, body.source_url,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
                 package_input_parameter=body.package_input_parameter,
@@ -437,10 +375,6 @@ create_layer = CatalogRouter.create_layer
 update_layer = CatalogRouter.update_layer
 delete_layer = CatalogRouter.delete_layer
 generate_layer_metadata = CatalogRouter.generate_metadata
-autocomplete_cubes_parameter = CatalogRouter.autocomplete
-_with_cubes_mode = CatalogRouter.with_cubes_mode
-_with_cubes_parameters = CatalogRouter.with_parameters
-_with_cubes_dynamic_parameters = CatalogRouter.with_parameters
 _with_tyche_fields = CatalogRouter.with_tyche_fields
 _normalized_source = CatalogRouter.normalized_source
 _clean_tags = CatalogRouter.clean_tags
@@ -460,4 +394,3 @@ router.add_api_route(
     "/api/layers/{layer_id}", delete_layer, methods=["DELETE"], status_code=204,
 )
 router.add_api_route("/api/layers/generate-metadata", generate_layer_metadata, methods=["POST"], response_model=GeneratedLayerMetadataResponse)
-router.add_api_route("/api/layers/autocomplete-parameter", autocomplete_cubes_parameter, methods=["POST"], response_model=CubesAutocompleteResponse)
