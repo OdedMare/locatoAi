@@ -1,7 +1,7 @@
 """Flow Package metadata discovery and flunks-backed execution."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import httpx
@@ -69,10 +69,11 @@ class FlowPackageGateway:
         input_cube: PackageInputCube,
         static_parameters: Dict[str, Any],
         queries: List[str],
+        output_fields: Optional[List[str]] = None,
     ) -> List[dict]:
         package_id = self._source.package_id(layer)
         runner = self._build_runner(
-            package_id, input_cube, static_parameters, queries
+            package_id, input_cube, static_parameters, queries, output_fields,
         )
         try:
             flow_results = runner.run()
@@ -85,7 +86,9 @@ class FlowPackageGateway:
             self.failed_chunks = getattr(runner, "failed_chunks", 0)
         return self._records(flow_results, queries)
 
-    def _build_runner(self, package_id, input_cube, static_parameters, queries):
+    def _build_runner(
+        self, package_id, input_cube, static_parameters, queries, output_fields=None,
+    ):
         settings = self._clients.require_settings(require_username=True)
         flapi_config = FlapiConfig(
             username=settings.flapi_username, token=settings.cubes_token,
@@ -93,6 +96,7 @@ class FlowPackageGateway:
         )
         output_cube = PackageOutputCube(
             cube_name=queries[0] if queries else "output",
+            cube_fields=output_fields or [],
         )
         package_config = FlunksPackageConfig(
             package_id=package_id,

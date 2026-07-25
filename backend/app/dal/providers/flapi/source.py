@@ -1,7 +1,7 @@
 """Parse FLAPI resource URLs and persisted package inputs."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlsplit
 
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -56,6 +56,25 @@ class FlapiSource:
     def package_queries(layer: LayerMeta) -> List[str]:
         query = parse_qs(urlsplit(layer.source_url).query)
         return [value for value in query.get("query", []) if value]
+
+    @staticmethod
+    def package_input_parameter(layer: LayerMeta) -> Optional[str]:
+        query = parse_qs(urlsplit(layer.source_url).query)
+        value = query.get("input_cube_param", [None])[0]
+        return value or None
+
+    def package_output_fields(self, layer: LayerMeta) -> List[str]:
+        query = parse_qs(urlsplit(layer.source_url).query)
+        raw = query.get("output_fields", [None])[0]
+        if not raw:
+            return []
+        try:
+            fields = json.loads(raw)
+        except (TypeError, ValueError) as exc:
+            raise ProviderError(
+                "Flow Package output_fields is not valid JSON"
+            ) from exc
+        return [str(field) for field in fields] if isinstance(fields, list) else []
 
     def execution_params(self, layer: LayerMeta):
         query = parse_qs(urlsplit(layer.source_url).query)

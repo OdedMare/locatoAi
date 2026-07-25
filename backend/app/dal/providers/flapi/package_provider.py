@@ -74,13 +74,17 @@ class FlowPackageProvider:
         configured = self._source.package_inputs(layer)
         input_cube = self._serializer.build_input_cube(
             definitions, configured, temporal_range,
+            self._source.package_input_parameter(layer),
         )
         static_parameters = self._serializer.build_static_parameters(
             definitions, configured, geometry, temporal_range,
             skip=input_cube.cube_name,
         )
         queries = self._source.package_queries(layer)
-        rows = self._gateway.execute(layer, input_cube, static_parameters, queries)
+        output_fields = self._source.package_output_fields(layer)
+        rows = self._gateway.execute(
+            layer, input_cube, static_parameters, queries, output_fields,
+        )
         schema = self._schema(layer, rows, definitions)
         self._schemas[self._schema_key(layer)] = schema
         features = self._rows.to_gdf(rows)

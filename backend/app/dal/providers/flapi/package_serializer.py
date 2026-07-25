@@ -26,16 +26,21 @@ class FlowPackageSerializer:
         definitions: List[dict],
         configured: Dict[str, Any],
         temporal_range: Optional[Tuple[str, str]] = None,
+        input_parameter: Optional[str] = None,
     ) -> PackageInputCube:
-        item, name = self._time_definition(definitions), None
-        if item is not None and temporal_range is not None:
+        item = (
+            self._definition_named(definitions, input_parameter)
+            if input_parameter else self._time_definition(definitions)
+        )
+        if item is not None and self._metadata.is_time(item) and temporal_range is not None:
             return PackageInputCube(
-                cube_name=name or str(self._metadata.value(item, "Name", "name")),
+                cube_name=str(self._metadata.value(item, "Name", "name")),
                 cube_parameter=str(self._metadata.value(item, "Name", "name")),
                 start_time=self._parse_iso(temporal_range[0]),
                 end_time=self._parse_iso(temporal_range[1]),
             )
-        item = self._identifier_definition(definitions, configured)
+        if item is None:
+            item = self._identifier_definition(definitions, configured)
         values = self._multi(configured.get(str(self._metadata.value(
             item, "Name", "name"
         )))) if item is not None else []
@@ -44,6 +49,15 @@ class FlowPackageSerializer:
             if item is not None else "package_input",
             values=[str(self._metadata.value(entry, "Value", "value") or entry)
                     if isinstance(entry, dict) else str(entry) for entry in values],
+        )
+
+    def _definition_named(
+        self, definitions: List[dict], name: str
+    ) -> Optional[dict]:
+        return next(
+            (item for item in definitions
+             if str(self._metadata.value(item, "Name", "name")) == name),
+            None,
         )
 
     def build_static_parameters(
