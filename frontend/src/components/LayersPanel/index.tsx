@@ -303,9 +303,6 @@ export default function LayersPanel({
         tags,
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
-        package_parameters: isFlowPackage
-          ? packageParameterValues(parameterDefinitions, dynamicParameterValues)
-          : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
         package_input_cube_name: isFlowPackage
           ? packageInputCubeName.trim() || null : null,
@@ -443,10 +440,6 @@ export default function LayersPanel({
     setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
-    setDynamicParameterNames([]);
-    setParameterDefinitions([]);
-    setDynamicParameterValues({});
-    setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
     setCubesSampleBoundarySource(null);
     setFormMessage(null);
@@ -466,10 +459,6 @@ export default function LayersPanel({
     setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
-    setDynamicParameterNames([]);
-    setParameterDefinitions([]);
-    setDynamicParameterValues({});
-    setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
     setCubesSampleBoundarySource(null);
     setName("");
@@ -492,10 +481,6 @@ export default function LayersPanel({
     resetTycheConfig();
     setDisplayField("");
     setProfiles("");
-    setDynamicParameterNames([]);
-    setParameterDefinitions([]);
-    setDynamicParameterValues({});
-    setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
     setCubesSampleBoundarySource(null);
     setName("");
@@ -520,10 +505,6 @@ export default function LayersPanel({
     setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
-    setDynamicParameterNames([]);
-    setParameterDefinitions([]);
-    setDynamicParameterValues({});
-    setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
     setCubesSampleBoundarySource(null);
     setName("");
@@ -742,10 +723,6 @@ export default function LayersPanel({
                     setPackageInputCubeKind("time");
                     setPackageInputCubeParameter("");
                     setPackageOutputCubeName("");
-                    setDynamicParameterNames([]);
-                    setParameterDefinitions([]);
-                    setDynamicParameterValues({});
-                    setRequiresSamplePolygon(false);
                     setCubesSampleBoundary(null);
                     setCubesSampleBoundarySource(null);
                   }}
@@ -840,7 +817,6 @@ export default function LayersPanel({
               value={sourceUrl}
               onChange={(e) => {
                 setSourceUrl(e.target.value);
-                setRequiresSamplePolygon(false);
                 setCubesSampleBoundary(null);
                 setCubesSampleBoundarySource(null);
               }}
