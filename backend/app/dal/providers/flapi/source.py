@@ -11,20 +11,7 @@ from app.common.errors.provider_error import ProviderError
 class FlapiSource:
     PACKAGE_INPUT_PREFIX = "input_"
 
-    def resource_type(self, layer: LayerMeta) -> str:
-        parsed = urlsplit(layer.source_url.strip())
-        if parsed.scheme.casefold() == "package":
-            return "package"
-        if (
-            parsed.scheme.casefold() == "flapi"
-            and parsed.netloc.casefold() == "package"
-        ):
-            return "package"
-        return "cube"
-
     def package_id(self, layer: LayerMeta) -> str:
-        if self.resource_type(layer) != "package":
-            raise ProviderError("FLAPI source is not a Flow Package")
         parsed = urlsplit(layer.source_url.strip())
         ignored = {"id", "package", "v1", "v3"}
         parts = [
