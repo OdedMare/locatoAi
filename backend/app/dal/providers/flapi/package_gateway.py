@@ -3,8 +3,9 @@
 import logging
 from typing import List, Optional
 
-from flunks import FlunksRunner, PackageInputCube, PackageOutputCube
-from flunks.config import FlapiConfig, FlunksPackageConfig
+from flunks import FlunksRunner
+from flunks.config import FlApiConfig, FlunksConfig, FlunksPackageConfig
+from flunks.flow_models import PackageInputCube, PackageOutputCube
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
@@ -101,13 +102,13 @@ class FlowPackageGateway:
         )
         return FlunksRunner(
             flapi_config=flapi_config, package_config=package_config,
+            flunks_config=FlunksConfig(),
         )
 
     @staticmethod
     def _flapi_config(settings):
-        return FlapiConfig(
+        return FlApiConfig(
             username=settings.flapi_username, token=settings.cubes_token,
-            base_url=settings.cubes_base_url,
         )
 
     @staticmethod
@@ -115,7 +116,7 @@ class FlowPackageGateway:
         if not output_cube_name:
             raise ProviderError("Flow Package output cube name is required")
         return FlunksPackageConfig(
-            package_id=package_id,
+            package_id=package_id, package_name="",
             main_input_cube=input_cube,
             output_cube=PackageOutputCube(cube_name=output_cube_name),
         )

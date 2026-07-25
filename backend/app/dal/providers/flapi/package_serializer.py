@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
-from flunks import PackageInputCube
+from flunks.flow_models import PackageInputCube
 from shapely.geometry import MultiPolygon
 from shapely.geometry.base import BaseGeometry
 

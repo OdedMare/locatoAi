@@ -7,7 +7,7 @@ from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsSt
 class FlapiClientFactory:
     """Resolves and validates FLAPI settings for flunks.
 
-    flunks builds its own HTTP client from ``FlapiConfig``, so this holds no
+    flunks builds its own HTTP client from ``FlApiConfig``, so this holds no
     client of its own. It reads the store on every call, which is what keeps the
     Settings UI a live override with no restart.
     """
@@ -17,8 +17,6 @@ class FlapiClientFactory:
 
     def require_settings(self, require_username: bool = False):
         settings = self._store.get()
-        if not settings.cubes_base_url:
-            raise ProviderError("FLAPI base URL is not configured — set cubes_base_url")
         if not settings.cubes_token:
             raise ProviderError(
                 "FLAPI authorization token is not configured — set cubes_token"
