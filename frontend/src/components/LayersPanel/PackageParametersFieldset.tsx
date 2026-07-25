@@ -56,7 +56,17 @@ export default function PackageParametersFieldset({
             {definition.description && (
               <small dir="auto">{definition.description}</small>
             )}
-            {definition.options.length > 0 ? (
+            {isTime(definition) ? (
+              <textarea
+                id={inputId}
+                className="settings-input layer-description-input"
+                value={value}
+                onChange={(event) => onChange(definition.name, event.target.value)}
+                disabled={busy}
+                placeholder={placeholder}
+                dir="ltr"
+              />
+            ) : definition.options.length > 0 ? (
               <select
                 id={inputId}
                 className="settings-input"
@@ -83,16 +93,6 @@ export default function PackageParametersFieldset({
                 <option value="True">True</option>
                 <option value="False">False</option>
               </select>
-            ) : isTime(definition) ? (
-              <textarea
-                id={inputId}
-                className="settings-input layer-description-input"
-                value={value}
-                onChange={(event) => onChange(definition.name, event.target.value)}
-                disabled={busy}
-                placeholder={placeholder}
-                dir="ltr"
-              />
             ) : (
               <input
                 id={inputId}
