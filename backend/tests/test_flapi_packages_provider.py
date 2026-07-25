@@ -1,8 +1,3 @@
-import json
-from typing import List
-from urllib.parse import parse_qs, urlsplit
-
-import httpx
 import pytest
 from shapely.geometry import box
 

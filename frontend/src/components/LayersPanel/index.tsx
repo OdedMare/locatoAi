@@ -133,12 +133,6 @@ export default function LayersPanel({
   const [packageInputCubeKind, setPackageInputCubeKind] =
     useState<"time" | "geo">("time");
   const [packageOutputCubeName, setPackageOutputCubeName] = useState("");
-  const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
-  const [parameterDefinitions, setParameterDefinitions] =
-    useState<FlapiParameterDefinition[]>([]);
-  const [dynamicParameterValues, setDynamicParameterValues] =
-    useState<Record<string, string>>({});
-  const [requiresSamplePolygon, setRequiresSamplePolygon] = useState(false);
   const [cubesSampleBoundary, setCubesSampleBoundary] =
     useState<GeoJSONMultiPolygon | null>(null);
   const [cubesSampleBoundarySource, setCubesSampleBoundarySource] =
@@ -383,25 +377,12 @@ export default function LayersPanel({
 
   const handleGenerateMetadata = async (
     selected?: RemoteMqsLayer,
-    selectedDynamicValues: Record<string, string> = dynamicParameterValues,
     selectedBoundary: GeoJSONMultiPolygon | null = cubesSampleBoundary,
   ) => {
-    let packageParameters: Record<string, unknown> = {};
-    try {
-      if (isFlowPackage) {
-        packageParameters = packageParameterValues(
-          parameterDefinitions, selectedDynamicValues
-        );
-      }
-    } catch (err) {
-      setFormMessage(layerErrorMessage(err, "פרמטר הזמן אינו JSON תקין."));
-      return;
-    }
     const target = {
       name: selected?.name ?? name,
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
-      package_parameters: packageParameters,
       package_query: isFlowPackage ? packageQuery.trim() || null : null,
       package_input_cube_name: isFlowPackage
         ? packageInputCubeName.trim() || null : null,
@@ -426,39 +407,13 @@ export default function LayersPanel({
     setFormMessage("דוגם עד 10 ישויות ומייצר תיאור ותגיות…");
     try {
       const generated = await generateLayerMetadata(target);
-      setRequiresSamplePolygon(generated.requires_sample_polygon);
       if (generated.sample_count > 0) {
         setDescription(generated.description);
         setTags(generated.tags);
         setTagDraft("");
       }
-      const definitions = [...generated.configurable_parameters];
-      const parameterNames = definitions.map((item) => item.name);
-      setParameterDefinitions(definitions);
-      setDynamicParameterNames(parameterNames);
-      setDynamicParameterValues((current) => Object.fromEntries(
-        parameterNames
-          .filter((parameterName) => current[parameterName])
-          .map((parameterName) => [parameterName, current[parameterName]])
-      ));
-      const missingParameters = definitions.some(
-        (definition) =>
-          definition.required
-          && !definition.has_default
-          && !isPackageGeometryParameter(definition)
-          && !selectedDynamicValues[definition.name]
-      );
-      const missingPolygon = generated.requires_sample_polygon && !selectedBoundary;
       setFormMessage(
-        missingParameters && missingPolygon
-          ? "יש לבחור ערכים לפרמטרים הנדרשים ופוליגון לדגימת ה-metadata."
-          : missingPolygon
-          ? "ה-Flow Package דורש פוליגון לדגימת metadata — בחרו פוליגון שצויר במפה או את תחום התצוגה."
-          : missingParameters
-          ? "נמצאו פרמטרים נדרשים — יש לבחור ערכים לפני טעינת התוצאות."
-          : parameterNames.length > 0
-          ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות.`
-          : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה.`
+        `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה.`
       );
     } catch (err) {
       console.error("Layer metadata generation failed", err);
@@ -474,22 +429,7 @@ export default function LayersPanel({
   ) => {
     setCubesSampleBoundary(boundary);
     setCubesSampleBoundarySource(source);
-    const allParametersSelected = dynamicParameterNames.every(
-      (parameterName) => {
-        const definition = parameterDefinitions.find(
-          (item) => item.name === parameterName
-        );
-        return !definition?.required
-          || definition.has_default
-          || isPackageGeometryParameter(definition)
-          || Boolean(dynamicParameterValues[parameterName]);
-      }
-    );
-    if (allParametersSelected) {
-      void handleGenerateMetadata(undefined, dynamicParameterValues, boundary);
-    } else {
-      setFormMessage("הפוליגון נבחר. כעת יש לבחור ערך לכל הפרמטרים הנדרשים.");
-    }
+    void handleGenerateMetadata(undefined, boundary);
   };
 
   const selectMqsLayer = (layer: RemoteMqsLayer) => {
