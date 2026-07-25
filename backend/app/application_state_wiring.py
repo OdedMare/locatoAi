@@ -41,7 +41,6 @@ class ApplicationStateWiring:
         flapi = FlapiProvider(store)
         tyche = TycheProvider(store)
         registry.register("mqs", mqs)
-        registry.register("cubes", flapi)
         registry.register("flapi", flapi)
         registry.register("tyche", tyche)
         return registry, mqs, flapi, tyche

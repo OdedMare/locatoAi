@@ -15,9 +15,6 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
 from app.service.catalog.catalog_layer import CatalogLayer
 from app.service.catalog.create_layer_request import CreateLayerRequest
-from app.service.catalog.cubes_autocomplete_option_response import CubesAutocompleteOptionResponse
-from app.service.catalog.cubes_autocomplete_request import CubesAutocompleteRequest
-from app.service.catalog.cubes_autocomplete_response import CubesAutocompleteResponse
 from app.service.catalog.flapi_parameter_response import FlapiParameterResponse
 from app.service.catalog.generate_layer_metadata_request import GenerateLayerMetadataRequest
 from app.service.catalog.generated_layer_metadata_response import GeneratedLayerMetadataResponse
@@ -191,33 +188,6 @@ class CatalogRouter:
         if geometry.geom_type == "MultiPolygon" and len(geometry.geoms) == 1:
             return geometry.geoms[0]
         return geometry
-
-    @classmethod
-    def autocomplete(
-        cls, body: CubesAutocompleteRequest, request: Request
-    ) -> CubesAutocompleteResponse:
-        layer = LayerMeta(
-            id="autocomplete-preview", name="", provider="cubes",
-            source_url=cls.normalized_source("cubes", body.source_url),
-        )
-        options = cls._autocomplete_options(
-            request.app.state.flapi_provider, layer, body.parameter_name
-        )
-        return CubesAutocompleteResponse(options=[
-            CubesAutocompleteOptionResponse(value=item.value, name=item.name)
-            for item in options
-        ])
-
-    @staticmethod
-    def _autocomplete_options(provider, layer, parameter_name):
-        try:
-            return provider.fetch_autocomplete_options(layer, parameter_name)
-        except ProviderError:
-            raise
-        except Exception as exc:
-            raise ProviderError(
-                f"Could not fetch autocomplete options for '{parameter_name}'"
-            ) from exc
 
     @classmethod
     def normalized_source(
