@@ -146,6 +146,7 @@ class CatalogRouter:
                 flapi_resource_type=body.flapi_resource_type,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
+                package_input_parameter=body.package_input_parameter,
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
@@ -248,6 +249,7 @@ class CatalogRouter:
                 source, flapi_resource_type, cubes_query_mode,
                 cubes_parameters, cubes_dynamic_parameters,
                 package_parameters, package_query,
+                package_input_parameter, package_output_fields,
             )
         if provider_name == "tyche":
             return cls._normalized_tyche_source(
@@ -280,11 +282,14 @@ class CatalogRouter:
         legacy_parameters: Optional[Dict[str, str]],
         package_parameters: Optional[Dict[str, Any]],
         package_query: Optional[str],
+        package_input_parameter: Optional[str] = None,
+        package_output_fields: Optional[List[str]] = None,
     ) -> str:
         source = cls._flapi_source(source, resource_type)
         if cls._flapi_type(source) == "package":
             return cls.with_package_config(
-                source, package_parameters or {}, package_query
+                source, package_parameters or {}, package_query,
+                package_input_parameter, package_output_fields,
             )
         source = cls.with_cubes_mode(source, mode)
         return cls.with_parameters(
@@ -354,12 +359,16 @@ class CatalogRouter:
     def with_package_config(
         source: str, parameters: Dict[str, Any],
         selected_query: Optional[str] = None,
+        input_parameter: Optional[str] = None,
+        output_fields: Optional[List[str]] = None,
     ) -> str:
         parsed = urlsplit(source)
         query = parse_qs(parsed.query, keep_blank_values=True)
         for key in [key for key in query if key.startswith(_PACKAGE_INPUT_PREFIX)]:
             query.pop(key)
         query.pop("query", None)
+        query.pop("input_cube_param", None)
+        query.pop("output_fields", None)
         for name, value in parameters.items():
             if name and value not in (None, ""):
                 query[f"{_PACKAGE_INPUT_PREFIX}{name}"] = [
@@ -367,6 +376,12 @@ class CatalogRouter:
                 ]
         if selected_query:
             query["query"] = [selected_query.strip()]
+        if input_parameter:
+            query["input_cube_param"] = [input_parameter.strip()]
+        if output_fields:
+            query["output_fields"] = [
+                json.dumps(output_fields, ensure_ascii=False, separators=(",", ":"))
+            ]
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
 
     @classmethod
@@ -423,6 +438,8 @@ class CatalogRouter:
                 flapi_resource_type=body.flapi_resource_type,
                 package_parameters=body.package_parameters,
                 package_query=body.package_query,
+                package_input_parameter=body.package_input_parameter,
+                package_output_fields=body.package_output_fields,
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
