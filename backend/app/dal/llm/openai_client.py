@@ -16,7 +16,6 @@ Robustness (ported policy from the MVP guide):
 """
 
 import json
-import time  # compatibility seam for tests patching transient retry sleeps
 
 import httpx
 from openai import (
@@ -26,10 +25,10 @@ from openai import (
 
 from app.common.errors.agent_error import AgentError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.llm.completion_retry import CompletionRetry
-from app.dal.llm.json_response_parser import JsonResponseParser
-from app.dal.llm.message_merger import MessageMerger
-from app.dal.llm.model_id_extractor import ModelIdExtractor
+from app.dal.llm.completion_retry import create_with_retry
+from app.dal.llm.json_response_parser import extract_json
+from app.dal.llm.message_merger import merge_system_into_user
+from app.dal.llm.model_id_extractor import extract_model_ids
 
 
 # One initial attempt + one retry with the parse error appended.
@@ -40,16 +39,6 @@ _DIET_MAX_COMPLETION_TOKENS = 1200
 # The SDK requires a non-empty key; local servers/gateways ignore it.
 # "null" is the value spear_presenton uses against the same gateways.
 _LOCAL_SERVER_KEY_PLACEHOLDER = "null"
-
-# A momentary rate-limit/connection blip must not fail the whole
-# select/build/tool-round pipeline outright. Short fixed delay, not
-# exponential backoff — this sits in the interactive request path, so
-# total added worst-case latency must stay well under a second.
-extract_json = JsonResponseParser.parse
-extract_model_ids = ModelIdExtractor.extract
-_create_with_retry = CompletionRetry.create
-_merge_system_into_user = MessageMerger.merge_system_into_user
-
 
 class OpenAIJsonClient:
     def __init__(self, settings_store: RuntimeSettingsStore):
@@ -187,7 +176,7 @@ class OpenAIJsonClient:
         last_bad_request = None
         for kwargs in attempts:
             try:
-                response = _create_with_retry(client, model, kwargs)
+                response = create_with_retry(client, model, kwargs)
                 break
             except BadRequestError as exc:
                 last_bad_request = exc
@@ -215,7 +204,7 @@ class OpenAIJsonClient:
         attempts.extend([
             {"messages": messages, "response_format": {"type": "json_object"}},
             {"messages": messages},
-            {"messages": _merge_system_into_user(messages)},
+            {"messages": merge_system_into_user(messages)},
         ])
         if max_tokens is None:
             return attempts

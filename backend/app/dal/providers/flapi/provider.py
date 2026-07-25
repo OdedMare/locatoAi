@@ -218,7 +218,6 @@ class FlapiProvider:
         mapped = len(features)
         if geometry is not None and not features.empty:
             features = features[features.geometry.intersects(geometry)]
-        intersected = len(features)
         if limit is not None:
             features = features.iloc[:limit]
         self._logger.info(
