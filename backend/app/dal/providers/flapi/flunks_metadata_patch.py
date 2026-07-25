@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Tuple, Union, get_args
 
-_FIELD = "isPartialSuccess"
+_FIELDS = ("isPartialSuccess", "is_partial_success")
 _logger = logging.getLogger(__name__)
 
 
@@ -17,9 +17,9 @@ class FlunksMetadataPatch:
             return False
         metadata = getattr(flow_models, "MetaData", None)
         results = getattr(flow_models, "FlowResults", None)
-        field = getattr(metadata, "model_fields", {}).get(_FIELD)
+        field = cls._field(metadata)
         if field is None:
-            _logger.warning("flunks patch skipped: MetaData.%s missing", _FIELD)
+            _logger.warning("flunks patch skipped: partial-success field missing")
             return False
         admitted = cls._types(field.annotation)
         if str not in admitted or bool in admitted:
@@ -40,6 +40,14 @@ class FlunksMetadataPatch:
     @staticmethod
     def _types(annotation: Any) -> Tuple[Any, ...]:
         return get_args(annotation) or (annotation,)
+
+    @staticmethod
+    def _field(metadata: Any) -> Any:
+        fields = getattr(metadata, "model_fields", {})
+        for name, field in fields.items():
+            if name in _FIELDS or getattr(field, "alias", None) in _FIELDS:
+                return field
+        return None
 
     @staticmethod
     def _rebuild(metadata: Any, results: Any) -> bool:

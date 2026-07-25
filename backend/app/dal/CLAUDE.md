@@ -173,6 +173,8 @@ no seam inside `FlunksRunner` to intercept.
 Two details are essential: Pydantic embeds child schemas, so `MetaData` must be rebuilt
 *before* `FlowResults`; and the widened annotation must preserve `Optional[str]` rather
 than replacing it. Reversing that rebuild order reproduces the original string error.
+Field lookup accepts both `isPartialSuccess` and the snake-case model field
+`is_partial_success`/camel-case alias used by some flunks builds.
 
 The patch is idempotent, still accepts a string, and self-disables once `str` is no
 longer among the field's admitted types. `package_gateway` **logs whether it applied**
