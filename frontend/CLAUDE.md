@@ -14,9 +14,8 @@ full backend pipeline and repository-wide constraints.
   `MultiPolygon`; the supported scopes are viewport, polygon, and rectangle.
 - Keep HTTP calls in `src/services` and mirror backend DTOs in `src/types`.
 - `AgentTrace` renders the public `pipeline_trace`, plan, tool calls, timings,
-  selected layers, and feedback. When the composer live-updates toggle is enabled,
-  it consumes the SSE trace during submission, including each load/filter/cluster
-  operation and its counts. It must support all 18 plan operations.
+  selected layers, and feedback from the final JSON response. It must support all
+  18 plan operations.
 - Keep Leaflet and Leaflet Draw behind the dynamically imported client-only map
   path. GeoJSON is `[lng, lat]`; Leaflet positions are `[lat, lng]`.
 - Keep the coordinate console top-center so it does not overlap the top-right layer
@@ -24,10 +23,9 @@ full backend pipeline and repository-wide constraints.
 - Quick-question presets are intentionally absent. `RequestPreview` copies the full
   request/response/plan/trace debug bundle, and frontend failures go to the console.
 - `services/queryDebugLog.ts` mirrors the whole backend pipeline into the DevTools
-  console: `QueryDebugLog.stage` prints each streamed trace entry as it arrives (so a
-  failing step is visible live, not only at the end), and `.completed` prints a
-  collapsed group with timings, tokens, selected layers, plan, and a `console.table` of
-  the trace, re-logging every failed entry with its `error_type`/`error`. Backend
+  console: `.completed` prints a collapsed group with timings, tokens, selected layers,
+  plan, and a `console.table` of the trace, re-logging every failed entry with its
+  `error_type`/`error`. Backend
   `ProviderError` text (e.g. a FLAPI package rejection) reaches it verbatim through the
   executor's per-step failed trace.
 - Preserve RTL defaults and mark URLs, identifiers, JSON, and credentials LTR.

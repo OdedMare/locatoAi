@@ -1,4 +1,3 @@
-import json
 from unittest.mock import Mock
 
 from fastapi import FastAPI
@@ -16,7 +15,7 @@ BOUNDARIES = {
 }
 
 
-class StreamingOrchestrator:
+class RecordingOrchestrator:
     @staticmethod
     def run_query(query, boundaries, event_sink=None):
         event_sink({
@@ -42,32 +41,25 @@ def test_run_stage_emits_start_and_completion():
     ]
 
 
-def streaming_app():
+def query_app():
     app = FastAPI()
     app.state.request_log = Mock()
     app.include_router(router)
-    app.dependency_overrides[get_orchestrator] = lambda: StreamingOrchestrator()
+    app.dependency_overrides[get_orchestrator] = lambda: RecordingOrchestrator()
     return app
 
 
-def decode_frames(response):
-    return [
-        (block.splitlines()[0], json.loads(block.splitlines()[1][6:]))
-        for block in response.text.strip().split("\n\n")
-    ]
-
-
-def test_query_stream_sends_trace_before_final_result():
-    response = TestClient(streaming_app()).post(
-        "/api/query/stream",
-        headers={"X-Request-ID": "stream-test"},
+def test_query_response_includes_pipeline_trace():
+    response = TestClient(query_app()).post(
+        "/api/query",
+        headers={"X-Request-ID": "query-test"},
         json={"query": "מצא ישויות", "boundaries": BOUNDARIES},
     )
 
-    frames = decode_frames(response)
-    assert response.headers["content-type"].startswith("text/event-stream")
-    assert [event for event, _ in frames] == [
-        "event: trace", "event: trace", "event: result",
+    body = response.json()
+    assert response.headers["content-type"].startswith("application/json")
+    assert [event["status"] for event in body["pipeline_trace"]] == [
+        "started", "completed",
     ]
-    assert frames[1][1]["output_count"] == 2
-    assert frames[-1][1]["request_id"] == "stream-test"
+    assert body["pipeline_trace"][1]["output_count"] == 2
+    assert body["request_id"] == "query-test"

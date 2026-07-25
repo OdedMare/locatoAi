@@ -340,7 +340,7 @@ semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID d
     `PlanExecutor.execute_detailed`; empty results (`_has_results`) trigger `_handle_empty`
     → `PlanBuilder.replan_after_empty` (the diagnosis step), re-executing once if the
     revision survives `preserves_constraints`. Sums token usage across every LLM stage;
-    every stage timed via `StageTimer`, optionally streamed through `event_sink`.
+    every stage is timed via `StageTimer` and recorded through `event_sink`.
   - `execute_plan(plan, boundaries) -> QueryOutcome` — the "bring your own plan" path
     (`/api/execute-plan`): validates the explicit plan against the live catalog
     (`validate_plan`) and executes directly, skipping both LLM stages.

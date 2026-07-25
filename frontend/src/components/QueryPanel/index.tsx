@@ -8,13 +8,12 @@ import RequestPreview from "@/components/RequestPreview";
 import ResultsPanel from "@/components/ResultsPanel";
 import {
   Activity, ArrowUp, Bot, Clock3, Layers, LoaderCircle, MessageSquarePlus, Moon,
-  Radar, RadioTower, Settings, Sparkles, Sun,
+  Radar, Settings, Sparkles, Sun,
 } from "lucide-react";
 import type {
   GeographyMode,
   GeoQueryRequest,
   GeoQueryResponse,
-  PipelineTraceEntry,
 } from "@/types/geo-query";
 
 interface QueryPanelProps {
@@ -25,11 +24,8 @@ interface QueryPanelProps {
   hasDrawnGeometry: boolean;
   onRunQuery: () => void;
   isSubmitting: boolean;
-  isStreamMode: boolean;
-  onToggleStreamMode: () => void;
   lastRequest: GeoQueryRequest | null;
   lastResponse: GeoQueryResponse | null;
-  liveTrace: PipelineTraceEntry[];
   lastDisplayQuery: string;
   history: Array<{
     request: GeoQueryRequest;
@@ -53,11 +49,8 @@ export default function QueryPanel({
   hasDrawnGeometry,
   onRunQuery,
   isSubmitting,
-  isStreamMode,
-  onToggleStreamMode,
   lastRequest,
   lastResponse,
-  liveTrace,
   lastDisplayQuery,
   history,
   onOpenSettings,
@@ -78,7 +71,7 @@ export default function QueryPanel({
     if (!isSubmitting) return;
     const conversation = conversationRef.current;
     conversation?.scrollTo({ top: conversation.scrollHeight, behavior: "auto" });
-  }, [isSubmitting, liveTrace.length]);
+  }, [isSubmitting]);
 
   return (
     <aside className="query-panel">
@@ -214,8 +207,6 @@ export default function QueryPanel({
                     response={lastResponse}
                     isSubmitting={isSubmitting}
                     query={lastRequest?.query ?? ""}
-                    liveTrace={liveTrace}
-                    streamMode={isStreamMode}
                   />
                   {!isSubmitting && lastResponse && <ResultsPanel response={lastResponse} />}
                   {lastRequest && <RequestPreview request={lastRequest} response={lastResponse} />}
@@ -232,18 +223,6 @@ export default function QueryPanel({
               onModeChange={onGeographyModeChange}
               hasDrawnGeometry={hasDrawnGeometry}
             />
-            <button
-              type="button"
-              className={`stream-mode-toggle${isStreamMode ? " active" : ""}`}
-              onClick={onToggleStreamMode}
-              disabled={isSubmitting}
-              aria-pressed={isStreamMode}
-              aria-label={isStreamMode ? "כיבוי עדכונים חיים" : "הפעלת עדכונים חיים"}
-              title={isStreamMode ? "עדכונים חיים פעילים" : "הפעלת עדכונים חיים"}
-            >
-              <RadioTower size={14} />
-              <span className="stream-mode-label">עדכונים חיים</span>
-            </button>
           </div>
           <div className="composer-row">
             <GeoQueryInput

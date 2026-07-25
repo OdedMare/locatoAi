@@ -4,8 +4,7 @@ import type { GeoQueryResponse, PipelineTraceEntry } from "@/types/geo-query";
  * Mirror the backend pipeline into the browser DevTools console.
  *
  * The server logs every stage to its own console and `requests.jsonl`, but
- * until now the browser only saw two coarse lines. These helpers print each
- * streamed stage as it arrives — grouped, with counts and errors — so a failed
+ * the browser receives the full trace in the final JSON response, so a failed
  * query can be diagnosed from DevTools without reading the server log.
  */
 
@@ -46,20 +45,6 @@ function details(entry: PipelineTraceEntry): Record<string, unknown> {
 }
 
 export const QueryDebugLog = {
-  /** One line per streamed stage, as it happens. */
-  stage(entry: PipelineTraceEntry): void {
-    const label = entry.step_id
-      ? `${entry.stage}:${entry.operation ?? "?"}#${entry.step_id}`
-      : entry.stage;
-    const style = isFailure(entry) ? STYLE_FAIL : STYLE_STAGE;
-    const suffix = entry.duration_ms !== undefined ? ` (${entry.duration_ms}ms)` : "";
-    if (isFailure(entry)) {
-      console.error(`%c▸ ${label}${suffix}`, style, details(entry));
-      return;
-    }
-    console.info(`%c▸ ${label}${suffix}`, style, details(entry));
-  },
-
   started(requestId: string, request: unknown): void {
     console.info("%c◆ Query pipeline started", STYLE_STAGE, {
       requestId, request,

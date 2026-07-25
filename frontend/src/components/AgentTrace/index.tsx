@@ -133,33 +133,29 @@ function StatusIcon({ status }: { status: PipelineTraceEntry["status"] }) {
 interface PipelineTimelineProps {
   trace: PipelineTraceEntry[];
   requestId?: string | null;
-  live?: boolean;
 }
 
-function PipelineTimeline({ trace, requestId, live = false }: PipelineTimelineProps) {
+function PipelineTimeline({ trace, requestId }: PipelineTimelineProps) {
   const entries = latestTrace(trace);
   return (
     <div
-      className={`plan-trace pipeline-timeline${live ? " live" : ""}`}
-      aria-live="polite"
-      aria-label={live ? "תוכנית ביצוע בזמן אמת" : "תוכנית הביצוע שהושלמה"}
+      className="plan-trace pipeline-timeline"
+      aria-label="תוכנית הביצוע שהושלמה"
     >
       <div className="pipeline-heading">
-        <strong>{live ? "תוכנית ביצוע בזמן אמת" : "מה קרה בפועל"}</strong>
-        {live && <span className="pipeline-live-badge"><i /> חי</span>}
+        <strong>מה קרה בפועל</strong>
       </div>
       {requestId && (
         <p className="plan-explanation" dir="ltr">request_id: {requestId}</p>
       )}
       <ol className="pipeline-steps">
         {entries.length === 0 && (
-          <li className="pipeline-step started">
+          <li className="pipeline-step clarify">
             <span className="pipeline-step-icon">
-              <LoaderCircle className="pipeline-spinner" size={17} />
+              <CircleHelp size={17} />
             </span>
             <div className="pipeline-step-body">
-              <strong>מתחבר לצינור הביצוע</strong>
-              <small>האירוע הראשון יופיע כאן מיד כשהשרת מתחיל לעבוד</small>
+              <strong>לא נרשמו פרטי ביצוע</strong>
             </div>
           </li>
         )}
@@ -249,8 +245,6 @@ interface AgentTraceProps {
   isSubmitting: boolean;
   /** The query text that produced `response` (for feedback logging). */
   query: string;
-  liveTrace: PipelineTraceEntry[];
-  streamMode: boolean;
 }
 
 /**
@@ -259,7 +253,7 @@ interface AgentTraceProps {
  * selection quality can be judged at a glance.
  */
 export default function AgentTrace({
-  response, isSubmitting, query, liveTrace, streamMode,
+  response, isSubmitting, query,
 }: AgentTraceProps) {
   const [voteState, setVoteState] = useState<{
     query: string;
@@ -331,16 +325,12 @@ export default function AgentTrace({
       </header>
 
       {isSubmitting ? (
-        streamMode ? (
-          <PipelineTimeline trace={liveTrace} live />
-        ) : (
-          <div className="plan-trace" aria-live="polite">
-            <p className="agent-step running agent-status-line">
-              <LoaderCircle className="pipeline-spinner" size={16} />
-              מריץ במצב רגיל — התשובה תופיע בסיום
-            </p>
-          </div>
-        )
+        <div className="plan-trace" aria-live="polite">
+          <p className="agent-step running agent-status-line">
+            <LoaderCircle className="pipeline-spinner" size={16} />
+            מריץ את השאילתה — התשובה תופיע בסיום
+          </p>
+        </div>
       ) : response && (
         <PipelineTimeline
           trace={response.pipeline_trace}

@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, Request
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.service.dependencies import get_orchestrator
 from app.service.query.event_sink import QueryEventSink
-from app.service.query.query_stream import QueryStream
 from app.service.query.request import QueryRequest
 from app.service.query.response import QueryResponse
 
@@ -29,42 +28,6 @@ class QueryRouter:
             QueryEventSink(request, logger), logger,
         )
         return cls._complete(request, body.query, request_id, logger, outcome)
-
-    @classmethod
-    def stream_query(
-        cls, body: QueryRequest, request: Request,
-        orchestrator: QueryOrchestrator = Depends(get_orchestrator),
-    ):
-        boundaries = body.boundaries.to_shapely()
-        request_id, logger = cls._start(request, body.query, boundaries)
-        stream = QueryStream(
-            lambda: cls._stream_work(
-                request, body.query, boundaries, request_id, logger,
-                orchestrator, stream,
-            ),
-            lambda exc: cls._stream_error(request, request_id, exc),
-        )
-        return stream.response(request_id)
-
-    @classmethod
-    def _stream_work(
-        cls, request, query, boundaries, request_id, logger,
-        orchestrator, stream,
-    ):
-        outcome = cls._execute(
-            orchestrator, query, boundaries,
-            QueryEventSink(request, logger, stream.emit), logger,
-        )
-        return cls._complete(request, query, request_id, logger, outcome)
-
-    @staticmethod
-    def _stream_error(request, request_id: str, exc: Exception) -> dict:
-        return {
-            "request_id": request_id,
-            "detail": str(exc),
-            "error_type": type(exc).__name__,
-            "pipeline_trace": request.state.pipeline_trace,
-        }
 
     @classmethod
     def _start(cls, request: Request, query: str, boundaries):
@@ -132,10 +95,8 @@ class QueryRouter:
 
 
 run_query = QueryRouter.run_query
-stream_query = QueryRouter.stream_query
 _request_id = QueryRouter.request_id
 _boundary_context = QueryRouter.boundary_context
 _outcome_context = QueryRouter.outcome_context
 _result_count = QueryRouter.result_count
 router.add_api_route("/api/query", run_query, methods=["POST"], response_model=QueryResponse)
-router.add_api_route("/api/query/stream", stream_query, methods=["POST"])

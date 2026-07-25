@@ -105,7 +105,6 @@ The service tier exposes these routes:
 |---|---|
 | `GET /health` | Process health check; outside the `/api` proxy family. |
 | `POST /api/query` | Full natural-language select → plan → validate → execute pipeline. |
-| `POST /api/query/stream` | The same pipeline as SSE: `trace` events followed by one `result` or `error` event. |
 | `POST /api/area-summary` | Derive evidence-backed count, presence, recommendation, and encounter facts from configured catalog layers. |
 | `POST /api/execute-plan` | Validate and execute a supplied plan without either LLM call. |
 | `POST /api/select-layers` | Run only agent call one for debugging/evaluation. |
@@ -209,10 +208,9 @@ prompt input (sanitized + truncated) · clarify is a first-class response, alway
 `service/query/request.py` accepts a non-empty query and a required GeoJSON
 `MultiPolygon`. The router converts the boundary to Shapely and passes domain
 values into `QueryOrchestrator`. DTOs contain translation, not planning rules.
-The JSON endpoint remains available for integrations. The UI uses
-`POST /api/query/stream`, which runs the same orchestrator and forwards its existing
-event sink as server-sent `trace` events before sending the final `QueryResponse` as a
-`result` event. No second progress model or estimated stage is generated.
+The UI and integrations use `POST /api/query`, which returns one final JSON
+`QueryResponse`. The event sink records operational stages for logging and the
+response's `pipeline_trace`.
 
 ### Stage 1: layer selection
 
@@ -259,8 +257,6 @@ request events are written to the server console first and then to JSON lines. Q
 logging includes a request ID, boundary summary, live stage transitions, selected and
 dropped layer IDs, raw plan-validation diagnostics, per-step parameters/counts, and the
 complete final plan/trace. Result feature bodies are intentionally summarized by count.
-The SSE response disables proxy buffering and keeps `X-Request-ID` on the stream so
-the progressive UI, final response, console, and JSONL log remain correlated.
 Domain and
 unexpected exceptions log method, path, status, type, message, and traceback; the UI
 also writes failed network/API operations to the browser console. User votes go to the
