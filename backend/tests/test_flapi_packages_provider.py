@@ -114,7 +114,7 @@ def configured_source():
             },
         },
         package_query="FinalCube",
-        package_input_parameter="StartTime",
+        package_input_parameter="Terms",
         package_output_fields=["identifier", "feature_score"],
     )
 
@@ -163,11 +163,12 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(
     assert runner.flapi_config.token == "jwt"
     assert runner.package_config.package_id == "466192"
     assert runner.package_config.output_cube.cube_name == "FinalCube"
+    assert runner.package_config.output_cube.cube_fields == [
+        "identifier", "feature_score",
+    ]
+    assert runner.package_config.main_input_cube.cube_name == "Terms"
+    assert runner.package_config.main_input_cube.values == ["alpha", "beta"]
     assert runner.package_config.static_parameters == {
-        "Terms": [
-            {"Name": "alpha", "Value": "alpha"},
-            {"Name": "beta", "Value": "beta"},
-        ],
         "MinScore": {"Name": "1", "Value": 1},
         "Enabled": "False",
         "Area": boundary.wkt,
