@@ -109,9 +109,10 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(
     runner = StubRunner.last_instance
     assert runner.flapi_config.username == "oded"
     assert runner.flapi_config.token == "jwt"
-    assert runner.flunks_config is None
+    assert runner.flunks_config is not None
     assert runner.exceptions_config is None
     assert runner.package_config.package_id == "466192"
+    assert runner.package_config.package_name == ""
     assert runner.package_config.output_cube.cube_name == "הכנסה - 👑"
     assert runner.package_config.main_input_cube.cube_name == "RawInput"
     assert runner.package_config.main_input_cube.cube_parameter == "TimeRange"
@@ -174,6 +175,27 @@ def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
     assert gateway.failed_chunks == 0
 
 
+def test_package_logs_exact_flunks_input_without_token(
+    tmp_path, monkeypatch
+):
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
+    messages = []
+    monkeypatch.setattr(
+        provider._package._gateway._logger, "info",
+        lambda message, *args: messages.append(message % args),
+    )
+    provider.fetch_features(package_layer(configured_source()))
+
+    line = next(
+        message for message in messages
+        if message.startswith("FLAPI flunks INPUT")
+    )
+    assert "package_id='466192'" in line
+    assert "cube_name='RawInput'" in line and "output_cube='הכנסה - 👑'" in line
+    assert "cube_parameter='TimeRange'" in line
+    assert "token_set=True" in line and "jwt" not in line
+
+
 def test_package_rejects_non_dataframe_result(tmp_path, monkeypatch):
 
     def list_runner(flapi_config, package_config, flunks_config=None,
@@ -205,8 +227,13 @@ def test_package_validation_error_is_compact(tmp_path, monkeypatch):
     with pytest.raises(ProviderError) as caught:
         provider.fetch_features(package_layer(configured_source()))
 
-    assert "value=string_type" in str(caught.value)
-    assert len(str(caught.value)) < 300
+    message = str(caught.value)
+    assert "package_id='466192'" in message
+    assert "input_cube='RawInput'" in message
+    assert "parameter='TimeRange'" in message
+    assert "output_cube='הכנסה - 👑'" in message
+    assert "value=string_type" in message
+    assert len(message) < 400
 
 
 def dataframe_runner(frame):

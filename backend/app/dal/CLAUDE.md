@@ -106,11 +106,11 @@ version appears in the code** — flunks owns the whole conversation. Parameter 
 (`GET /package/v1/quick/{id}`), `FlowPackageMetadata`, `FlapiSource.execution_params` /
 `package_queries` / `package_inputs`, `list_configurable_parameters`,
 `requires_geometry`, and the `httpx` transport seam are all gone; `FlapiClientFactory`
-now only validates settings for `FlapiConfig`, and `FlapiProvider(settings_store)` takes
+now only validates settings for `FlApiConfig`, and `FlapiProvider(settings_store)` takes
 no transport. Because BL looks those up with `getattr`, the catalog UI's parameter form
 is simply empty and `requires_sample_polygon` is always false. →
 `FlowPackageSerializer.build_input_cube(name, parameter, kind, temporal_range, geometry,
-now)` assembles one `flunks.PackageInputCube`: for `kind="time"` it sets
+now)` assembles one `flunks.flow_models.PackageInputCube`: for `kind="time"` it sets
 `start_time`/`end_time` from the query `temporal_range` (falling back to a 1-hour window
 ending at `now` on the schema/sample path where no range exists); for `kind="geo"` it
 passes the whole query boundary via `values` as a single-element list holding one WKT
@@ -124,10 +124,11 @@ which is why `Provider.describe_schema(layer, geometry=None)` and
 (the schema cache keys on it, and `CatalogService._describe` inspects the provider
 signature so implementations that ignore geometry keep their single-argument form). →
 `FlowPackageGateway.execute(layer, input_cube, output_cube_name)` builds a
-`flunks.config.FlapiConfig` from `RuntimeSettingsStore`
-(`cubes_base_url`/`cubes_token`/`flapi_username`) and a
-`flunks.config.FlunksPackageConfig(package_id, main_input_cube, output_cube)` with
-`PackageOutputCube(cube_name=output_cube_name)` (no `cube_fields`, no
+`flunks.config.FlApiConfig` from `RuntimeSettingsStore`
+(`cubes_token`/`flapi_username`) and a
+`flunks.config.FlunksPackageConfig(package_id, package_name="",
+main_input_cube, output_cube)` with
+`flunks.flow_models.PackageOutputCube(cube_name=output_cube_name)` (no `cube_fields`, no
 `static_parameters`), runs it through `flunks.FlunksRunner.run()` and reads
 `runner.success_chunks`/`failed_chunks` for diagnostics. Each record is tagged with
 `_package_query=<output_cube_name>`. `FlunksRunner.run()` returns a pandas/geopandas
@@ -152,14 +153,16 @@ such a column arrives as floats regardless of this conversion.
 descriptions so a failed package run is diagnosable from the console alone. Grep these
 prefixes, in pipeline order: `Schema describe` (BL, includes `has_geometry`) →
 `FLAPI describe_schema` → `FLAPI fetch_features` → `FLAPI source` (parsed cube names +
-`source_url`) → `FLAPI input cube BUILD`/`READY` → `FLAPI package CONFIG` (base URL and
-`token_set`, never the token) → `FLAPI package RUN` → `CHUNKS`/`OK`/`FAILED`.
+`source_url`) → `FLAPI input cube BUILD`/`READY` → `FLAPI flunks INPUT` (the final
+`FlApiConfig` and `FlunksPackageConfig`, with `token_set` but never the token) →
+`FLAPI package RUN` → `CHUNKS`/`OK`/`FAILED`.
 `fetch_features` logs `rows`/`mapped`/`after_intersect`/`returned` so rows lost to
 geometry parsing are distinguishable from rows lost to the boundary intersect. An empty
 input cube logs `values=EMPTY (FLAPI will reject this)`; WKT is truncated to 120 chars
 with the total length, keeping geometry type and leading coordinates visible. Validation
 errors include only their field paths/types and bounded input previews at normal log
-levels; the full traceback is emitted only at `DEBUG`.
+levels; the full traceback is emitted only at `DEBUG`. A failed run also reports the
+exact package ID, input cube, input parameter, and output cube sent to flunks.
 
 **`flunks_metadata_patch.py` — temporary upstream workaround.** flunks types
 `FlowResults.metadata.isPartialSuccess` as `str`, but FLAPI sends a JSON boolean, and
@@ -184,10 +187,11 @@ first when `isPartialSuccess` errors return.
 **Delete the module and its import when flunks fixes the type upstream.**
 
 Endpoint routing, chunking, retries, and exception mapping for the execution call are
-owned by flunks. The gateway does not construct or inject `FlunksConfig` or
-`FlunksExceptionsConfig`. A former positional constructor slot allowed
+owned by flunks. The gateway accepts no runner-config override from callers. A former
+positional constructor slot allowed
 `FlapiSchemaMapper` to bind as `flunks_config`, causing its `max_threads` attribute
-error. Removing those gateway slots lets `FlunksRunner` own its matching defaults.
+error. The gateway now passes a real `FlunksConfig()` exactly as the supported runner
+example does, without exposing a positional override slot.
 `flunks` is an internal library not resolvable from the public index — see
 `pyproject.toml`; the amd64 Docker image builds against a private index, so the FLAPI
 package tests cannot run in an environment without it.

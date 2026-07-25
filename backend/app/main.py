@@ -14,12 +14,13 @@ from app.service.feedback.router import router as feedback_router
 from app.service.models.router import router as models_router
 from app.service.plan.router import router as plan_router
 from app.service.query.router import router as query_router
+from app.service.ranking.router import router as ranking_router
 from app.service.settings.router import router as settings_router
 
 _ROUTERS = (
     query_router, plan_router, settings_router, agent_router,
     agent_config_router, feedback_router, catalog_router, models_router,
-    area_summary_router,
+    area_summary_router, ranking_router,
 )
 
 

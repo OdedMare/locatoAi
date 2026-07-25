@@ -7,6 +7,7 @@ from app.bl.area_summary.area_summary_service import AreaSummaryService
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
+from app.bl.ranking.ranking_service import RankingService
 from app.common.logging.configurator import configure_logging
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.feedback.feedback_repository import PostgresFeedbackRepository
@@ -72,7 +73,11 @@ class ApplicationStateWiring:
             catalog, executor, layer_selector=selector, plan_builder=builder
         )
         area_summary = AreaSummaryService(catalog, providers)
-        return catalog, llm, selector, metadata, orchestrator, area_summary
+        ranking = RankingService(catalog, providers)
+        return (
+            catalog, llm, selector, metadata, orchestrator, area_summary,
+            ranking,
+        )
 
     @staticmethod
     def _assign(
@@ -80,7 +85,10 @@ class ApplicationStateWiring:
         agent_content,
     ) -> None:
         providers, mqs, flapi, tyche = provider_bundle
-        catalog, llm, selector, metadata, orchestrator, area_summary = services
+        (
+            catalog, llm, selector, metadata, orchestrator, area_summary,
+            ranking,
+        ) = services
         app.state.settings_store = store
         app.state.agent_content = agent_content
         app.state.repository = repository
@@ -94,4 +102,5 @@ class ApplicationStateWiring:
         app.state.layer_metadata_generator = metadata
         app.state.orchestrator = orchestrator
         app.state.area_summary = area_summary
+        app.state.ranking = ranking
         app.state.request_log = configure_logging(settings.request_log_path)
