@@ -201,13 +201,15 @@ class QueryOrchestrator:
     def _run_stage(stage: str, action, event_sink):
         QueryOrchestrator._emit(event_sink, {"stage": stage, "status": "started"})
         try:
-            return action()
+            result = action()
         except Exception as exc:
             QueryOrchestrator._emit(event_sink, {
                 "stage": stage, "status": "failed",
                 "error_type": type(exc).__name__, "error": str(exc),
             })
             raise
+        QueryOrchestrator._emit(event_sink, {"stage": stage, "status": "completed"})
+        return result
 
     @staticmethod
     def _disconnected_outcome() -> QueryOutcome:
