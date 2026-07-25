@@ -185,9 +185,10 @@ first when `isPartialSuccess` errors return.
 
 Endpoint routing, chunking, retries, and exception mapping for the execution call are
 owned by flunks. The gateway does not construct or inject `FlunksConfig` or
-`FlunksExceptionsConfig`; passing an empty config from an incompatible build caused
-`max_threads` attribute errors, while omitting both lets `FlunksRunner` own its matching
-defaults. `flunks` is an internal library not resolvable from the public index — see
+`FlunksExceptionsConfig`. A former positional constructor slot allowed
+`FlapiSchemaMapper` to bind as `flunks_config`, causing its `max_threads` attribute
+error. Removing those gateway slots lets `FlunksRunner` own its matching defaults.
+`flunks` is an internal library not resolvable from the public index — see
 `pyproject.toml`; the amd64 Docker image builds against a private index, so the FLAPI
 package tests cannot run in an environment without it.
 
