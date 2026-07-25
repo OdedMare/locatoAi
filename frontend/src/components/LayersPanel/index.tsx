@@ -964,20 +964,7 @@ export default function LayersPanel({
                 />
               </>
             )}
-            {isFlowPackage && (
-              <PackageParametersFieldset
-                definitions={parameterDefinitions}
-                values={dynamicParameterValues}
-                busy={generatingMetadata}
-                onChange={(parameterName, value) => {
-                  setDynamicParameterValues((current) => ({
-                    ...current,
-                    [parameterName]: value,
-                  }));
-                }}
-              />
-            )}
-            {requiresSamplePolygon && (
+            {isFlowPackage && packageInputCubeKind === "geo" && (
               <fieldset className="cubes-query-mode cubes-sample-polygon">
                 <legend>פוליגון לדגימת metadata</legend>
                 <div className="cubes-query-mode-options cubes-sample-polygon-options">
