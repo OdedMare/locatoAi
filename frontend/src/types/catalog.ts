@@ -23,7 +23,6 @@ export interface CreateLayerRequest {
   tags: string[];
   provider: string;
   source_url: string;
-  package_parameters?: Record<string, unknown>;
   package_query?: string | null;
   package_input_cube_name?: string | null;
   package_input_cube_parameter?: string | null;
@@ -59,7 +58,6 @@ export interface GenerateLayerMetadataRequest {
   name: string;
   provider: string;
   source_url: string;
-  package_parameters?: Record<string, unknown>;
   package_query?: string | null;
   package_input_cube_name?: string | null;
   package_input_cube_parameter?: string | null;
@@ -79,23 +77,7 @@ export interface GeneratedLayerMetadataResponse {
   description: string;
   tags: string[];
   sample_count: number;
-  dynamic_parameters: string[];
-  configurable_parameters: FlapiParameterDefinition[];
-  requires_sample_polygon: boolean;
   output_fields: string[];
-}
-
-export interface FlapiParameterDefinition {
-  name: string;
-  display_name: string;
-  description: string;
-  type: string;
-  required: boolean;
-  single_value: boolean;
-  ontology_type: string;
-  has_default: boolean;
-  dynamic: boolean;
-  options: string[];
 }
 
 export interface MqsSyncResponse {

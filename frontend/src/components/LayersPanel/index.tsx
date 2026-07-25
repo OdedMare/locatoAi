@@ -15,17 +15,9 @@ import {
   getMqsLayers,
   updateLayer,
 } from "@/services/catalogService";
-import type {
-  CatalogLayer,
-  FlapiParameterDefinition,
-  RemoteMqsLayer,
-} from "@/types/catalog";
+import type { CatalogLayer, RemoteMqsLayer } from "@/types/catalog";
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 import PackageCubesFieldset from "./PackageCubesFieldset";
-import PackageParametersFieldset, {
-  isPackageGeometryParameter,
-  isPackageTimeParameter,
-} from "./PackageParametersFieldset";
 import TycheParametersFieldset from "./TycheParametersFieldset";
 
 interface LayersPanelProps {
@@ -55,28 +47,6 @@ function mergeTags(current: string[], value: string, limit: number): string[] {
     seen.add(key);
     return true;
   })].slice(0, limit);
-}
-
-function packageTimeValue(name: string, value: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new Error(`הפרמטר ${name} חייב להיות אובייקט JSON תקין.`);
-  }
-}
-
-function packageParameterValues(
-  definitions: FlapiParameterDefinition[],
-  values: Record<string, string>,
-): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(values).map(([name, value]) => {
-    const definition = definitions.find((item) => item.name === name);
-    return definition && isPackageTimeParameter(definition) && value.trim()
-      ? [name, packageTimeValue(name, value)]
-      : [name, value];
-  }));
 }
 
 function layerErrorMessage(error: unknown, fallback: string): string {
@@ -445,7 +415,7 @@ export default function LayersPanel({
     setFormMessage(null);
     setDraftSection("new");
     setActiveSection("new");
-    void handleGenerateMetadata(layer, {}, null);
+    void handleGenerateMetadata(layer, null);
   };
 
   const startManualLayer = () => {
@@ -1018,14 +988,8 @@ export default function LayersPanel({
                 className="run-query-button layers-save-button"
                 onClick={handleAddLayer}
                 disabled={
-                  !name.trim() || !sourceUrl.trim() || !tycheFieldsConfigured || saving ||
-                  parameterDefinitions.some(
-                    (definition) =>
-                      definition.required
-                      && !definition.has_default
-                      && !isPackageGeometryParameter(definition)
-                      && !dynamicParameterValues[definition.name]
-                  )
+                  !name.trim() || !sourceUrl.trim() || !tycheFieldsConfigured
+                  || saving
                 }
               >
                 {saving
