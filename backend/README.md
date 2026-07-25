@@ -419,10 +419,10 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `PackageInputCube` — `start_time`/`end_time` for `time`, or the whole boundary as a
   single WKT `MULTIPOLYGON` in `values` for `geo` — and `FlowPackageGateway` runs it
   through `FlunksRunner`. Because packages expose no discovery call, the layer schema is
-  inferred from the rows a run returns and cached per layer. Result entries are parsed
-  independently through `FlapiSchemaMapper`, tagged with `_package_query`, and merged
-  into one GeoDataFrame. A 100,000-row safety ceiling prevents an unbounded response
-  from exhausting the process.
+  inferred from the returned DataFrame and cached per layer. `FlowPackageRecords`
+  converts that frame to JSON-safe rows, `FlapiSchemaMapper` parses them, and the
+  provider tags them with `_package_query` before producing one GeoDataFrame. Package
+  results are currently uncapped.
 
 - **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): Tyche coordinate
   APIs, including Our Forces at `POST /coordinate/v1/ourforces`. The canonical row uses

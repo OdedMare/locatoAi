@@ -130,17 +130,13 @@ signature so implementations that ignore geometry keep their single-argument for
 `PackageOutputCube(cube_name=output_cube_name)` (no `cube_fields`, no
 `static_parameters`), runs it through `flunks.FlunksRunner.run()` and reads
 `runner.success_chunks`/`failed_chunks` for diagnostics. Each record is tagged with
-`_package_query=<output_cube_name>`; non-dict records are skipped, and a response that
-is neither a list nor a DataFrame raises `ProviderError`. **Package results are never
-row-capped** — the former 100,000-row `_MAX_ROWS` limit was removed, so an oversized
-package is materialized in full; the `rows=` count on the DataFrame log line is the only
-advance warning.
+`_package_query=<output_cube_name>`. `FlunksRunner.run()` returns a pandas/geopandas
+DataFrame; any other type raises `ProviderError`. **Package results are never
+row-capped**, so the `rows=` log is the only advance warning before a large frame is
+materialized.
 
-**`package_records.py` — `FlunksRunner.run()` may return a DataFrame.** flunks returns
-either a plain `list[dict]` or a pandas/geopandas DataFrame. `FlowPackageRecords`
-duck-types on `to_dict`+`columns` (so a `GeoDataFrame` takes the same branch, and the
-list path needs no pandas import) and converts three things `to_dict("records")` alone
-leaves unusable downstream:
+**`package_records.py`.** `FlowPackageRecords` converts three things that
+`DataFrame.to_dict("records")` alone leaves unusable downstream:
 - **shapely geometry → WKT.** `FlapiSchemaMapper._point` only parses a `str`, so an
   unconverted geometry object makes the layer return **zero features with no error** —
   the one failure here that is silent rather than loud.
@@ -161,7 +157,9 @@ prefixes, in pipeline order: `Schema describe` (BL, includes `has_geometry`) →
 `fetch_features` logs `rows`/`mapped`/`after_intersect`/`returned` so rows lost to
 geometry parsing are distinguishable from rows lost to the boundary intersect. An empty
 input cube logs `values=EMPTY (FLAPI will reject this)`; WKT is truncated to 120 chars
-with the total length, keeping geometry type and leading coordinates visible.
+with the total length, keeping geometry type and leading coordinates visible. Validation
+errors include only their field paths/types and bounded input previews at normal log
+levels; the full traceback is emitted only at `DEBUG`.
 
 **`flunks_metadata_patch.py` — temporary upstream workaround.** flunks types
 `FlowResults.metadata.isPartialSuccess` as `str`, but FLAPI sends a JSON boolean, and
@@ -172,15 +170,9 @@ in flunks' *own* response parsing with `Input should be a valid string
 widens that annotation to `Union[bool, str]` at `package_gateway` import time — there is
 no seam inside `FlunksRunner` to intercept.
 
-**Two traps make this patch silently no-op; both are guarded, don't undo them.**
-1. **Rebuild the parents, not just `MetaData`.** Pydantic v2 inlines a child's core
-   schema into every model embedding it, so rebuilding `MetaData` alone leaves
-   `FlowResults` — the model actually validated, and the one named in the error —
-   holding its stale `str` validator. `_rebuild_all` force-rebuilds every model in
-   `flunks.flow_models`; a model that fails to rebuild is skipped.
-2. **`Optional[str]` is not `str`.** An `is not str` identity test on the annotation
-   skips the patch whenever flunks declares the field optional. `_annotations` unwraps
-   `Union`/`Optional` via `get_args` and tests membership instead.
+Two details are essential: Pydantic embeds child schemas, so `MetaData` must be rebuilt
+*before* `FlowResults`; and the widened annotation must preserve `Optional[str]` rather
+than replacing it. Reversing that rebuild order reproduces the original string error.
 
 The patch is idempotent, still accepts a string, and self-disables once `str` is no
 longer among the field's admitted types. `package_gateway` **logs whether it applied**
