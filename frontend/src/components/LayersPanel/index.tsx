@@ -135,6 +135,9 @@ export default function LayersPanel({
   const [flapiResourceType, setFlapiResourceType] =
     useState<FlapiResourceType>("cube");
   const [packageQuery, setPackageQuery] = useState("");
+  const [packageInputParameter, setPackageInputParameter] = useState("");
+  const [packageOutputFields, setPackageOutputFields] = useState<string[]>([]);
+  const [availableOutputFields, setAvailableOutputFields] = useState<string[]>([]);
   const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
   const [parameterDefinitions, setParameterDefinitions] =
@@ -325,6 +328,9 @@ export default function LayersPanel({
           ? packageParameterValues(parameterDefinitions, dynamicParameterValues)
           : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
+        package_input_parameter: isFlowPackage
+          ? packageInputParameter.trim() || null : null,
+        package_output_fields: isFlowPackage ? packageOutputFields : [],
         entity_field: tycheEntityField.trim() || undefined,
         display_field: displayField.trim() || undefined,
         profiles: profiles.split(",").map((item) => item.trim()).filter(Boolean),
@@ -349,6 +355,9 @@ export default function LayersPanel({
       setProfiles("");
       setFlapiResourceType("cube");
       setPackageQuery("");
+      setPackageInputParameter("");
+      setPackageOutputFields([]);
+      setAvailableOutputFields([]);
       setCubesQueryMode("auto");
       setDynamicParameterNames([]);
       setParameterDefinitions([]);
@@ -442,6 +451,8 @@ export default function LayersPanel({
       cubes_parameters: selectedDynamicValues,
       package_parameters: packageParameters,
       package_query: isFlowPackage ? packageQuery.trim() || null : null,
+      package_input_parameter: isFlowPackage
+        ? packageInputParameter.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
       tyche_geometry_field: tycheGeometryField.trim(),
       tyche_geo_query_field: tycheGeoQueryField.trim(),
@@ -459,6 +470,12 @@ export default function LayersPanel({
     try {
       const generated = await generateLayerMetadata(target);
       setRequiresSamplePolygon(generated.requires_sample_polygon);
+      if (isFlowPackage) {
+        setAvailableOutputFields(generated.output_fields);
+        setPackageOutputFields((current) =>
+          current.filter((field) => generated.output_fields.includes(field))
+        );
+      }
       if (generated.sample_count > 0) {
         setDescription(generated.description);
         setTags(generated.tags);

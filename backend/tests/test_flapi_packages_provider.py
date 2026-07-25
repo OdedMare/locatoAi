@@ -270,6 +270,30 @@ def test_package_source_persists_typed_json_inputs():
     }
 
 
+def test_package_source_persists_input_parameter_and_output_fields():
+    source = configured_source()
+    layer = package_layer(source)
+    parsed_source = FlapiSource()
+
+    assert parsed_source.package_input_parameter(layer) == "Terms"
+    assert parsed_source.package_output_fields(layer) == [
+        "identifier", "feature_score",
+    ]
+
+
+def test_package_input_cube_uses_explicit_time_parameter():
+    serializer = FlowPackageSerializer(FlowPackageMetadata())
+    input_cube = serializer.build_input_cube(
+        definitions(), {}, temporal_range=("2026-01-01T00:00:00Z", "2026-04-01T00:00:00Z"),
+        input_parameter="StartTime",
+    )
+
+    assert input_cube.cube_name == "StartTime"
+    assert input_cube.start_time is not None
+    assert input_cube.end_time is not None
+    assert input_cube.values == []
+
+
 def test_package_validates_absolute_time_and_unknown_types():
     serializer = FlowPackageSerializer(FlowPackageMetadata())
     time_definition = [{

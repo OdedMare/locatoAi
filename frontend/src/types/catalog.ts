@@ -32,6 +32,8 @@ export interface CreateLayerRequest {
   cubes_dynamic_parameters?: Record<string, string>;
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
+  package_input_parameter?: string | null;
+  package_output_fields?: string[];
   entity_field?: string;
   display_field?: string;
   profiles?: string[];
@@ -68,6 +70,7 @@ export interface GenerateLayerMetadataRequest {
   cubes_dynamic_parameters?: Record<string, string>;
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
+  package_input_parameter?: string | null;
   cubes_sample_boundary?: GeoJSONMultiPolygon | null;
   tyche_geometry_field?: string;
   tyche_geo_query_field?: string;
@@ -99,6 +102,7 @@ export interface GeneratedLayerMetadataResponse {
   dynamic_parameters: string[];
   configurable_parameters: FlapiParameterDefinition[];
   requires_sample_polygon: boolean;
+  output_fields: string[];
 }
 
 export interface FlapiParameterDefinition {
