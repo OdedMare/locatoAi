@@ -128,10 +128,29 @@ signature so implementations that ignore geometry keep their single-argument for
 (`cubes_base_url`/`cubes_token`/`flapi_username`) and a
 `flunks.config.FlunksPackageConfig(package_id, main_input_cube, output_cube)` with
 `PackageOutputCube(cube_name=output_cube_name)` (no `cube_fields`, no
-`static_parameters`), runs it through `flunks.FlunksRunner.run()` — which returns a
-plain `list[dict]` of result records — and reads `runner.success_chunks`/`failed_chunks`
-for diagnostics. Each record is tagged with `_package_query=<output_cube_name>`;
-non-dict records are skipped, a non-list response raises `ProviderError`.
+`static_parameters`), runs it through `flunks.FlunksRunner.run()` and reads
+`runner.success_chunks`/`failed_chunks` for diagnostics. Each record is tagged with
+`_package_query=<output_cube_name>`; non-dict records are skipped, and a response that
+is neither a list nor a DataFrame raises `ProviderError`. **Package results are never
+row-capped** — the former 100,000-row `_MAX_ROWS` limit was removed, so an oversized
+package is materialized in full; the `rows=` count on the DataFrame log line is the only
+advance warning.
+
+**`package_records.py` — `FlunksRunner.run()` may return a DataFrame.** flunks returns
+either a plain `list[dict]` or a pandas/geopandas DataFrame. `FlowPackageRecords`
+duck-types on `to_dict`+`columns` (so a `GeoDataFrame` takes the same branch, and the
+list path needs no pandas import) and converts three things `to_dict("records")` alone
+leaves unusable downstream:
+- **shapely geometry → WKT.** `FlapiSchemaMapper._point` only parses a `str`, so an
+  unconverted geometry object makes the layer return **zero features with no error** —
+  the one failure here that is silent rather than loud.
+- **`NaN` → `None`.** `NaN` passes every `value is not None` guard in schema inference,
+  typing a gapped numeric column as `"string"` and leaking `"nan"` into agent prompts.
+- **numpy scalars → Python natives.** `numpy.int64` fails `isinstance(value, int)` in
+  `_field_type` and is not JSON-serializable.
+
+Note that pandas widens an int column containing `NaN` to `float64` at construction, so
+such a column arrives as floats regardless of this conversion.
 
 **Debug logging (`package_debug.py`).** `FlowPackageDebug` renders bounded, log-safe
 descriptions so a failed package run is diagnosable from the console alone. Grep these

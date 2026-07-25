@@ -35,8 +35,6 @@ class FlowPackageGateway:
     returns, so no FLAPI route or API version appears here.
     """
 
-    _MAX_ROWS = 100000
-
     def __init__(
         self,
         clients: FlapiClientFactory,
@@ -124,6 +122,21 @@ class FlowPackageGateway:
             exceptions_config=self._exceptions_config,
         )
 
+    def _normalized(self, records: object) -> object:
+        """Convert a DataFrame result to JSON records.
+
+        Row count is logged but never capped: package results are returned in
+        full. A very large frame is materialized entirely by ``to_dict``, so
+        this log line is the only warning before the memory is spent.
+        """
+        if not FlowPackageRecords.is_dataframe(records):
+            return records
+        self._logger.info(
+            "FLAPI package response is a DataFrame rows=%s",
+            FlowPackageRecords.row_count(records),
+        )
+        return FlowPackageRecords.normalize(records)
+
     def _records(self, records: object, output_cube_name: str) -> List[dict]:
         records = self._normalized(records)
         if not isinstance(records, list):
@@ -143,8 +156,4 @@ class FlowPackageGateway:
                 )
                 continue
             rows.append(dict(record, _package_query=output_cube_name))
-            if len(rows) > self._MAX_ROWS:
-                raise ProviderError(
-                    f"FLAPI package exceeded the {self._MAX_ROWS} row safety limit"
-                )
         return rows

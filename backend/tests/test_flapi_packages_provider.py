@@ -187,6 +187,96 @@ def test_package_ignores_non_dict_records(tmp_path, monkeypatch):
     assert list(features["id"]) == ["result-1"]
 
 
+def dataframe_runner(frame):
+    """A runner returning a DataFrame instead of a list of records."""
+
+    def factory(flapi_config, package_config, flunks_config=None,
+                exceptions_config=None):
+        runner = StubRunner(
+            flapi_config, package_config, flunks_config, exceptions_config
+        )
+        runner.result = frame
+        return runner
+
+    return factory
+
+
+def test_package_accepts_dataframe_with_wkt_geometry(tmp_path, monkeypatch):
+    import pandas as pd
+
+    frame = pd.DataFrame(package_records())
+    provider = make_provider(tmp_path, dataframe_runner(frame), monkeypatch)
+
+    features = provider.fetch_features(package_layer(configured_source()))
+
+    assert list(features["id"]) == ["result-1"]
+    assert list(features["_package_query"]) == ["הכנסה - 👑"]
+    assert features.iloc[0].geometry.x == 34.8
+
+
+def test_package_dataframe_shapely_geometry_is_not_dropped(tmp_path, monkeypatch):
+    """A shapely cell must not silently yield zero features.
+
+    ``FlapiSchemaMapper._point`` only parses ``str``, so an unconverted
+    geometry object would make the layer return nothing at all — with no error.
+    """
+    import pandas as pd
+    from shapely.geometry import Point
+
+    frame = pd.DataFrame([{
+        "id": "result-1",
+        "eventTime": "2026-07-24T10:00:00Z",
+        "geometry": Point(34.8, 32.1),
+    }])
+    provider = make_provider(tmp_path, dataframe_runner(frame), monkeypatch)
+
+    features = provider.fetch_features(package_layer(configured_source()))
+
+    assert list(features["id"]) == ["result-1"]
+    assert features.iloc[0].geometry.x == 34.8
+
+
+def test_package_dataframe_normalizes_nan_and_numpy_scalars(tmp_path, monkeypatch):
+    """NaN must become None and numpy scalars plain Python values.
+
+    NaN survives every ``is not None`` guard in schema inference, which types a
+    numeric column as "string" and leaks "nan" into agent prompts.
+    """
+    import numpy as np
+    import pandas as pd
+
+    frame = pd.DataFrame([
+        {
+            "id": "result-1",
+            "count": np.int64(7),
+            "label": "present",
+            "geometry": "POINT (34.8 32.1)",
+        },
+        {
+            "id": "result-2",
+            "count": np.nan,
+            "label": None,
+            "geometry": "POINT (34.85 32.15)",
+        },
+    ])
+    provider = make_provider(tmp_path, dataframe_runner(frame), monkeypatch)
+    layer = package_layer(configured_source())
+
+    features = provider.fetch_features(layer)
+
+    assert list(features["id"]) == ["result-1", "result-2"]
+    # pandas widens an int column containing NaN to float64, so 7 arrives as
+    # 7.0 — the point is that it is a plain Python number, not a numpy scalar.
+    assert features.iloc[0]["count"] == 7
+    assert type(features.iloc[0]["count"]).__module__ == "builtins"
+    assert features.iloc[1]["count"] is None
+
+    schema = provider.describe_schema(layer)
+    count_field = next(f for f in schema.fields if f.name == "count")
+    assert count_field.type == "number"
+    assert "nan" not in [sample.lower() for sample in count_field.samples]
+
+
 def test_package_rejects_non_list_response(tmp_path, monkeypatch):
 
     def object_runner(flapi_config, package_config, flunks_config=None,

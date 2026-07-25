@@ -26,12 +26,12 @@ class FlowPackageRecords:
     @classmethod
     def normalize(cls, result: Any) -> Any:
         """Return ``result`` unchanged unless it is a DataFrame."""
-        if not cls._is_dataframe(result):
+        if not cls.is_dataframe(result):
             return result
         return [cls._record(row) for row in result.to_dict("records")]
 
     @staticmethod
-    def _is_dataframe(result: Any) -> bool:
+    def is_dataframe(result: Any) -> bool:
         # Duck-typed so the gateway needs no pandas import to check the type,
         # and so a geopandas GeoDataFrame matches the same branch.
         return hasattr(result, "to_dict") and hasattr(result, "columns")
