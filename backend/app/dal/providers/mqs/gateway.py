@@ -172,10 +172,8 @@ class MqsGateway:
     def _entities_payload(
         self, client, path, params, geometry, attribute_filters,
     ) -> object:
-        body = self._filters.build(geometry, attribute_filters)
-        if body is not None:
-            return self.post_json(client, path, body, params)
-        return self.get_json(client, path, params)
+        body = self._filters.build(geometry, attribute_filters) or {"filter": {}}
+        return self.post_json(client, path, body, params)
 
     @staticmethod
     def _next_page(payload: object) -> Optional[str]:

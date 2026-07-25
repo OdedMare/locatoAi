@@ -133,10 +133,11 @@ def test_fetch_features_parses_entities_list_wrapper(tmp_path):
     assert str(gdf.crs) == WGS84
     assert list(gdf["id"]) == ["{G1}", "{G2}"]
     request = handler.requests[0]
-    assert request.method == "GET"
+    assert request.method == "POST"
     assert request.url.path == "/MoriaProject/42/Entities"
     assert dict(request.url.params) == {"from": "0", "to": str(_PAGE_SIZE)}
     assert request.headers["Accept"] == "application/json"
+    assert json.loads(request.content) == {"filter": {}}
 
 
 def test_fetch_features_parses_bare_array_response(tmp_path):
@@ -483,13 +484,13 @@ def test_fetch_features_unrecognized_shape_raises(tmp_path):
         provider.fetch_features(mqs_layer())
 
 
-def test_fetch_features_without_geometry_stays_get(tmp_path):
-    """No geometry hint → unchanged GET behavior (no regression)."""
+def test_fetch_features_without_geometry_posts_empty_filter(tmp_path):
     provider, handler = make_provider(
         tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
     )
     provider.fetch_features(mqs_layer())
-    assert handler.requests[0].method == "GET"
+    assert handler.requests[0].method == "POST"
+    assert json.loads(handler.requests[0].content) == {"filter": {}}
 
 
 def test_fetch_features_with_bbox_geometry_posts_geo_bounding_box(tmp_path):
@@ -587,13 +588,14 @@ def test_fetch_features_attribute_filters_alone_without_geometry_still_posts(tmp
     assert handler.requests[0].method == "POST"
 
 
-def test_fetch_features_without_attribute_filters_stays_get(tmp_path):
+def test_fetch_features_without_attribute_filters_posts_empty_filter(tmp_path):
     provider, handler = make_provider(
         tmp_path, lambda request: {"next_page": None, "entities_list": [entity("{G1}")]}
     )
     provider.fetch_features(mqs_layer())
 
-    assert handler.requests[0].method == "GET"
+    assert handler.requests[0].method == "POST"
+    assert json.loads(handler.requests[0].content) == {"filter": {}}
 
 
 def test_dense_small_geometry_is_split_and_cross_tile_entities_are_deduplicated(
@@ -747,6 +749,8 @@ def test_metadata_sample_reuses_entities_for_schema_and_stops_after_ten(tmp_path
     ]
     assert len(entity_requests) == 1
     assert len(detail_requests) == 10
+    assert entity_requests[0].method == "POST"
+    assert json.loads(entity_requests[0].content) == {"filter": {}}
     assert dict(entity_requests[0].url.params) == {"from": "0", "to": "10"}
 
 
