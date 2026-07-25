@@ -59,14 +59,27 @@ class FlowPackageProvider:
         attribute_filters: Optional[List[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
         kind = self._source.package_input_cube_kind(layer)
+        self._log_request(layer, kind, limit, temporal_range, geometry)
+        input_cube = self._serializer.build_input_cube(
+            self._source.package_input_cube_name(layer),
+            self._source.package_input_cube_parameter(layer),
+            kind=kind, temporal_range=temporal_range,
+            geometry=geometry, now=now,
+        )
+        rows = self._gateway.execute(
+            layer, input_cube, self._source.package_output_cube_name(layer),
+        )
+        return self._features(layer, rows, geometry, limit)
+
+    def _log_request(
+        self, layer, kind, limit, temporal_range, geometry
+    ) -> None:
         self._logger.info(
             "FLAPI fetch_features layer=%s package=%s kind=%s limit=%s "
             "temporal_range=%s %s",
             layer.id, self._source.package_id(layer), kind, limit,
             temporal_range, FlowPackageDebug.geometry(geometry),
         )
-        # The parsed source_url: a mistyped cube name here is indistinguishable
-        # from a package-side error in FLAPI's own message.
         self._logger.info(
             "FLAPI source layer=%s input_cube=%r parameter=%r output_cube=%r "
             "source_url=%s",
@@ -74,24 +87,13 @@ class FlowPackageProvider:
             self._source.package_input_cube_parameter(layer),
             self._source.package_output_cube_name(layer), layer.source_url,
         )
-        input_cube = self._serializer.build_input_cube(
-            self._source.package_input_cube_name(layer),
-            self._source.package_input_cube_parameter(layer),
-            kind=kind,
-            temporal_range=temporal_range,
-            geometry=geometry,
-            now=now,
-        )
-        rows = self._gateway.execute(
-            layer, input_cube, self._source.package_output_cube_name(layer),
-        )
+
+    def _features(self, layer, rows, geometry, limit):
         self._schemas[self._schema_key(layer)] = self._schema(layer, rows)
         features = self._rows.to_gdf(rows)
         mapped = len(features)
         if geometry is not None and not features.empty:
             features = features[features.geometry.intersects(geometry)]
-        # Rows can vanish here rather than at the provider: a package that
-        # ignored the boundary, or geometry text the mapper could not parse.
         self._logger.info(
             "FLAPI fetch_features layer=%s rows=%d mapped=%d "
             "after_intersect=%d returned=%d",
