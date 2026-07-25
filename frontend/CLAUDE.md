@@ -26,7 +26,8 @@ full backend pipeline and repository-wide constraints.
   `## Workflow` section through accessible add/delete/reorder controls; the
   generated Markdown remains the persisted source of truth. New skills can start
   from the generic summary template, which adds an editable `## Summary target`;
-  step-level parallel execution is encoded as `[parallel]`.
+  step-level parallel eligibility is encoded as the model-facing `[parallel]`
+  marker. The current `GeoQueryPlan` executor remains sequential.
 - Keep the Settings UI: environment variables are deployment defaults and saved UI
   values are live overrides. Provider TLS verification must default to enabled.
 - `LayersPanel` adds both FLAPI Cubes and Flow Packages. Packages discover typed

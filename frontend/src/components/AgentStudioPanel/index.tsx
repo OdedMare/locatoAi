@@ -166,7 +166,7 @@ function SummaryWorkflowEditor({
         <button
           type="button"
           className="agent-workflow-add"
-          onClick={() => commit([...steps, { text: "שלב חדש", parallel: false }])}
+          onClick={() => commit([...steps, { text: "New step", parallel: false }])}
         >
           <Plus size={16} /> הוספת שלב
         </button>
@@ -539,7 +539,7 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                       <button
                         type="button"
                         className={draft === SUMMARY_SKILL_TEMPLATE ? "active" : ""}
-                        onClick={() => applyTemplate("תהליך סיכום", SUMMARY_SKILL_TEMPLATE)}
+                        onClick={() => applyTemplate("Summary workflow", SUMMARY_SKILL_TEMPLATE)}
                       >
                         <ListOrdered size={17} />
                         <span>
