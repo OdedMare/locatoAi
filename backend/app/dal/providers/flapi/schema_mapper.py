@@ -9,29 +9,13 @@ from shapely import wkt
 from app.bl.catalog.models.layer_field import LayerField
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
-from app.common.errors.provider_error import ProviderError
 from app.common.utils.geo_utils import WGS84, empty_features_gdf
 
 
 class FlapiSchemaMapper:
-    _LIST_KEYS = (
-        "data", "Data", "results", "Results", "items", "Items",
-        "entities", "Entities",
-    )
     _TIME_FIELDS = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
     _MAX_SAMPLES = 5
     _MAX_SAMPLE_CHARS = 80
-
-    def records(self, payload: object) -> List[dict]:
-        if isinstance(payload, list):
-            return self._dicts(payload)
-        if isinstance(payload, dict):
-            if "geometry" in payload:
-                return [payload]
-            for key in self._LIST_KEYS:
-                if isinstance(payload.get(key), list):
-                    return self._dicts(payload[key])
-        raise ProviderError("FLAPI returned an unrecognized response shape")
 
     def infer_schema(self, layer_id: str, rows: List[dict]) -> LayerSchema:
         fields = [self._inferred_field(name, rows) for name in self._field_names(rows)]
@@ -60,10 +44,6 @@ class FlapiSchemaMapper:
             "entity_field": layer.entity_field,
             "display_field": layer.display_field,
         })
-
-    @staticmethod
-    def _dicts(values: List[object]) -> List[dict]:
-        return [item for item in values if isinstance(item, dict)]
 
     def _inferred_field(self, name: str, rows: List[dict]) -> LayerField:
         values = [row.get(name) for row in rows]

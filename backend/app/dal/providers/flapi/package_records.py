@@ -57,7 +57,7 @@ class FlowPackageRecords:
 
     @staticmethod
     def row_count(result: Any) -> int:
-        """Row count without materializing records, for the size guard."""
+        """Return the row count without materializing records."""
         try:
             return len(result)
         except TypeError:

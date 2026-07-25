@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from pydantic import BaseModel
 from shapely.geometry import box
 
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -187,6 +188,23 @@ def test_package_rejects_non_dataframe_result(tmp_path, monkeypatch):
 
     with pytest.raises(ProviderError, match="expected a DataFrame"):
         provider.fetch_features(package_layer(configured_source()))
+
+
+def test_package_validation_error_is_compact(tmp_path, monkeypatch):
+    class TextResult(BaseModel):
+        value: str
+
+    class InvalidRunner(StubRunner):
+        def run(self):
+            return TextResult.model_validate({"value": ["x" * 1000]})
+
+    provider = make_provider(tmp_path, InvalidRunner, monkeypatch)
+
+    with pytest.raises(ProviderError) as caught:
+        provider.fetch_features(package_layer(configured_source()))
+
+    assert "value=string_type" in str(caught.value)
+    assert len(str(caught.value)) < 300
 
 
 def dataframe_runner(frame):

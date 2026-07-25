@@ -27,7 +27,7 @@ class FlowPackageProvider:
     def __init__(self, clients) -> None:
         self._source = FlapiSource()
         self._rows = FlapiSchemaMapper()
-        self._gateway = FlowPackageGateway(clients, self._source, self._rows)
+        self._gateway = FlowPackageGateway(clients, self._source)
         self._serializer = FlowPackageSerializer()
         self._schemas: Dict[Tuple[str, str], LayerSchema] = {}
         self._logger = logging.getLogger(__name__)

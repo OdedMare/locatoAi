@@ -14,7 +14,6 @@ from app.dal.providers.flapi.client_factory import FlapiClientFactory
 from app.dal.providers.flapi.flunks_metadata_patch import FlunksMetadataPatch
 from app.dal.providers.flapi.package_debug import FlowPackageDebug
 from app.dal.providers.flapi.package_records import FlowPackageRecords
-from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
 from app.dal.providers.flapi.source import FlapiSource
 
 # FLAPI returns isPartialSuccess as a JSON boolean while flunks types it as str.
@@ -39,13 +38,11 @@ class FlowPackageGateway:
         self,
         clients: FlapiClientFactory,
         source: FlapiSource,
-        rows: FlapiSchemaMapper,
         flunks_config: FlunksConfig = None,
         exceptions_config: FlunksExceptionsConfig = None,
     ) -> None:
         self._clients = clients
         self._source = source
-        self._rows = rows
         self._flunks_config = flunks_config or FlunksConfig()
         self._exceptions_config = exceptions_config or FlunksExceptionsConfig()
         self._logger = logging.getLogger(__name__)
