@@ -52,7 +52,8 @@ class LayerMetadataGenerator:
         user, sample_count = self._sample_builder.build(layer, features, schema)
         data = self._llm.complete_json(system=self._prompt(), user=user)
         return self._response_mapper.map(
-            data, sample_count, parameters, requires_polygon
+            data, sample_count, parameters, requires_polygon,
+            output_fields=[item.name for item in schema.fields],
         )
 
     def _prompt(self) -> str:

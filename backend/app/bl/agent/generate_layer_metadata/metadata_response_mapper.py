@@ -12,6 +12,7 @@ class MetadataResponseMapper:
     def map(
         self, data, sample_count, parameters,
         requires_sample_polygon: bool = False,
+        output_fields=None,
     ):
         description = data.get("description")
         raw_tags = data.get("tags")
@@ -30,6 +31,7 @@ class MetadataResponseMapper:
             ],
             configurable_parameters=parameters,
             requires_sample_polygon=requires_sample_polygon,
+            output_fields=output_fields or [],
         )
 
     def _tags(self, raw_tags):
