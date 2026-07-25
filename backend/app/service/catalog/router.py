@@ -195,6 +195,7 @@ class CatalogRouter:
         package_query: Optional[str] = None,
         package_input_cube_name: Optional[str] = None,
         package_input_cube_parameter: Optional[str] = None,
+        package_input_cube_kind: Optional[str] = None,
         package_output_cube_name: Optional[str] = None,
         tyche_geometry_field: Optional[str] = None,
         tyche_geo_query_field: Optional[str] = None,
@@ -210,7 +211,7 @@ class CatalogRouter:
             return cls._normalized_flapi_source(
                 source, package_parameters, package_query,
                 package_input_cube_name, package_input_cube_parameter,
-                package_output_cube_name,
+                package_input_cube_kind, package_output_cube_name,
             )
         if provider_name == "tyche":
             return cls._normalized_tyche_source(

@@ -54,10 +54,11 @@ class FlowPackageSerializer:
         )
 
     def _multipolygons(self, geometry: Optional[BaseGeometry]) -> List[str]:
+        # No geometry only happens on the schema/sample path (every real query
+        # carries boundaries): run the package with no polygons instead of
+        # failing schema discovery.
         if geometry is None or geometry.is_empty:
-            raise ProviderError(
-                "Flow Package geo input cube requires query boundaries"
-            )
+            return []
         parts = getattr(geometry, "geoms", None)
         polygons = list(parts) if parts is not None else [geometry]
         return [MultiPolygon([polygon]).wkt for polygon in polygons]
