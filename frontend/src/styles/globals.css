@@ -1233,6 +1233,79 @@ button {
   margin: 0;
 }
 
+.agent-skill-title {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-skill-title > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.agent-skill-title .settings-input {
+  margin: 0;
+}
+
+.agent-skill-templates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.agent-skill-templates > div {
+  grid-column: 1 / -1;
+}
+
+.agent-skill-templates > div strong,
+.agent-skill-templates > div small,
+.agent-skill-templates button span,
+.agent-skill-templates button strong,
+.agent-skill-templates button small {
+  display: block;
+}
+
+.agent-skill-templates > div strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.agent-skill-templates > div small,
+.agent-skill-templates button small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.agent-skill-templates button {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  text-align: start;
+  cursor: pointer;
+}
+
+.agent-skill-templates button:hover,
+.agent-skill-templates button.active {
+  color: var(--accent);
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.agent-skill-templates button strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
 .agent-insert-field {
   min-height: 42px;
   padding: 8px 13px;
@@ -1323,6 +1396,10 @@ button {
   gap: 8px;
 }
 
+.agent-summary-target {
+  margin-top: 12px;
+}
+
 .agent-workflow-editor label span {
   color: var(--text-muted);
   font-size: 11px;
@@ -1348,8 +1425,8 @@ button {
 
 .agent-workflow-actions {
   display: grid;
-  grid-template-columns: repeat(3, 44px);
-  gap: 4px;
+  grid-template-columns: 44px 44px auto 44px;
+  gap: 6px;
 }
 
 .agent-workflow-actions button {
@@ -1374,6 +1451,21 @@ button {
 .agent-workflow-actions button:disabled {
   cursor: not-allowed;
   opacity: .4;
+}
+
+.agent-workflow-actions .agent-parallel-toggle {
+  width: auto;
+  min-width: 92px;
+  display: inline-flex;
+  gap: 5px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+.agent-workflow-actions .agent-parallel-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
 }
 
 .agent-workflow-empty {
@@ -2401,6 +2493,10 @@ button {
   }
 
   .agent-field-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-skill-templates {
     grid-template-columns: minmax(0, 1fr);
   }
 

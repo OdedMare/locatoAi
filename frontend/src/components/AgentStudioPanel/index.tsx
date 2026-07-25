@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, CheckCircle2, FileText, ListOrdered, LoaderCircle,
+  ArrowDown, ArrowUp, CheckCircle2, FileText, GitFork, ListOrdered, LoaderCircle,
   MapPinned, Plus, RefreshCw, Save, Sparkles, Trash2, TriangleAlert, Wrench, X,
 } from "lucide-react";
 import {
@@ -30,8 +30,35 @@ Describe semantic constraints using layer/schema roles. Do not hard-code layer i
 step ids, provider names, field names, or operation defaults.
 `;
 
+const SUMMARY_SKILL_TEMPLATE = `# \`summary-workflow\`
+
+**Use when:** The user asks to determine a target, run an ordered series of checks around it, and return one evidence-backed summary.
+
+**Do not use when:** One direct query or one existing operation fully answers the request.
+
+## יעד הסיכום
+
+קבע את יעד הסיכום: תא שטח מהבקשה, המקום האחרון שבו חבר נצפה, או מיקום שהתקבל משלב קודם.
+
+## שלבי העבודה
+
+1. קבע את יעד הסיכום לפי הבקשה והמידע הזמין.
+2. בדוק מידע סטטי רלוונטי בתוך יעד הסיכום.
+3. [parallel] בדוק תנועה, נוכחות ומפגשים הקשורים ליעד.
+4. [parallel] בדוק אירועים והמלצות בסביבת היעד.
+5. סכם את התוצאות וציין שכבות שנכשלו או מידע שחסר.
+
+## כללי הסיכום
+
+אל תמציא שכבה, שדה, ישות, זמן או קשר. כאשר היעד הוא המיקום האחרון של ישות,
+השתמש בתפקידי ה-entity וה-time מה-schema. שלבים המסומנים [parallel] בלתי תלויים
+ויכולים לרוץ במקביל; המתן לכולם לפני השלב הסדרתי הבא. המשך לאחר כשל נקודתי וסמן סיכום חלקי.
+`;
+
 const AREA_SUMMARY_NAME = /סיכום\s+(?:של\s+)?תא\s+שטח|summari[sz]e[-_ ]area|area[-_ ]summary/i;
-const AREA_SUMMARY_WORKFLOW = /^##\s+(?:שלבי העבודה|שלבים|workflow)\s*$/i;
+const SUMMARY_NAME = /סיכום|summary|summari[sz](?:e|ing|ation)/i;
+const SUMMARY_TARGET = /^##\s+(?:יעד הסיכום|summary target)\s*$/i;
+const SUMMARY_WORKFLOW = /^##\s+(?:שלבי העבודה|שלבים|workflow)\s*$/i;
 const AREA_SUMMARY_EXAMPLES = [
   { text: "נמצאו 2 מבנים מסוג בניין.", source: "שכבת מבנים" },
   { text: "עודד ביקר כאן במהלך 24 השעות האחרונות.", source: "שכבת חברים" },
@@ -39,29 +66,55 @@ const AREA_SUMMARY_EXAMPLES = [
   { text: "בשעה 14:00 עודד ומשה שהו כאן יחד.", source: "שכבת חברים" },
 ];
 
-const workflowBounds = (content: string) => {
+interface SummaryStep {
+  text: string;
+  parallel: boolean;
+}
+
+const sectionBounds = (content: string, heading: RegExp) => {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const start = lines.findIndex((line) => AREA_SUMMARY_WORKFLOW.test(line.trim()));
+  const start = lines.findIndex((line) => heading.test(line.trim()));
   const next = start < 0
     ? -1
     : lines.findIndex((line, index) => index > start && /^##\s+/.test(line));
   return { lines, start, end: next < 0 ? lines.length : next };
 };
 
-const areaSummarySteps = (content: string) => {
-  const { lines, start, end } = workflowBounds(content);
+const summaryTarget = (content: string) => {
+  const { lines, start, end } = sectionBounds(content, SUMMARY_TARGET);
+  return start < 0
+    ? ""
+    : lines.slice(start + 1, end).map((line) => line.trim()).filter(Boolean).join(" ");
+};
+
+const summarySteps = (content: string) => {
+  const { lines, start, end } = sectionBounds(content, SUMMARY_WORKFLOW);
   if (start < 0) return [];
   return lines.slice(start + 1, end).flatMap((line) => {
     const match = line.match(/^\s*\d+\.\s*(.*)$/);
-    return match ? [match[1]] : [];
+    if (!match) return [];
+    const parallel = /^\[(?:parallel|במקביל)\]\s*/i.test(match[1]);
+    return [{
+      text: match[1].replace(/^\[(?:parallel|במקביל)\]\s*/i, ""),
+      parallel,
+    }];
   });
 };
 
-const withAreaSummarySteps = (content: string, steps: string[]) => {
-  const { lines, start, end } = workflowBounds(content);
+const withSummaryTarget = (content: string, target: string) => {
+  const { lines, start, end } = sectionBounds(content, SUMMARY_TARGET);
+  const block = ["## יעד הסיכום", "", target, ""];
+  if (start >= 0) return [...lines.slice(0, start), ...block, ...lines.slice(end)].join("\n");
+  return `${content.trimEnd()}\n\n${block.join("\n")}`;
+};
+
+const withSummarySteps = (content: string, steps: SummaryStep[]) => {
+  const { lines, start, end } = sectionBounds(content, SUMMARY_WORKFLOW);
   const block = [
     "## שלבי העבודה", "",
-    ...steps.map((step, index) => `${index + 1}. ${step}`),
+    ...steps.map((step, index) => (
+      `${index + 1}. ${step.parallel ? "[parallel] " : ""}${step.text}`
+    )),
   ];
   if (start >= 0) {
     const suffix = lines.slice(end);
@@ -71,48 +124,69 @@ const withAreaSummarySteps = (content: string, steps: string[]) => {
   return `${content.trimEnd()}\n\n${block.join("\n")}\n`;
 };
 
-function AreaSummaryWorkflowEditor({
+function SummaryWorkflowEditor({
+  target,
   steps,
+  onTargetChange,
   onChange,
 }: {
-  steps: string[];
-  onChange: (steps: string[]) => void;
+  target: string;
+  steps: SummaryStep[];
+  onTargetChange: (target: string) => void;
+  onChange: (steps: SummaryStep[]) => void;
 }) {
+  const commit = (next: SummaryStep[]) => {
+    onChange(next.map((step, index) => (
+      index === 0 ? { ...step, parallel: false } : step
+    )));
+  };
   const updateStep = (index: number, value: string) => {
-    onChange(steps.map((step, position) => position === index ? value : step));
+    commit(steps.map((step, position) => (
+      position === index ? { ...step, text: value } : step
+    )));
   };
   const moveStep = (index: number, offset: number) => {
     const moved = [...steps];
     [moved[index], moved[index + offset]] = [moved[index + offset], moved[index]];
-    onChange(moved);
+    commit(moved);
   };
 
   return (
-    <section className="agent-workflow-editor" aria-labelledby="area-workflow-title">
+    <section className="agent-workflow-editor" aria-labelledby="summary-workflow-title">
       <header>
         <span className="agent-workflow-icon" aria-hidden="true">
           <ListOrdered size={18} />
         </span>
         <div>
-          <h4 id="area-workflow-title">שלבי סיכום תא השטח</h4>
-          <p>אפשר לערוך, לשנות סדר, למחוק ולהוסיף שלבים.</p>
+          <h4 id="summary-workflow-title">תבנית הסיכום</h4>
+          <p>הגדירו מה מסכמים, ואז ערכו את סדר הבדיקות.</p>
         </div>
         <button
           type="button"
           className="agent-workflow-add"
-          onClick={() => onChange([...steps, "שלב חדש"])}
+          onClick={() => commit([...steps, { text: "שלב חדש", parallel: false }])}
         >
           <Plus size={16} /> הוספת שלב
         </button>
       </header>
+      <label className="agent-summary-target" htmlFor="summary-workflow-target">
+        <span>יעד הסיכום</span>
+        <input
+          id="summary-workflow-target"
+          value={target}
+          onChange={(event) => onTargetChange(event.target.value)}
+          placeholder="למשל: המקום האחרון שבו חבר נצפה"
+          dir="auto"
+        />
+      </label>
       <ol>
         {steps.map((step, index) => (
           <li key={index}>
-            <label htmlFor={`area-summary-step-${index}`}>
+            <label htmlFor={`summary-workflow-step-${index}`}>
               <span>שלב {index + 1}</span>
               <input
-                id={`area-summary-step-${index}`}
-                value={step}
+                id={`summary-workflow-step-${index}`}
+                value={step.text}
                 onChange={(event) => updateStep(index, event.target.value)}
                 dir="auto"
               />
@@ -136,7 +210,23 @@ function AreaSummaryWorkflowEditor({
               </button>
               <button
                 type="button"
-                onClick={() => onChange(steps.filter((_, position) => position !== index))}
+                className={`agent-parallel-toggle${step.parallel ? " active" : ""}`}
+                onClick={() => commit(steps.map((item, position) => (
+                  position === index
+                    ? { ...item, parallel: !item.parallel }
+                    : item
+                )))}
+                disabled={index === 0}
+                aria-pressed={step.parallel}
+                aria-label={`הרצת שלב ${index + 1} במקביל לשלב הקודם`}
+                title="במקביל לשלב הקודם"
+              >
+                <GitFork size={16} />
+                <span>{step.parallel ? "במקביל" : "סדרתי"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => commit(steps.filter((_, position) => position !== index))}
                 aria-label={`מחיקת שלב ${index + 1}`}
               >
                 <Trash2 size={16} />
@@ -192,12 +282,16 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
   );
   const activeItem = allItems.find((item) => itemKey(item) === activeKey) ?? null;
   const canBindField = creating || Boolean(activeItem?.is_custom);
-  const showAreaSummaryWorkflow = (
+  const summaryWorkflow = (
     creating || activeItem?.kind === "skill"
-  ) && AREA_SUMMARY_NAME.test(
+  ) && SUMMARY_NAME.test(
     `${skillTitle} ${activeItem?.title ?? ""} ${draft}`
   );
-  const workflowSteps = useMemo(() => areaSummarySteps(draft), [draft]);
+  const showAreaSummaryExamples = AREA_SUMMARY_NAME.test(
+    `${skillTitle} ${activeItem?.title ?? ""} ${draft}`
+  );
+  const target = useMemo(() => summaryTarget(draft), [draft]);
+  const workflowSteps = useMemo(() => summarySteps(draft), [draft]);
   const dirty = creating
     ? draft !== SKILL_TEMPLATE || skillTitle.trim().length > 0
     : activeItem !== null && draft !== activeItem.content;
@@ -276,6 +370,14 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
     setActiveKey("");
     setSkillTitle("");
     setDraft(SKILL_TEMPLATE);
+    setMessage(null);
+  };
+
+  const applyTemplate = (title: string, content: string) => {
+    const untouched = draft === SKILL_TEMPLATE || draft === SUMMARY_SKILL_TEMPLATE;
+    if (!untouched && !window.confirm("להחליף את תוכן הטיוטה בתבנית שנבחרה?")) return;
+    setSkillTitle(title);
+    setDraft(content);
     setMessage(null);
   };
 
@@ -415,14 +517,47 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                   </button>
                 </div>
                 {creating && (
-                  <input
-                    className="settings-input"
-                    value={skillTitle}
-                    onChange={(event) => setSkillTitle(event.target.value)}
-                    placeholder="שם המיומנות"
-                    aria-label="שם המיומנות"
-                    autoFocus
-                  />
+                  <>
+                    <label className="agent-skill-title" htmlFor="agent-skill-title">
+                      <span>שם המיומנות</span>
+                      <input
+                        id="agent-skill-title"
+                        className="settings-input"
+                        value={skillTitle}
+                        onChange={(event) => setSkillTitle(event.target.value)}
+                        placeholder="שם המיומנות"
+                        autoFocus
+                      />
+                    </label>
+                    <section className="agent-skill-templates" aria-labelledby="skill-template-title">
+                      <div>
+                        <strong id="skill-template-title">התחלה מתבנית</strong>
+                        <small>אפשר לערוך את כל התוכן לאחר הבחירה.</small>
+                      </div>
+                      <button
+                        type="button"
+                        className={draft === SUMMARY_SKILL_TEMPLATE ? "active" : ""}
+                        onClick={() => applyTemplate("תהליך סיכום", SUMMARY_SKILL_TEMPLATE)}
+                      >
+                        <ListOrdered size={17} />
+                        <span>
+                          <strong>תבנית סיכום</strong>
+                          <small>יעד, סדרת בדיקות וסיכום עם ראיות</small>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={draft === SKILL_TEMPLATE ? "active" : ""}
+                        onClick={() => applyTemplate("", SKILL_TEMPLATE)}
+                      >
+                        <FileText size={17} />
+                        <span>
+                          <strong>תבנית ריקה</strong>
+                          <small>הוראות חופשיות למיומנות אחרת</small>
+                        </span>
+                      </button>
+                    </section>
+                  </>
                 )}
                 {canBindField && (
                   <div className="agent-field-picker">
@@ -466,11 +601,15 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                     </button>
                   </div>
                 )}
-                {showAreaSummaryWorkflow && (
-                  <AreaSummaryWorkflowEditor
+                {summaryWorkflow && (
+                  <SummaryWorkflowEditor
+                    target={target}
                     steps={workflowSteps}
+                    onTargetChange={(value) => setDraft((current) => (
+                      withSummaryTarget(current, value)
+                    ))}
                     onChange={(steps) => setDraft((current) => (
-                      withAreaSummarySteps(current, steps)
+                      withSummarySteps(current, steps)
                     ))}
                   />
                 )}
@@ -487,7 +626,7 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                   spellCheck={false}
                   aria-label="תוכן ההוראה"
                 />
-                {showAreaSummaryWorkflow && (
+                {showAreaSummaryExamples && (
                   <section
                     className="agent-summary-examples"
                     aria-labelledby="agent-summary-examples-title"
