@@ -115,8 +115,14 @@ now)` assembles one `flunks.PackageInputCube`: for `kind="time"` it sets
 ending at `now` on the schema/sample path where no range exists); for `kind="geo"` it
 passes the whole query boundary via `values` as a single-element list holding one WKT
 `MULTIPOLYGON` containing every boundary polygon — one geographic layer is one flunks
-identifier, so a multi-polygon boundary is one chunk, not one chunk per polygon (empty
-list when no geometry — the sample path only). →
+identifier, so a multi-polygon boundary is one chunk, not one chunk per polygon. **There
+is no empty-`values` fallback:** FLAPI rejects an empty main cube input ("Please enter
+values for the main cube input"), so a missing boundary raises `ProviderError` naming the
+fix. Because a package has no discovery call, `describe_schema` must *run* the package,
+which is why `Provider.describe_schema(layer, geometry=None)` and
+`CatalogService.get_schema(layer_id, geometry=None)` now forward the request boundary
+(the schema cache keys on it, and `CatalogService._describe` inspects the provider
+signature so implementations that ignore geometry keep their single-argument form). →
 `FlowPackageGateway.execute(layer, input_cube, output_cube_name)` builds a
 `flunks.config.FlapiConfig` from `RuntimeSettingsStore`
 (`cubes_base_url`/`cubes_token`/`flapi_username`) and a

@@ -365,9 +365,15 @@ semantics/CRS (`executor`), and text sanitization/truncation + hallucinated-ID d
     `delete_layer` (also clears the schema cache).
   - `sample_field(layer_id, field, limit=20)` — always live, no cache (the agent's
     on-demand tool).
-  - `get_schema(layer_id)` — TTL-cached in-memory (default 1h); on provider failure,
-    serves a stale cached copy if one exists, else raises `ProviderError` ("stale beats
-    failed").
+  - `get_schema(layer_id, geometry=None)` — TTL-cached in-memory (default 1h), keyed on
+    `(layer_id, boundary_wkb)`; on provider failure, serves a stale cached copy if one
+    exists, else raises `ProviderError` ("stale beats failed"). `geometry` is the request
+    boundary, forwarded for providers that can only describe a layer by running the query
+    (a FLAPI geographic package rejects an empty input). `_describe` inspects the
+    provider's signature, so providers that describe from metadata alone may keep the
+    single-argument form. The orchestrator supplies it through
+    `PlanBuilder.build/replan_after_empty(..., geometry=)` →
+    `LayerPromptFormatter.format(..., geometry=)`.
 - **`tyche_activation.py`** — `TycheLayerActivator.activate(repository, provider) ->
   (LayerMeta, created, sample_feature_count)` (exposed as `activate_tyche_layer`).
   Probes the provider with a 1-feature fetch, `upsert_layer`s the canonical "כוחותינו"

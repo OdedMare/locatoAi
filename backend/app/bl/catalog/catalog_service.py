@@ -1,6 +1,7 @@
 
 
 import time
+from inspect import signature
 from typing import Dict, List, Optional, Tuple
 
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -89,11 +90,28 @@ class CatalogService:
         layer = self.get_layer(layer_id)
         provider = self._providers.get(layer.provider)
         try:
-            schema = provider.describe_schema(layer, geometry=geometry)
+            schema = self._describe(provider, layer, geometry)
         except Exception as exc:
             return self._stale_or_error(cached, layer, layer_id, exc)
         self._schema_cache[key] = (schema, time.monotonic())
         return schema
+
+    @staticmethod
+    def _describe(provider, layer: LayerMeta, geometry) -> LayerSchema:
+        """Forward the boundary only to providers that accept it.
+
+        `geometry` is an optional part of the `Provider` protocol, so an
+        implementation that describes a layer from metadata alone may still
+        declare the older single-argument signature. The signature is
+        inspected rather than caught, so a TypeError raised inside a
+        provider's own describe logic still propagates.
+        """
+        if geometry is None:
+            return provider.describe_schema(layer)
+        parameters = signature(provider.describe_schema).parameters
+        if "geometry" not in parameters:
+            return provider.describe_schema(layer)
+        return provider.describe_schema(layer, geometry=geometry)
 
     @staticmethod
     def _schema_key(layer_id: str, geometry) -> Tuple[str, Optional[bytes]]:
