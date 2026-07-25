@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-25T08:20:06.927012+00:00",
+  "generated_at": "2026-07-25T08:34:58.542901+00:00",
   "nodes": {
     "backend_app_bl_agent_generate_layer_metadata_layer_metadata_generator_rationale_1": {
       "code_fingerprint": "35dc3e59fe92c2a68407aa240b426baec724120095d116e348326cb1fc2b7baf",
@@ -12,7 +12,7 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.999899758,
+      "score": 0.999661376,
       "source_file": "backend/app/bl/agent/generate_layer_metadata/layer_metadata_generator.py",
       "status": "tentative",
       "uses": 1
@@ -28,8 +28,72 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.999899758,
+      "score": 0.999661376,
       "source_file": "backend/app/dal/providers/mqs/gateway.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_tyche_query_builder_tychequerybuilder": {
+      "code_fingerprint": "b0ff5dabbd9d7dd52531fcab2cd7859360a4ac140f816d64568d2c62a2df802d",
+      "label": "TycheQueryBuilder",
+      "last": "2026-07-25T08:32:48.228715+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T08:32:48.228715+00:00",
+          "outcome": "useful",
+          "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
+        }
+      ],
+      "score": 0.999965152,
+      "source_file": "backend/app/dal/providers/tyche/query_builder.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_tyche_source_tychesource": {
+      "code_fingerprint": "5c1cf69556c1e762ba026707526467ad040196ad3a19fb35231aee44cc7226b6",
+      "label": "TycheSource",
+      "last": "2026-07-25T08:32:48.228715+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T08:32:48.228715+00:00",
+          "outcome": "useful",
+          "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
+        }
+      ],
+      "score": 0.999965152,
+      "source_file": "backend/app/dal/providers/tyche/source.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_service_catalog_router_catalogrouter": {
+      "code_fingerprint": "c136a0a754e02995fa7c7b39f3e189549dfa22b52199419a168f711c2408209d",
+      "label": "CatalogRouter",
+      "last": "2026-07-25T08:32:48.228715+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T08:32:48.228715+00:00",
+          "outcome": "useful",
+          "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
+        }
+      ],
+      "score": 0.999965152,
+      "source_file": "backend/app/service/catalog/router.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "frontend_readme_layerspanel": {
+      "code_fingerprint": "00fc70e7c5da7a16691ecd8fa25a31b5e37602109d62d7a1dde73b9d87c32e0a",
+      "label": "LayersPanel",
+      "last": "2026-07-25T08:32:48.228715+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T08:32:48.228715+00:00",
+          "outcome": "useful",
+          "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
+        }
+      ],
+      "score": 0.999965152,
+      "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
     }

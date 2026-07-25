@@ -197,9 +197,12 @@ write-only authorization token are configured, the Layers UI can probe the servi
 idempotently activate the canonical `provider="tyche"`,
 `source_url="tyche://ourforces"` catalog row. Failed probes do not modify the catalog.
 The same UI can add other Tyche layers by route and explicitly map their response
-geometry field, request geography field, and event-time field. Those overrides are
-stored as query parameters on the catalog `source_url`; the Our Forces row keeps its
-existing route and defaults.
+geometry field, request geography field, and event-time field. A layer can use either
+the legacy nested `<time field>.match.gte/lte` request or separate configurable
+`timeFrom`/`timeTo` fields, and can persist required fixed request-body parameters.
+Those settings are stored as query parameters on the catalog `source_url`; JSON-shaped
+parameter values are restored to their boolean, number, array, object, or null types
+before each POST. The Our Forces row keeps its existing route and defaults.
 
 Cubes metadata declares `ResultsLimit` (10,000 on the current API). A boundary query
 that reaches the cap is recovered with adaptive quadtree partitioning: only saturated

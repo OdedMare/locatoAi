@@ -234,30 +234,74 @@ class CatalogRouter:
         tyche_parameters: Optional[Dict[str, str]] = None,
     ) -> str:
         source = source_url.strip()
-        if provider.strip().lower() == "cubes":
-            source = source if "://" in source else f"cubes://db/{source.strip('/')}"
-            source = cls.with_cubes_mode(source, cubes_query_mode)
-            values = cubes_parameters or cubes_dynamic_parameters or {}
-            return cls.with_parameters(source, values)
-        if provider.strip().lower() == "flapi":
-            source = cls._flapi_source(source, flapi_resource_type)
-            if cls._flapi_type(source) == "package":
-                return cls.with_package_config(
-                    source, package_parameters or {}, package_query
-                )
-            source = cls.with_cubes_mode(source, cubes_query_mode)
-            return cls.with_parameters(
-                source, cubes_parameters or cubes_dynamic_parameters or {}
+        provider_name = provider.strip().lower()
+        if provider_name == "cubes":
+            return cls._normalized_cube_source(
+                source, cubes_query_mode,
+                cubes_parameters, cubes_dynamic_parameters,
             )
-        if provider.strip().lower() == "tyche":
-            source = source if "://" in source else f"tyche://{source.strip('/')}"
-            source = cls.with_tyche_fields(
-                source, tyche_geometry_field,
-                tyche_geo_query_field, tyche_time_field, tyche_entity_field,
+        if provider_name == "flapi":
+            return cls._normalized_flapi_source(
+                source, flapi_resource_type, cubes_query_mode,
+                cubes_parameters, cubes_dynamic_parameters,
+                package_parameters, package_query,
+            )
+        if provider_name == "tyche":
+            return cls._normalized_tyche_source(
+                source, tyche_geometry_field, tyche_geo_query_field,
+                tyche_time_field, tyche_entity_field,
                 tyche_time_from_field, tyche_time_to_field,
+                tyche_parameters,
             )
-            return cls.with_parameters(source, tyche_parameters or {})
         return source
+
+    @classmethod
+    def _normalized_cube_source(
+        cls, source: str, mode: str,
+        parameters: Optional[Dict[str, str]],
+        legacy_parameters: Optional[Dict[str, str]],
+    ) -> str:
+        source = (
+            source if "://" in source
+            else f"cubes://db/{source.strip('/')}"
+        )
+        source = cls.with_cubes_mode(source, mode)
+        return cls.with_parameters(
+            source, parameters or legacy_parameters or {}
+        )
+
+    @classmethod
+    def _normalized_flapi_source(
+        cls, source: str, resource_type: str, mode: str,
+        parameters: Optional[Dict[str, str]],
+        legacy_parameters: Optional[Dict[str, str]],
+        package_parameters: Optional[Dict[str, Any]],
+        package_query: Optional[str],
+    ) -> str:
+        source = cls._flapi_source(source, resource_type)
+        if cls._flapi_type(source) == "package":
+            return cls.with_package_config(
+                source, package_parameters or {}, package_query
+            )
+        source = cls.with_cubes_mode(source, mode)
+        return cls.with_parameters(
+            source, parameters or legacy_parameters or {}
+        )
+
+    @classmethod
+    def _normalized_tyche_source(
+        cls, source: str, geometry_field: Optional[str],
+        geo_query_field: Optional[str], time_field: Optional[str],
+        entity_field: Optional[str], time_from_field: Optional[str],
+        time_to_field: Optional[str],
+        parameters: Optional[Dict[str, str]],
+    ) -> str:
+        source = source if "://" in source else f"tyche://{source.strip('/')}"
+        source = cls.with_tyche_fields(
+            source, geometry_field, geo_query_field, time_field, entity_field,
+            time_from_field, time_to_field,
+        )
+        return cls.with_parameters(source, parameters or {})
 
     @staticmethod
     def with_cubes_mode(source: str, mode: str) -> str:

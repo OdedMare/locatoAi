@@ -166,15 +166,18 @@ additional catalog rows carry their route and field mapping in `source_url`.
 | File | Class | Role |
 |---|---|---|
 | `provider.py` | `TycheProvider` | Orchestrates configured Tyche catalog layers |
-| `source.py` | `TycheSource` | Parses route plus geometry/geography/time field overrides |
+| `source.py` | `TycheSource` | Parses route, geometry/geography/time field overrides, split time fields, and typed fixed request parameters |
 | `gateway.py` | `TycheGateway` | Posts to the configured route; `pageTracker` pagination, dedup, safety cap |
-| `query_builder.py` | `TycheQueryBuilder` | Builds the configured time/geography match fields and `pageTracker` |
+| `query_builder.py` | `TycheQueryBuilder` | Builds nested or split time fields, fixed parameters, geography, and `pageTracker` |
 | `feature_mapper.py` | `TycheFeatureMapper` | Parses the configured geometry field; row dedup by `id` |
 | `schema_builder.py` | `TycheSchemaBuilder` | Fixed Our Forces fields or sampled custom-layer fields |
 
 `TycheProvider` caches the last 100 fetched rows per layer for schema description.
 `TycheGateway._MAX_ROWS = 100000` safety cap; repeated `pageTracker` raises
 `ProviderError`; page size 10,000 — same pagination/cap/dedup pattern as MQS/Cubes.
+Custom layers store split request-time names as `time_from_field`/`time_to_field` and
+fixed body values as `param_<name>` in `source_url`. Both time names must be configured
+together; fixed parameters cannot replace time, geography, or paging fields.
 
 ## Provider registry — `providers/registry.py`
 

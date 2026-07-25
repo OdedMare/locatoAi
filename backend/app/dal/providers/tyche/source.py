@@ -136,6 +136,10 @@ class TycheSource:
             raise ProviderError(
                 "Tyche timeFrom and timeTo fields must be configured together"
             )
+        if self.time_from_field == self.time_to_field and self.time_from_field:
+            raise ProviderError(
+                "Tyche timeFrom and timeTo fields must be distinct"
+            )
         return {
             field for field in (self.time_from_field, self.time_to_field) if field
         }

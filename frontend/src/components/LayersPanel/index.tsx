@@ -27,6 +27,7 @@ import type {
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 import CubesParametersFieldset from "./CubesParametersFieldset";
 import PackageParametersFieldset from "./PackageParametersFieldset";
+import TycheParametersFieldset from "./TycheParametersFieldset";
 
 interface LayersPanelProps {
   onClose: () => void;
@@ -36,6 +37,7 @@ interface LayersPanelProps {
 
 type LayersSection = "catalog" | "new" | "mqs" | "cube" | "flow" | "tyche";
 type LayerFormSection = Exclude<LayersSection, "catalog" | "mqs">;
+type TycheTimeMode = "match" | "range";
 
 const LAYERS_SECTIONS = [
   { id: "catalog" as const, label: "קטלוג שכבות", description: "חיפוש ועריכת שכבות", icon: Layers3 },
@@ -105,6 +107,11 @@ export default function LayersPanel({
   const [tycheGeoQueryField, setTycheGeoQueryField] = useState("location");
   const [tycheTimeField, setTycheTimeField] = useState("eventTime");
   const [tycheEntityField, setTycheEntityField] = useState("");
+  const [tycheTimeMode, setTycheTimeMode] = useState<TycheTimeMode>("match");
+  const [tycheTimeFromField, setTycheTimeFromField] = useState("timeFrom");
+  const [tycheTimeToField, setTycheTimeToField] = useState("timeTo");
+  const [tycheParameters, setTycheParameters] =
+    useState<Record<string, string>>({});
   const [displayField, setDisplayField] = useState("");
   const [profiles, setProfiles] = useState("");
   const [flapiResourceType, setFlapiResourceType] =
@@ -154,7 +161,24 @@ export default function LayersPanel({
     tycheGeometryField.trim()
     && tycheGeoQueryField.trim()
     && tycheTimeField.trim()
+    && (
+      tycheTimeMode === "match"
+      || Boolean(tycheTimeFromField.trim() && tycheTimeToField.trim())
+    )
+    && Object.entries(tycheParameters).every(
+      ([key, value]) => Boolean(key.trim() && value.trim())
+    )
   );
+  const resetTycheConfig = () => {
+    setTycheGeometryField("geometry");
+    setTycheGeoQueryField("location");
+    setTycheTimeField("eventTime");
+    setTycheEntityField("");
+    setTycheTimeMode("match");
+    setTycheTimeFromField("timeFrom");
+    setTycheTimeToField("timeTo");
+    setTycheParameters({});
+  };
 
   useEffect(() => {
     getLayers()
@@ -288,6 +312,11 @@ export default function LayersPanel({
         tyche_geo_query_field: tycheGeoQueryField.trim(),
         tyche_time_field: tycheTimeField.trim(),
         tyche_entity_field: tycheEntityField.trim() || undefined,
+        tyche_time_from_field: tycheTimeMode === "range"
+          ? tycheTimeFromField.trim() : "",
+        tyche_time_to_field: tycheTimeMode === "range"
+          ? tycheTimeToField.trim() : "",
+        tyche_parameters: tycheParameters,
       });
       setLayers((current) => [...(current ?? []), created]);
       setName("");
@@ -295,10 +324,7 @@ export default function LayersPanel({
       setTags([]);
       setTagDraft("");
       setSourceUrl("");
-      setTycheGeometryField("geometry");
-      setTycheGeoQueryField("location");
-      setTycheTimeField("eventTime");
-      setTycheEntityField("");
+      resetTycheConfig();
       setDisplayField("");
       setProfiles("");
       setFlapiResourceType("cube");
@@ -390,6 +416,11 @@ export default function LayersPanel({
       tyche_geo_query_field: tycheGeoQueryField.trim(),
       tyche_time_field: tycheTimeField.trim(),
       tyche_entity_field: tycheEntityField.trim() || undefined,
+      tyche_time_from_field: tycheTimeMode === "range"
+        ? tycheTimeFromField.trim() : "",
+      tyche_time_to_field: tycheTimeMode === "range"
+        ? tycheTimeToField.trim() : "",
+      tyche_parameters: tycheParameters,
     };
     if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
     setGeneratingMetadata(true);
@@ -585,10 +616,7 @@ export default function LayersPanel({
     setTagDraft("");
     setProvider(layer.provider);
     setSourceUrl(layer.source_url);
-    setTycheGeometryField("geometry");
-    setTycheGeoQueryField("location");
-    setTycheTimeField("eventTime");
-    setTycheEntityField("");
+    resetTycheConfig();
     setDisplayField(layer.display_field ?? "");
     setProfiles(layer.profiles?.join(", ") ?? "");
     setFlapiResourceType("cube");
@@ -611,10 +639,7 @@ export default function LayersPanel({
   const startManualLayer = () => {
     setProvider("mqs");
     setSourceUrl("");
-    setTycheGeometryField("geometry");
-    setTycheGeoQueryField("location");
-    setTycheTimeField("eventTime");
-    setTycheEntityField("");
+    resetTycheConfig();
     setDisplayField("");
     setProfiles("");
     setFlapiResourceType("cube");
@@ -642,10 +667,7 @@ export default function LayersPanel({
     setFlapiResourceType("cube");
     setPackageQuery("");
     setSourceUrl("");
-    setTycheGeometryField("geometry");
-    setTycheGeoQueryField("location");
-    setTycheTimeField("eventTime");
-    setTycheEntityField("");
+    resetTycheConfig();
     setDisplayField("");
     setProfiles("");
     setDynamicParameterNames([]);
@@ -671,10 +693,7 @@ export default function LayersPanel({
     setFlapiResourceType("package");
     setPackageQuery("");
     setSourceUrl("");
-    setTycheGeometryField("geometry");
-    setTycheGeoQueryField("location");
-    setTycheTimeField("eventTime");
-    setTycheEntityField("");
+    resetTycheConfig();
     setDisplayField("");
     setProfiles("");
     setDynamicParameterNames([]);
@@ -699,10 +718,7 @@ export default function LayersPanel({
   const startTycheLayer = () => {
     setProvider("tyche");
     setSourceUrl("");
-    setTycheGeometryField("geometry");
-    setTycheGeoQueryField("location");
-    setTycheTimeField("eventTime");
-    setTycheEntityField("");
+    resetTycheConfig();
     setDisplayField("");
     setProfiles("");
     setFlapiResourceType("cube");
@@ -926,10 +942,7 @@ export default function LayersPanel({
                   value={provider}
                   onChange={(e) => {
                     setProvider(e.target.value);
-                    setTycheGeometryField("geometry");
-                    setTycheGeoQueryField("location");
-                    setTycheTimeField("eventTime");
-                    setTycheEntityField("");
+                    resetTycheConfig();
                     setDisplayField("");
                     setProfiles("");
                     setFlapiResourceType("cube");
@@ -1052,48 +1065,110 @@ export default function LayersPanel({
               dir="ltr"
             />
             {providerName === "tyche" && (
-              <fieldset className="cubes-query-mode">
-                <legend>מיפוי שדות Tyche</legend>
-                <div className="settings-input-row">
-                  <div>
-                    <label className="field-label" htmlFor="tyche-geometry-field">
-                      שדה גאומטריה בתוצאה
-                    </label>
-                    <input
-                      id="tyche-geometry-field"
-                      className="settings-input"
-                      value={tycheGeometryField}
-                      onChange={(event) => setTycheGeometryField(event.target.value)}
-                      placeholder="geometry"
-                      dir="ltr"
-                    />
+              <>
+                <fieldset className="cubes-query-mode">
+                  <legend>מיפוי שדות Tyche</legend>
+                  <div className="settings-input-row">
+                    <div>
+                      <label className="field-label" htmlFor="tyche-geometry-field">
+                        שדה גאומטריה בתוצאה
+                      </label>
+                      <input
+                        id="tyche-geometry-field"
+                        className="settings-input"
+                        value={tycheGeometryField}
+                        onChange={(event) => setTycheGeometryField(event.target.value)}
+                        placeholder="geometry"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label" htmlFor="tyche-time-field">
+                        שדה זמן האירוע בתוצאה
+                      </label>
+                      <input
+                        id="tyche-time-field"
+                        className="settings-input"
+                        value={tycheTimeField}
+                        onChange={(event) => setTycheTimeField(event.target.value)}
+                        placeholder="eventTime"
+                        dir="ltr"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="field-label" htmlFor="tyche-time-field">
-                      שדה זמן האירוע
-                    </label>
-                    <input
-                      id="tyche-time-field"
-                      className="settings-input"
-                      value={tycheTimeField}
-                      onChange={(event) => setTycheTimeField(event.target.value)}
-                      placeholder="eventTime"
-                      dir="ltr"
-                    />
+                  <label className="field-label" htmlFor="tyche-geo-query-field">
+                    שדה הסינון הגאוגרפי בבקשה
+                  </label>
+                  <input
+                    id="tyche-geo-query-field"
+                    className="settings-input"
+                    value={tycheGeoQueryField}
+                    onChange={(event) => setTycheGeoQueryField(event.target.value)}
+                    placeholder="location"
+                    dir="ltr"
+                  />
+                </fieldset>
+                <fieldset className="cubes-query-mode">
+                  <legend>מבנה טווח הזמן בבקשת Tyche</legend>
+                  <div className="cubes-query-mode-options tyche-time-mode-options">
+                    <button
+                      type="button"
+                      className={tycheTimeMode === "match" ? "active" : ""}
+                      aria-pressed={tycheTimeMode === "match"}
+                      onClick={() => setTycheTimeMode("match")}
+                    >
+                      <strong dir="ltr">
+                        {(tycheTimeField.trim() || "eventTime")}.match
+                      </strong>
+                      <small>שדה יחיד עם gte / lte</small>
+                    </button>
+                    <button
+                      type="button"
+                      className={tycheTimeMode === "range" ? "active" : ""}
+                      aria-pressed={tycheTimeMode === "range"}
+                      onClick={() => setTycheTimeMode("range")}
+                    >
+                      <strong dir="ltr">timeFrom / timeTo</strong>
+                      <small>שני שדות זמן נפרדים</small>
+                    </button>
                   </div>
-                </div>
-                <label className="field-label" htmlFor="tyche-geo-query-field">
-                  שדה הסינון הגאוגרפי בבקשה
-                </label>
-                <input
-                  id="tyche-geo-query-field"
-                  className="settings-input"
-                  value={tycheGeoQueryField}
-                  onChange={(event) => setTycheGeoQueryField(event.target.value)}
-                  placeholder="location"
-                  dir="ltr"
+                </fieldset>
+                {tycheTimeMode === "range" && (
+                  <div className="settings-input-row">
+                    <div>
+                      <label className="field-label" htmlFor="tyche-time-from-field">
+                        שם שדה זמן התחלה
+                      </label>
+                      <input
+                        id="tyche-time-from-field"
+                        className="settings-input"
+                        value={tycheTimeFromField}
+                        onChange={(event) => setTycheTimeFromField(event.target.value)}
+                        placeholder="timeFrom"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label" htmlFor="tyche-time-to-field">
+                        שם שדה זמן סיום
+                      </label>
+                      <input
+                        id="tyche-time-to-field"
+                        className="settings-input"
+                        value={tycheTimeToField}
+                        onChange={(event) => setTycheTimeToField(event.target.value)}
+                        placeholder="timeTo"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                )}
+                <TycheParametersFieldset
+                  values={tycheParameters}
+                  busy={generatingMetadata || saving}
+                  onChange={setTycheParameters}
                 />
-              </fieldset>
+              </>
             )}
             {isFlowPackage && (
               <>
