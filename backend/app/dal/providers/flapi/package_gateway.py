@@ -4,9 +4,7 @@ import logging
 from typing import List, Optional
 
 from flunks import FlunksRunner, PackageInputCube, PackageOutputCube
-from flunks.config import (
-    FlapiConfig, FlunksConfig, FlunksExceptionsConfig, FlunksPackageConfig,
-)
+from flunks.config import FlapiConfig, FlunksPackageConfig
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
@@ -35,16 +33,10 @@ class FlowPackageGateway:
     """
 
     def __init__(
-        self,
-        clients: FlapiClientFactory,
-        source: FlapiSource,
-        flunks_config: FlunksConfig = None,
-        exceptions_config: FlunksExceptionsConfig = None,
+        self, clients: FlapiClientFactory, source: FlapiSource,
     ) -> None:
         self._clients = clients
         self._source = source
-        self._flunks_config = flunks_config or FlunksConfig()
-        self._exceptions_config = exceptions_config or FlunksExceptionsConfig()
         self._logger = logging.getLogger(__name__)
         self.success_chunks = 0
         self.failed_chunks = 0
@@ -108,8 +100,6 @@ class FlowPackageGateway:
             package_config=self._package_config(
                 package_id, input_cube, output_cube_name
             ),
-            flunks_config=self._flunks_config,
-            exceptions_config=self._exceptions_config,
         )
 
     @staticmethod
