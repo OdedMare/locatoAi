@@ -4,12 +4,14 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
+from flunks.flow_models import FailedQuery, FlowResults, MetaData
 from shapely.geometry import box
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
+from app.dal.providers.flapi.package_gateway import FlowPackageGateway
 from app.dal.providers.flapi.package_metadata import FlowPackageMetadata
 from app.dal.providers.flapi.package_serializer import FlowPackageSerializer
 from app.dal.providers.flapi.provider import FlapiProvider
@@ -17,34 +19,38 @@ from app.dal.providers.flapi.source import FlapiSource
 from app.service.catalog.router import CatalogRouter
 
 
-class PackageHandler:
-    def __init__(self, definitions, results=None):
+class DefinitionsHandler:
+    """Mock transport for the GET /package/v1/quick/{id} discovery call only."""
+
+    def __init__(self, definitions):
         self.definitions = definitions
-        self.results = results or [{
-            "id": "result-1",
-            "eventTime": "2026-07-24T10:00:00Z",
-            "geometry": "POINT (34.8 32.1)",
-        }]
         self.requests: List[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        if request.method == "GET":
-            return httpx.Response(
-                200, json={"466192": {"Parameters": self.definitions}}
-            )
-        return httpx.Response(200, json={
-            "metadata": {
-                "isPartialSuccess": False,
-                "traceId": "trace-1",
-                "queriesReachedResultsLimit": [],
-                "partialSuccessFailedQueries": [],
-            },
-            "results": {"FinalCube": self.results},
-        })
+        return httpx.Response(
+            200, json={"466192": {"Parameters": self.definitions}}
+        )
 
 
-def make_provider(tmp_path, handler):
+def flow_results(results=None, partial=False, failed_queries=None, limited=None):
+    results = results if results is not None else {"FinalCube": [{
+        "id": "result-1",
+        "eventTime": "2026-07-24T10:00:00Z",
+        "geometry": "POINT (34.8 32.1)",
+    }]}
+    return FlowResults(
+        metadata=MetaData(
+            isPartialSuccess=partial,
+            traceId="trace-1",
+            queriesReachedResultsLimit=limited or [],
+            partialSuccessFailedQueries=failed_queries or [],
+        ),
+        results=results,
+    )
+
+
+def make_provider(tmp_path, definitions_handler, runner_factory=None, monkeypatch=None):
     store = RuntimeSettingsStore(Settings(
         _env_file=None,
         runtime_settings_file=str(tmp_path / "runtime-settings.json"),
@@ -52,7 +58,13 @@ def make_provider(tmp_path, handler):
         cubes_token="jwt",
         flapi_username="oded",
     ))
-    return FlapiProvider(store, httpx.MockTransport(handler))
+    provider = FlapiProvider(store, httpx.MockTransport(definitions_handler))
+    if runner_factory is not None:
+        monkeypatch.setattr(
+            "app.dal.providers.flapi.package_gateway.FlunksRunner",
+            runner_factory,
+        )
+    return provider
 
 
 def package_layer(source_url):
@@ -105,9 +117,33 @@ def configured_source():
     )
 
 
-def test_flapi_package_discovers_serializes_executes_and_maps_rows(tmp_path):
-    handler = PackageHandler(definitions())
-    provider = make_provider(tmp_path, handler)
+class StubRunner:
+    """Captures FlunksRunner construction args and returns a canned FlowResults."""
+
+    last_instance = None
+
+    def __init__(self, flapi_config, package_config, flunks_config=None,
+                 exceptions_config=None):
+        self.flapi_config = flapi_config
+        self.package_config = package_config
+        self.flunks_config = flunks_config
+        self.exceptions_config = exceptions_config
+        self.success_chunks = 1
+        self.failed_chunks = 0
+        self.result = flow_results()
+        StubRunner.last_instance = self
+
+    def run(self):
+        return self.result
+
+
+def test_flapi_package_discovers_serializes_executes_and_maps_rows(
+    tmp_path, monkeypatch
+):
+    definitions_handler = DefinitionsHandler(definitions())
+    provider = make_provider(
+        tmp_path, definitions_handler, StubRunner, monkeypatch
+    )
     boundary = box(34.7, 32.0, 34.9, 32.2)
 
     features = provider.fetch_features(
@@ -117,13 +153,15 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(tmp_path):
     assert list(features["id"]) == ["result-1"]
     assert list(features["_package_query"]) == ["FinalCube"]
     assert features.iloc[0].geometry.x == 34.8
-    get_request, post_request = handler.requests
+    get_request = definitions_handler.requests[0]
     assert get_request.url.path == "/package/v1/quick/466192"
-    assert post_request.url.path == "/package/v3/466192"
-    assert post_request.url.params.get_list("queries") == ["FinalCube"]
-    assert post_request.headers["Authorization"] == "jwt"
-    assert post_request.headers["username"] == "oded"
-    assert json.loads(post_request.content) == {
+
+    runner = StubRunner.last_instance
+    assert runner.flapi_config.username == "oded"
+    assert runner.flapi_config.token == "jwt"
+    assert runner.package_config.package_id == "466192"
+    assert runner.package_config.output_cube.cube_name == "FinalCube"
+    assert runner.package_config.static_parameters == {
         "Terms": [
             {"Name": "alpha", "Value": "alpha"},
             {"Name": "beta", "Value": "beta"},
@@ -136,6 +174,7 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(tmp_path):
             "TimeBackValue": 15,
         },
     }
+
     schema = provider.describe_schema(package_layer(configured_source()))
     assert schema.temporal_field == "eventTime"
     assert {field.name for field in schema.fields} >= {
@@ -143,30 +182,78 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(tmp_path):
     }
 
 
-def test_package_defaults_to_last_queries(tmp_path):
-    handler = PackageHandler([{
+def test_package_defaults_to_last_queries(tmp_path, monkeypatch):
+    definitions_handler = DefinitionsHandler([{
         "Name": "Enabled", "IsRequired": True,
         "Type": "Boolean", "Value": "False",
     }])
-    provider = make_provider(tmp_path, handler)
+    provider = make_provider(
+        tmp_path, definitions_handler, StubRunner, monkeypatch
+    )
 
     provider.fetch_features(package_layer("flapi://package/466192"))
 
-    post_request = handler.requests[-1]
-    assert post_request.url.params["lastQueries"] == "true"
-    assert json.loads(post_request.content) == {"Enabled": "False"}
+    runner = StubRunner.last_instance
+    assert runner.package_config.static_parameters == {"Enabled": "False"}
 
 
-def test_package_rejects_missing_required_parameter_before_execution(tmp_path):
-    handler = PackageHandler([{
+def test_package_rejects_missing_required_parameter_before_execution(
+    tmp_path, monkeypatch
+):
+    definitions_handler = DefinitionsHandler([{
         "Name": "Tenant", "IsRequired": True, "Type": "String",
     }])
-    provider = make_provider(tmp_path, handler)
+    provider = make_provider(
+        tmp_path, definitions_handler, StubRunner, monkeypatch
+    )
 
     with pytest.raises(ProviderError, match="Tenant.*required"):
         provider.fetch_features(package_layer("flapi://package/466192"))
 
-    assert [request.method for request in handler.requests] == ["GET"]
+    assert StubRunner.last_instance is None
+    assert [request.method for request in definitions_handler.requests] == ["GET"]
+
+
+def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
+    definitions_handler = DefinitionsHandler([{
+        "Name": "Enabled", "IsRequired": True,
+        "Type": "Boolean", "Value": "False",
+    }])
+    provider = make_provider(
+        tmp_path, definitions_handler, StubRunner, monkeypatch
+    )
+
+    provider.fetch_features(package_layer("flapi://package/466192"))
+
+    gateway = provider._package._gateway
+    assert gateway.success_chunks == 1
+    assert gateway.failed_chunks == 0
+
+
+def test_package_surfaces_cube_errors_from_flow_results(tmp_path, monkeypatch):
+    definitions_handler = DefinitionsHandler([{
+        "Name": "Enabled", "IsRequired": True,
+        "Type": "Boolean", "Value": "False",
+    }])
+
+    def failing_runner(flapi_config, package_config, flunks_config=None,
+                        exceptions_config=None):
+        runner = StubRunner(
+            flapi_config, package_config, flunks_config, exceptions_config
+        )
+        runner.result = flow_results(
+            failed_queries=[FailedQuery(
+                id="1", name="FinalCube", uniqueName="FinalCube#1",
+            )],
+        )
+        return runner
+
+    provider = make_provider(
+        tmp_path, definitions_handler, failing_runner, monkeypatch
+    )
+
+    features = provider.fetch_features(package_layer("flapi://package/466192"))
+    assert list(features["id"]) == ["result-1"]
 
 
 def test_package_source_persists_typed_json_inputs():
@@ -186,19 +273,19 @@ def test_package_validates_absolute_time_and_unknown_types():
         "Name": "Window", "Type": "DateTime",
         "OntologyType": "Time", "IsRequired": True,
     }]
-    assert serializer.build(time_definition, {"Window": {
+    assert serializer.build_static_parameters(time_definition, {"Window": {
         "From": "2024-11-26T00:00:00.000Z",
         "To": "2024-11-26T23:59:59.000Z",
     }})["Window"]["To"].endswith("Z")
 
     with pytest.raises(ProviderError, match="timezone"):
-        serializer.build(time_definition, {"Window": {
+        serializer.build_static_parameters(time_definition, {"Window": {
             "From": "2024-11-26T00:00:00",
             "To": "2024-11-26T23:59:59",
         }})
 
     custom = {"nested": ["kept", 7]}
-    assert serializer.build(
+    assert serializer.build_static_parameters(
         [{"Name": "Custom", "Type": "FutureType"}],
         {"Custom": custom},
     ) == {"Custom": custom}
@@ -206,7 +293,7 @@ def test_package_validates_absolute_time_and_unknown_types():
 
 def test_package_emits_geometry_as_wkt_and_time_as_json():
     serializer = FlowPackageSerializer(FlowPackageMetadata())
-    body = serializer.build(definitions(), {
+    body = serializer.build_static_parameters(definitions(), {
         "Terms": ["alpha"],
         "MinScore": 1,
         "Enabled": "True",
@@ -259,7 +346,7 @@ def test_package_requires_flapi_username(tmp_path):
         cubes_token="jwt",
     ))
     provider = FlapiProvider(
-        store, httpx.MockTransport(PackageHandler([]))
+        store, httpx.MockTransport(DefinitionsHandler([]))
     )
 
     with pytest.raises(ProviderError, match="flapi_username"):

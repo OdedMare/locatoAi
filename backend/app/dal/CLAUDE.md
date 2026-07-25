@@ -151,12 +151,26 @@ workflow" / "Cubes dynamic parameters" / "Cubes result cap" sections):
 - 100,000-row safety ceiling: `CubesGateway._MAX_ROWS = 100000`.
 
 Flow Package pipeline: `FlapiSource` parses persisted typed inputs and selected queries
-→ `FlowPackageGateway` fetches `/package/v1/quick/{id}` and executes
-`/package/v3/{id}` → `FlowPackageMetadata` normalizes grouped definitions →
-`FlowPackageSerializer` validates exact text/number/boolean/WKT/time shapes →
-`FlowPackageProvider` maps each query result with `FlapiSchemaMapper`. With no selected
-query execution requests `lastQueries=true`. Each row carries `_package_query`;
-partial-success trace IDs and query result-limit warnings are logged.
+→ `FlowPackageGateway.definitions()` fetches `/package/v1/quick/{id}` directly via
+`httpx` → `FlowPackageMetadata` normalizes grouped definitions →
+`FlowPackageSerializer` validates exact text/number/boolean/WKT/time shapes and splits
+configured parameters into a `flunks.PackageInputCube` (the chunked dimension — the
+declared time parameter when a `temporal_range` is given, otherwise a multi-value
+identifier parameter present in `configured`, falling back to an empty values cube) plus
+a `static_parameters` dict (every other configured/declared value, serialized exactly as
+before) → `FlowPackageGateway.execute()` builds a `flunks.config.FlapiConfig` from
+`RuntimeSettingsStore` (`cubes_base_url`/`cubes_token`/`flapi_username`) and a
+`flunks.config.FlunksPackageConfig` (package id, input cube, `PackageOutputCube` named
+after the first selected query, `static_parameters`), runs it through
+`flunks.FlunksRunner.run()`, and reads `runner.success_chunks`/`failed_chunks` for
+diagnostics → `FlowPackageProvider` maps each `FlowResults.results` query result with
+`FlapiSchemaMapper`. Chunking, retries, adaptive chunk sizing, and status/regex-based
+exception mapping for the `/package/v3/{id}` execution call are now owned by flunks, not
+this codebase — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
+`FlowPackageGateway` is constructed with overrides. Each row still carries
+`_package_query`; partial-success trace IDs and query result-limit warnings are read off
+`FlowResults.metadata` and logged the same as before. `flunks` is an internal library
+not resolvable from the public index — see `pyproject.toml`.
 
 ## Tyche provider — `providers/tyche/`
 
