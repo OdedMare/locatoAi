@@ -70,6 +70,36 @@ class FlowPackageDebug:
         )
 
     @staticmethod
+    def exception(exc: BaseException) -> str:
+        """Describe a failed run, keeping a pydantic error's field paths.
+
+        ``str(ValidationError)`` is multi-line prose that reads like a message
+        from FLAPI once it is embedded in our own error text — that is what made
+        a ``metadata.isPartialSuccess`` type error look like the package
+        rejecting its input. Render the field path and offending value instead.
+        """
+        errors = getattr(exc, "errors", None)
+        if not callable(errors):
+            return "%s: %s" % (type(exc).__name__, exc)
+        try:
+            details = errors()
+        except Exception:
+            return "%s: %s" % (type(exc).__name__, exc)
+        parts = [
+            "%s=%s[got %r]" % (
+                ".".join(str(item) for item in error.get("loc", ())) or "?",
+                error.get("type", "?"),
+                error.get("input"),
+            )
+            for error in details[:_MAX_LOGGED_VALUES]
+        ]
+        extra = len(details) - len(parts)
+        return "%s: %d error(s)%s %s" % (
+            type(exc).__name__, len(details),
+            " (+%d more)" % extra if extra > 0 else "", "; ".join(parts),
+        )
+
+    @staticmethod
     def records(records: List[dict]) -> str:
         """Summarize returned rows by count and observed keys."""
         if not records:

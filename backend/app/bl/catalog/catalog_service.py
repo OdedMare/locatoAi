@@ -139,9 +139,16 @@ class CatalogService:
             and time.monotonic() - cached[1] < self._schema_ttl
         )
 
-    @staticmethod
-    def _stale_or_error(cached, layer, layer_id, error):
+    def _stale_or_error(self, cached, layer, layer_id, error):
         if cached is not None:
+            # "Stale beats failed" hides a broken provider behind a working
+            # query — say so, or the failure is only visible once the cache
+            # expires and the same query suddenly starts erroring.
+            self._logger.warning(
+                "Schema serving STALE layer=%s provider=%s age_s=%.0f after %s",
+                layer_id, layer.provider, time.monotonic() - cached[1],
+                type(error).__name__,
+            )
             return cached[0]
         raise ProviderError(
             f"Provider '{layer.provider}' failed to describe layer "

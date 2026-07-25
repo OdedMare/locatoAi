@@ -69,11 +69,15 @@ class FlowPackageGateway:
         try:
             records = runner.run()
         except Exception as exc:
+            # exc_info: a ValidationError raised inside flunks' own response
+            # parsing is indistinguishable from a FLAPI-side rejection without
+            # the traceback showing which frame actually raised.
             self._logger.error(
-                "FLAPI package FAILED id=%s layer=%s %s -> %s: %s",
+                "FLAPI package FAILED id=%s layer=%s %s -> %s",
                 package_id, layer.id,
                 FlowPackageDebug.input_cube(input_cube),
-                type(exc).__name__, exc,
+                FlowPackageDebug.exception(exc),
+                exc_info=True,
             )
             raise ProviderError(
                 f"FLAPI package {package_id} execution failed: {exc}"
@@ -121,6 +125,12 @@ class FlowPackageGateway:
 
     def _records(self, records: object, output_cube_name: str) -> List[dict]:
         if not isinstance(records, list):
+            # The type alone is the diagnosis: an envelope/dict here means flunks
+            # changed its return contract, not that the package returned nothing.
+            self._logger.error(
+                "FLAPI package response type=%s value=%.200r",
+                type(records).__name__, records,
+            )
             raise ProviderError("FLAPI package response is not a list of records")
         rows: List[dict] = []
         for record in records:
