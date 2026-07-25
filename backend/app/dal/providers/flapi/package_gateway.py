@@ -1,4 +1,4 @@
-"""flunks-backed Flow Package execution."""
+"""Run a Flow Package and normalize flunks' DataFrame."""
 
 import logging
 from typing import List, Optional
@@ -65,95 +65,77 @@ class FlowPackageGateway:
             FlowPackageDebug.input_cube(input_cube),
         )
         runner = self._build_runner(package_id, input_cube, output_cube_name)
-        try:
-            records = runner.run()
-        except Exception as exc:
-            # exc_info: a ValidationError raised inside flunks' own response
-            # parsing is indistinguishable from a FLAPI-side rejection without
-            # the traceback showing which frame actually raised.
-            self._logger.error(
-                "FLAPI package FAILED id=%s layer=%s %s -> %s",
-                package_id, layer.id,
-                FlowPackageDebug.input_cube(input_cube),
-                FlowPackageDebug.exception(exc),
-                exc_info=True,
-            )
-            raise ProviderError(
-                f"FLAPI package {package_id} execution failed: {exc}"
-            ) from exc
-        finally:
-            self.success_chunks = getattr(runner, "success_chunks", 0)
-            self.failed_chunks = getattr(runner, "failed_chunks", 0)
-            self._logger.info(
-                "FLAPI package CHUNKS id=%s success=%s failed=%s",
-                package_id, self.success_chunks, self.failed_chunks,
-            )
-        rows = self._records(records, output_cube_name)
+        result = self._run(runner, package_id, layer, input_cube)
+        rows = self._records(result, output_cube_name)
         self._logger.info(
             "FLAPI package OK id=%s layer=%s %s",
             package_id, layer.id, FlowPackageDebug.records(rows),
         )
         return rows
 
+    def _run(self, runner, package_id, layer, input_cube):
+        try:
+            return runner.run()
+        except Exception as exc:
+            detail = FlowPackageDebug.exception(exc)
+            self._logger.error(
+                "FLAPI package FAILED id=%s layer=%s %s -> %s",
+                package_id, layer.id,
+                FlowPackageDebug.input_cube(input_cube),
+                detail,
+            )
+            self._logger.debug("Full flunks failure", exc_info=True)
+            raise ProviderError(
+                f"FLAPI package {package_id} execution failed: {detail}"
+            ) from exc
+        finally:
+            self._remember_chunks(runner, package_id)
+
+    def _remember_chunks(self, runner, package_id) -> None:
+        self.success_chunks = getattr(runner, "success_chunks", 0)
+        self.failed_chunks = getattr(runner, "failed_chunks", 0)
+        self._logger.info(
+            "FLAPI package CHUNKS id=%s success=%s failed=%s",
+            package_id, self.success_chunks, self.failed_chunks,
+        )
+
     def _build_runner(self, package_id, input_cube, output_cube_name):
         settings = self._clients.require_settings(require_username=True)
-        # Credentials are never logged — only whether they are present.
         self._logger.info(
             "FLAPI package CONFIG id=%s base_url=%s username=%s token_set=%s",
             package_id, settings.cubes_base_url, settings.flapi_username,
             bool(settings.cubes_token),
         )
-        flapi_config = FlapiConfig(
-            username=settings.flapi_username, token=settings.cubes_token,
-            base_url=settings.cubes_base_url,
-        )
-        if not output_cube_name:
-            raise ProviderError("Flow Package output cube name is required")
-        output_cube = PackageOutputCube(cube_name=output_cube_name)
-        package_config = FlunksPackageConfig(
-            package_id=package_id,
-            main_input_cube=input_cube,
-            output_cube=output_cube,
-        )
         return FlunksRunner(
-            flapi_config=flapi_config,
-            package_config=package_config,
+            flapi_config=self._flapi_config(settings),
+            package_config=self._package_config(
+                package_id, input_cube, output_cube_name
+            ),
             flunks_config=self._flunks_config,
             exceptions_config=self._exceptions_config,
         )
 
-    def _normalized(self, records: object) -> object:
-        """Convert a DataFrame result to JSON records.
+    @staticmethod
+    def _flapi_config(settings):
+        return FlapiConfig(
+            username=settings.flapi_username, token=settings.cubes_token,
+            base_url=settings.cubes_base_url,
+        )
 
-        Row count is logged but never capped: package results are returned in
-        full. A very large frame is materialized entirely by ``to_dict``, so
-        this log line is the only warning before the memory is spent.
-        """
-        if not FlowPackageRecords.is_dataframe(records):
-            return records
+    @staticmethod
+    def _package_config(package_id, input_cube, output_cube_name):
+        if not output_cube_name:
+            raise ProviderError("Flow Package output cube name is required")
+        return FlunksPackageConfig(
+            package_id=package_id,
+            main_input_cube=input_cube,
+            output_cube=PackageOutputCube(cube_name=output_cube_name),
+        )
+
+    def _records(self, result: object, output_cube_name: str) -> List[dict]:
         self._logger.info(
             "FLAPI package response is a DataFrame rows=%s",
-            FlowPackageRecords.row_count(records),
+            FlowPackageRecords.row_count(result),
         )
-        return FlowPackageRecords.normalize(records)
-
-    def _records(self, records: object, output_cube_name: str) -> List[dict]:
-        records = self._normalized(records)
-        if not isinstance(records, list):
-            # The type alone is the diagnosis: an envelope/dict here means flunks
-            # changed its return contract, not that the package returned nothing.
-            self._logger.error(
-                "FLAPI package response type=%s value=%.200r",
-                type(records).__name__, records,
-            )
-            raise ProviderError("FLAPI package response is not a list of records")
-        rows: List[dict] = []
-        for record in records:
-            if not isinstance(record, dict):
-                self._logger.warning(
-                    "Ignoring non-dict Flow Package record",
-                    extra={"output_cube": output_cube_name},
-                )
-                continue
-            rows.append(dict(record, _package_query=output_cube_name))
-        return rows
+        rows = FlowPackageRecords.normalize(result)
+        return [dict(row, _package_query=output_cube_name) for row in rows]

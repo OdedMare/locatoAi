@@ -1,33 +1,20 @@
-"""Normalize whatever ``FlunksRunner.run()`` returns into plain JSON records.
-
-flunks may hand back a pandas/geopandas DataFrame rather than the ``list[dict]``
-the gateway originally assumed. Converting is not just ``to_dict("records")``:
-a DataFrame carries three things the rest of the pipeline cannot read.
-
-* **Geometry as shapely objects.** ``FlapiSchemaMapper._point`` only parses a
-  ``str``, so a shapely cell is silently dropped and the layer returns zero
-  features with no error at all. Geometry is rendered back to WKT here.
-* **``NaN`` for missing cells.** ``NaN`` is not ``None``, so it survives every
-  ``value is not None`` guard in schema inference — a numeric column with gaps
-  gets typed ``"string"`` and ``"nan"`` reaches the agent as a sample value.
-* **numpy scalars.** ``numpy.int64`` fails ``isinstance(value, int)`` in field
-  typing and is not JSON-serializable downstream.
-
-Pandas is imported lazily: it is already a geopandas dependency, but the list
-path must not pay an import for a conversion it never performs.
-"""
+"""Convert flunks' DataFrame result into JSON-safe records."""
 
 from typing import Any, List
 
+from app.common.errors.provider_error import ProviderError
+
 
 class FlowPackageRecords:
-    """Converts a flunks result into a list of JSON-safe dicts."""
+    """Normalizes geometry, missing values, and numpy scalars."""
 
     @classmethod
-    def normalize(cls, result: Any) -> Any:
-        """Return ``result`` unchanged unless it is a DataFrame."""
+    def normalize(cls, result: Any) -> List[dict]:
         if not cls.is_dataframe(result):
-            return result
+            raise ProviderError(
+                "flunks returned %s; expected a DataFrame"
+                % type(result).__name__
+            )
         return [cls._record(row) for row in result.to_dict("records")]
 
     @staticmethod
