@@ -406,6 +406,7 @@ export default function LayersPanel({
         ? packageInputCubeName.trim() || null : null,
       package_input_cube_parameter: isFlowPackage
         ? packageInputCubeParameter.trim() || null : null,
+      package_input_cube_kind: isFlowPackage ? packageInputCubeKind : null,
       package_output_cube_name: isFlowPackage
         ? packageOutputCubeName.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
