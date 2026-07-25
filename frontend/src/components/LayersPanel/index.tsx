@@ -26,7 +26,10 @@ import type {
 } from "@/types/catalog";
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 import CubesParametersFieldset from "./CubesParametersFieldset";
-import PackageParametersFieldset from "./PackageParametersFieldset";
+import PackageParametersFieldset, {
+  isPackageGeometryParameter,
+  isPackageTimeParameter,
+} from "./PackageParametersFieldset";
 import TycheParametersFieldset from "./TycheParametersFieldset";
 
 interface LayersPanelProps {
@@ -59,11 +62,26 @@ function mergeTags(current: string[], value: string, limit: number): string[] {
   })].slice(0, limit);
 }
 
-function isGeometryParameter(definition: FlapiParameterDefinition): boolean {
-  return [definition.name, definition.type, definition.ontology_type]
-    .join(" ")
-    .toLowerCase()
-    .match(/geometry|polygon|wkt/) !== null;
+function packageTimeValue(name: string, value: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    return parsed as Record<string, unknown>;
+  } catch {
+    throw new Error(`הפרמטר ${name} חייב להיות אובייקט JSON תקין.`);
+  }
+}
+
+function packageParameterValues(
+  definitions: FlapiParameterDefinition[],
+  values: Record<string, string>,
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(values).map(([name, value]) => {
+    const definition = definitions.find((item) => item.name === name);
+    return definition && isPackageTimeParameter(definition) && value.trim()
+      ? [name, packageTimeValue(name, value)]
+      : [name, value];
+  }));
 }
 
 function layerErrorMessage(error: unknown, fallback: string): string {
@@ -303,7 +321,9 @@ export default function LayersPanel({
         flapi_resource_type: flapiResourceType,
         cubes_query_mode: cubesQueryMode,
         cubes_parameters: dynamicParameterValues,
-        package_parameters: isFlowPackage ? dynamicParameterValues : {},
+        package_parameters: isFlowPackage
+          ? packageParameterValues(parameterDefinitions, dynamicParameterValues)
+          : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
         entity_field: tycheEntityField.trim() || undefined,
         display_field: displayField.trim() || undefined,
@@ -402,6 +422,17 @@ export default function LayersPanel({
     selectedDynamicValues: Record<string, string> = dynamicParameterValues,
     selectedBoundary: GeoJSONMultiPolygon | null = cubesSampleBoundary,
   ) => {
+    let packageParameters: Record<string, unknown> = {};
+    try {
+      if (isFlowPackage) {
+        packageParameters = packageParameterValues(
+          parameterDefinitions, selectedDynamicValues
+        );
+      }
+    } catch (err) {
+      setFormMessage(layerErrorMessage(err, "פרמטר הזמן אינו JSON תקין."));
+      return;
+    }
     const target = {
       name: selected?.name ?? name,
       provider: selected?.provider ?? provider,
@@ -409,7 +440,7 @@ export default function LayersPanel({
       flapi_resource_type: flapiResourceType,
       cubes_query_mode: cubesQueryMode,
       cubes_parameters: selectedDynamicValues,
-      package_parameters: isFlowPackage ? selectedDynamicValues : {},
+      package_parameters: packageParameters,
       package_query: isFlowPackage ? packageQuery.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
       tyche_geometry_field: tycheGeometryField.trim(),
@@ -479,7 +510,7 @@ export default function LayersPanel({
         (definition) =>
           definition.required
           && !definition.has_default
-          && !isGeometryParameter(definition)
+          && !isPackageGeometryParameter(definition)
           && !selectedDynamicValues[definition.name]
       );
       const missingPolygon = generated.requires_sample_polygon && !selectedBoundary;
@@ -543,7 +574,7 @@ export default function LayersPanel({
         );
         return !definition?.required
           || definition.has_default
-          || isGeometryParameter(definition)
+          || isPackageGeometryParameter(definition)
           || Boolean(selectedDynamicValues[parameterName]);
       }
     );
@@ -569,7 +600,7 @@ export default function LayersPanel({
         );
         return !definition?.required
           || definition.has_default
-          || isGeometryParameter(definition)
+          || isPackageGeometryParameter(definition)
           || Boolean(dynamicParameterValues[parameterName]);
       }
     );
@@ -1304,7 +1335,7 @@ export default function LayersPanel({
                     (definition) =>
                       definition.required
                       && !definition.has_default
-                      && !isGeometryParameter(definition)
+                      && !isPackageGeometryParameter(definition)
                       && !dynamicParameterValues[definition.name]
                   )
                 }

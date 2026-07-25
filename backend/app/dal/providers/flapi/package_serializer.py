@@ -46,7 +46,7 @@ class FlowPackageSerializer:
     def _value(self, item, configured, geometry, temporal_range):
         name = str(self._metadata.value(item, "Name", "name"))
         if self._metadata.is_geometry(item) and geometry is not None:
-            return {"value": geometry.wkt}
+            return geometry.wkt
         if self._metadata.is_time(item) and temporal_range is not None:
             return {"From": temporal_range[0], "To": temporal_range[1]}
         if name in configured:
@@ -73,7 +73,7 @@ class FlowPackageSerializer:
             return self._single(value) if single else self._multi(value)
         return value  # unknown types are passed through unchanged
 
-    def _geometry(self, raw: Any) -> dict:
+    def _geometry(self, raw: Any) -> str:
         value = raw.get("value") if isinstance(raw, dict) else raw
         if not isinstance(value, str):
             raise ProviderError("Flow Package geometry must be WKT text")
@@ -83,7 +83,7 @@ class FlowPackageSerializer:
             raise ProviderError("Flow Package geometry contains invalid WKT") from exc
         if geometry.is_empty:
             raise ProviderError("Flow Package geometry cannot be empty")
-        return {"value": value}
+        return value
 
     def _time(self, raw: Any) -> dict:
         if not isinstance(raw, dict):

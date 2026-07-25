@@ -130,7 +130,7 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(tmp_path):
         ],
         "MinScore": {"Name": "1", "Value": 1},
         "Enabled": "False",
-        "Area": {"value": boundary.wkt},
+        "Area": boundary.wkt,
         "StartTime": {
             "TimeBackUnit": "minute",
             "TimeBackValue": 15,
@@ -202,6 +202,22 @@ def test_package_validates_absolute_time_and_unknown_types():
         [{"Name": "Custom", "Type": "FutureType"}],
         {"Custom": custom},
     ) == {"Custom": custom}
+
+
+def test_package_emits_geometry_as_wkt_and_time_as_json():
+    serializer = FlowPackageSerializer(FlowPackageMetadata())
+    body = serializer.build(definitions(), {
+        "Terms": ["alpha"],
+        "MinScore": 1,
+        "Enabled": "True",
+        "Area": {"value": "POINT (34.8 32.1)"},
+        "StartTime": '{"TimeBackUnit":"hour","TimeBackValue":2}',
+    })
+
+    assert body["Area"] == "POINT (34.8 32.1)"
+    assert body["StartTime"] == {
+        "TimeBackUnit": "hour", "TimeBackValue": 2,
+    }
 
 
 def test_package_execution_options_are_validated():

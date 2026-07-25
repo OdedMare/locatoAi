@@ -93,7 +93,7 @@ resources. New rows use `provider=flapi` with `flapi://cube/<name>` or
 typed parameter definitions from `GET /package/v1/quick/{id}`, persist configured
 values as JSON in the source URL, and execute `POST /package/v3/{id}` with
 `lastQueries=true` unless a query is selected. Preserve exact boolean/string casing,
-numeric JSON values, lowercase geometry `value`, WKT coordinate order, and documented
+numeric JSON values, raw WKT geometry text, WKT coordinate order, and JSON-object
 relative/absolute time shapes. Map result entries independently through the Cube mapper,
 tag rows with `_package_query`, and log partial-success trace IDs and capped queries.
 

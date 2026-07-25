@@ -7,12 +7,16 @@ interface PackageParametersFieldsetProps {
   onChange: (name: string, value: string) => void;
 }
 
-function isTime(definition: FlapiParameterDefinition): boolean {
+export function isPackageTimeParameter(
+  definition: FlapiParameterDefinition,
+): boolean {
   return definition.ontology_type.toLowerCase() === "time"
     || ["time", "datetime", "date"].includes(definition.type.toLowerCase());
 }
 
-function isGeometry(definition: FlapiParameterDefinition): boolean {
+export function isPackageGeometryParameter(
+  definition: FlapiParameterDefinition,
+): boolean {
   return [definition.name, definition.type, definition.ontology_type]
     .join(" ")
     .toLowerCase()
@@ -37,9 +41,9 @@ export default function PackageParametersFieldset({
         const inputId = `package-param-${definition.name}`;
         const kind = definition.type.toLowerCase();
         const value = values[definition.name] ?? "";
-        const placeholder = isTime(definition)
+        const placeholder = isPackageTimeParameter(definition)
           ? '{"TimeBackUnit":"minute","TimeBackValue":15}'
-          : isGeometry(definition)
+          : isPackageGeometryParameter(definition)
             ? "POINT(35.181397 32.108353) או גבול מהמפה"
             : definition.single_value
               ? "ערך"
@@ -56,10 +60,21 @@ export default function PackageParametersFieldset({
             {definition.description && (
               <small dir="auto">{definition.description}</small>
             )}
-            {isTime(definition) ? (
+            {isPackageTimeParameter(definition) ? (
               <textarea
                 id={inputId}
                 className="settings-input layer-description-input"
+                value={value}
+                onChange={(event) => onChange(definition.name, event.target.value)}
+                disabled={busy}
+                placeholder={placeholder}
+                dir="ltr"
+              />
+            ) : isPackageGeometryParameter(definition) ? (
+              <input
+                id={inputId}
+                className="settings-input"
+                type="text"
                 value={value}
                 onChange={(event) => onChange(definition.name, event.target.value)}
                 disabled={busy}
