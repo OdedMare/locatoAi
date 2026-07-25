@@ -43,11 +43,9 @@ export default function PackageParametersFieldset({
         const value = values[definition.name] ?? "";
         const placeholder = isPackageTimeParameter(definition)
           ? '{"TimeBackUnit":"minute","TimeBackValue":15}'
-          : isPackageGeometryParameter(definition)
-            ? "POINT(35.181397 32.108353) או גבול מהמפה"
-            : definition.single_value
-              ? "ערך"
-              : "ערך 1, ערך 2";
+          : definition.single_value
+            ? "ערך"
+            : "ערך 1, ערך 2";
 
         return (
           <div key={definition.name} className="cubes-dynamic-parameter">
@@ -71,16 +69,11 @@ export default function PackageParametersFieldset({
                 dir="ltr"
               />
             ) : isPackageGeometryParameter(definition) ? (
-              <input
-                id={inputId}
-                className="settings-input"
-                type="text"
-                value={value}
-                onChange={(event) => onChange(definition.name, event.target.value)}
-                disabled={busy}
-                placeholder={placeholder}
-                dir="ltr"
-              />
+              // Geometry is always supplied from the query boundary at
+              // execution time — never typed as WKT here.
+              <small className="optional" dir="auto">
+                מוזן אוטומטית מגבולות השאילתה במפה.
+              </small>
             ) : definition.options.length > 0 ? (
               <select
                 id={inputId}

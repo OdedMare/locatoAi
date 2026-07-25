@@ -107,8 +107,10 @@ directly via `httpx` (used only for the metadata-generation preview). →
 now)` assembles one `flunks.PackageInputCube`: for `kind="time"` it sets
 `start_time`/`end_time` from the query `temporal_range` (falling back to a 1-hour window
 ending at `now` on the schema/sample path where no range exists); for `kind="geo"` it
-passes the query boundary polygons as a list of WKT `MULTIPOLYGON` strings via `values`
-(empty list when no geometry — the sample path only). →
+passes the whole query boundary via `values` as a single-element list holding one WKT
+`MULTIPOLYGON` containing every boundary polygon — one geographic layer is one flunks
+identifier, so a multi-polygon boundary is one chunk, not one chunk per polygon (empty
+list when no geometry — the sample path only). →
 `FlowPackageGateway.execute(layer, input_cube, output_cube_name)` builds a
 `flunks.config.FlapiConfig` from `RuntimeSettingsStore`
 (`cubes_base_url`/`cubes_token`/`flapi_username`) and a

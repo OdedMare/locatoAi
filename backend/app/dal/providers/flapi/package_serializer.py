@@ -16,8 +16,8 @@ class FlowPackageSerializer:
     The input cube is driven by a single ``cube_parameter`` whose values come
     from the query. Two kinds are supported:
 
-    - ``geo``  — the query boundary polygons are passed as a list of WKT
-      multipolygons via ``values`` (one per drawn/viewport polygon).
+    - ``geo``  — the query boundary is passed via ``values`` as a single-element
+      list holding one WKT multipolygon containing every boundary polygon.
     - ``time`` — the query time range is passed as ``start_time``/``end_time``.
 
     Every other package parameter is fixed inside the package itself, so
@@ -61,7 +61,9 @@ class FlowPackageSerializer:
             return []
         parts = getattr(geometry, "geoms", None)
         polygons = list(parts) if parts is not None else [geometry]
-        return [MultiPolygon([polygon]).wkt for polygon in polygons]
+        # One geographic layer is one identifier: every boundary polygon goes
+        # into a single MULTIPOLYGON so the package runs as one chunk.
+        return [MultiPolygon(polygons).wkt]
 
     def _range(
         self,

@@ -275,6 +275,35 @@ def test_input_cube_uses_explicit_temporal_range():
     assert input_cube.end_time.isoformat() == "2026-04-01T00:00:00+00:00"
 
 
+def test_geo_input_cube_combines_polygons_into_one_multipolygon():
+    from shapely import wkt as shapely_wkt
+    from shapely.geometry import MultiPolygon
+
+    serializer = FlowPackageSerializer()
+    boundary = MultiPolygon([box(34.7, 32.0, 34.8, 32.1), box(35.0, 32.4, 35.1, 32.5)])
+
+    input_cube = serializer.build_input_cube(
+        "שכבה גיאוגרפית", "שכבה גיאוגרפית", kind="geo", geometry=boundary,
+    )
+
+    # One geographic layer is one identifier, so both polygons share a single
+    # MULTIPOLYGON rather than becoming two chunks.
+    assert len(input_cube.values) == 1
+    assert input_cube.values[0].startswith("MULTIPOLYGON")
+    assert input_cube.start_time is None and input_cube.end_time is None
+    assert shapely_wkt.loads(input_cube.values[0]).equals(boundary)
+
+
+def test_geo_input_cube_without_geometry_is_empty():
+    serializer = FlowPackageSerializer()
+
+    input_cube = serializer.build_input_cube(
+        "שכבה גיאוגרפית", "שכבה גיאוגרפית", kind="geo",
+    )
+
+    assert input_cube.values == []
+
+
 def test_input_cube_requires_names():
     serializer = FlowPackageSerializer()
     with pytest.raises(ProviderError, match="input cube name"):

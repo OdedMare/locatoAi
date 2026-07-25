@@ -13,8 +13,8 @@ interface PackageCubesFieldsetProps {
 /** flunks input/output cube config: the input cube name and its cube_parameter
  * that drives parallel runs, and the output cube to read back. The
  * cube_parameter receives either the query time range (kind="time") or the
- * query boundary polygons as a list of WKT multipolygons (kind="geo"), both
- * supplied from the query at execution time. */
+ * whole query boundary as one WKT multipolygon (kind="geo"), both supplied
+ * from the query at execution time. */
 export default function PackageCubesFieldset({
   inputCubeName,
   inputCubeParameter,
@@ -56,7 +56,7 @@ export default function PackageCubesFieldset({
           disabled={busy}
         >
           <option value="time">טווח זמן (start_time / end_time)</option>
-          <option value="geo">שאילתה גאוגרפית — רשימת מצולעים (WKT)</option>
+          <option value="geo">שאילתה גאוגרפית — שכבה גאוגרפית</option>
         </select>
         <label
           className="field-label"
@@ -76,7 +76,7 @@ export default function PackageCubesFieldset({
         />
         <small dir="auto">
           {inputCubeKind === "geo"
-            ? "הפרמטר מקבל את גבולות השאילתה כרשימת מצולעים (MULTIPOLYGON WKT) בזמן הריצה."
+            ? "הפרמטר מקבל את גבולות השאילתה כשכבה גאוגרפית אחת בזמן הריצה — אין צורך להזין גאומטריה כאן."
             : "הפרמטר מקבל את טווח הזמן (start_time / end_time) שנגזר מהשאילתה בזמן הריצה."}
         </small>
       </fieldset>
