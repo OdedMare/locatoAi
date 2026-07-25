@@ -32,7 +32,11 @@ class FlowPackageSerializer:
             self._definition_named(definitions, input_parameter)
             if input_parameter else self._time_definition(definitions)
         )
-        if item is not None and self._metadata.is_time(item) and temporal_range is not None:
+        if item is not None and self._metadata.is_time(item):
+            if temporal_range is None:
+                return PackageInputCube(cube_name=str(
+                    self._metadata.value(item, "Name", "name")
+                ))
             return PackageInputCube(
                 cube_name=str(self._metadata.value(item, "Name", "name")),
                 cube_parameter=str(self._metadata.value(item, "Name", "name")),
