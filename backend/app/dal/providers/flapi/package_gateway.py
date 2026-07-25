@@ -1,10 +1,8 @@
-"""Flow Package metadata discovery and flunks-backed execution."""
+"""flunks-backed Flow Package execution."""
 
 import logging
 from typing import List, Optional
-from urllib.parse import quote
 
-import httpx
 from flunks import FlunksRunner, PackageInputCube, PackageOutputCube
 from flunks.config import (
     FlapiConfig, FlunksConfig, FlunksExceptionsConfig, FlunksPackageConfig,
@@ -18,7 +16,14 @@ from app.dal.providers.flapi.source import FlapiSource
 
 
 class FlowPackageGateway:
-    _REQUEST_TIMEOUT_SECONDS = 60
+    """Runs a Flow Package through flunks.
+
+    flunks owns the whole HTTP conversation with FLAPI — endpoint routing,
+    chunking, retries, and exception mapping. This class only translates our
+    catalog/settings types into flunks config and normalizes the records it
+    returns, so no FLAPI route or API version appears here.
+    """
+
     _MAX_ROWS = 100000
 
     def __init__(
@@ -38,31 +43,6 @@ class FlowPackageGateway:
         self.success_chunks = 0
         self.failed_chunks = 0
 
-    def definitions(self, layer: LayerMeta) -> object:
-        package_id = quote(self._source.package_id(layer), safe="")
-        try:
-            with self._clients.create(require_username=True) as client:
-                response = client.request(
-                    "GET", f"/package/v1/quick/{package_id}",
-                    timeout=self._REQUEST_TIMEOUT_SECONDS,
-                )
-                response.raise_for_status()
-                return response.json()
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text[:500]
-            raise ProviderError(
-                f"FLAPI package request failed (/package/v1/quick/{package_id}): "
-                f"{exc.response.status_code} {detail}"
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise ProviderError(
-                f"FLAPI package request failed (/package/v1/quick/{package_id}): {exc}"
-            ) from exc
-        except ValueError as exc:
-            raise ProviderError(
-                f"FLAPI package returned invalid JSON (/package/v1/quick/{package_id})"
-            ) from exc
-
     def execute(
         self,
         layer: LayerMeta,
@@ -75,7 +55,7 @@ class FlowPackageGateway:
             records = runner.run()
         except Exception as exc:
             raise ProviderError(
-                f"FLAPI package request failed (package/v3/{package_id}): {exc}"
+                f"FLAPI package {package_id} execution failed: {exc}"
             ) from exc
         finally:
             self.success_chunks = getattr(runner, "success_chunks", 0)

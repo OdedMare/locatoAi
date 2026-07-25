@@ -1,7 +1,6 @@
-"""Parse FLAPI resource URLs and persisted package inputs."""
+"""Parse FLAPI Flow Package source URLs."""
 
-import json
-from typing import Any, Dict, List, Optional
+from typing import Optional
 from urllib.parse import parse_qs, urlsplit
 
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -9,11 +8,18 @@ from app.common.errors.provider_error import ProviderError
 
 
 class FlapiSource:
-    PACKAGE_INPUT_PREFIX = "input_"
+    """Reads the package id and cube configuration out of ``source_url``.
+
+    A package source is ``flapi://package/<id>`` plus the four cube settings the
+    catalog UI persists: ``input_cube_name``, ``input_cube_parameter``,
+    ``input_cube_kind`` (``time`` | ``geo``), and ``output_cube_name``. Every
+    other package parameter is fixed inside the package itself, and flunks owns
+    the request, so nothing else is parsed here.
+    """
 
     def package_id(self, layer: LayerMeta) -> str:
         parsed = urlsplit(layer.source_url.strip())
-        ignored = {"id", "package", "v1", "v3"}
+        ignored = {"id", "package"}
         parts = [
             part for part in parsed.path.split("/")
             if part and part.casefold() not in ignored
@@ -24,72 +30,25 @@ class FlapiSource:
             )
         return parts[-1]
 
-    def package_inputs(self, layer: LayerMeta) -> Dict[str, Any]:
-        query = parse_qs(urlsplit(layer.source_url).query)
-        values: Dict[str, Any] = {}
-        for key, items in query.items():
-            if not key.startswith(self.PACKAGE_INPUT_PREFIX) or not items:
-                continue
-            name = key[len(self.PACKAGE_INPUT_PREFIX):]
-            try:
-                values[name] = json.loads(items[0])
-            except (TypeError, ValueError) as exc:
-                raise ProviderError(
-                    f"Flow Package input '{name}' is not valid JSON"
-                ) from exc
-        return values
-
-    @staticmethod
-    def package_queries(layer: LayerMeta) -> List[str]:
-        query = parse_qs(urlsplit(layer.source_url).query)
-        return [value for value in query.get("query", []) if value]
-
     @staticmethod
     def package_input_cube_name(layer: LayerMeta) -> Optional[str]:
-        query = parse_qs(urlsplit(layer.source_url).query)
-        value = query.get("input_cube_name", [None])[0]
-        return value or None
+        return FlapiSource._option(layer, "input_cube_name")
 
     @staticmethod
     def package_input_cube_parameter(layer: LayerMeta) -> Optional[str]:
-        query = parse_qs(urlsplit(layer.source_url).query)
-        value = query.get("input_cube_parameter", [None])[0]
-        return value or None
+        return FlapiSource._option(layer, "input_cube_parameter")
 
     @staticmethod
     def package_output_cube_name(layer: LayerMeta) -> Optional[str]:
-        query = parse_qs(urlsplit(layer.source_url).query)
-        value = query.get("output_cube_name", [None])[0]
-        return value or None
+        return FlapiSource._option(layer, "output_cube_name")
 
     @staticmethod
     def package_input_cube_kind(layer: LayerMeta) -> str:
-        query = parse_qs(urlsplit(layer.source_url).query)
-        value = (query.get("input_cube_kind", [None])[0] or "time").strip().lower()
+        value = (FlapiSource._option(layer, "input_cube_kind") or "").lower()
         return "geo" if value == "geo" else "time"
 
-    def execution_params(self, layer: LayerMeta):
+    @staticmethod
+    def _option(layer: LayerMeta, key: str) -> Optional[str]:
         query = parse_qs(urlsplit(layer.source_url).query)
-        params = [
-            ("queries", value)
-            for value in query.get("query", [])
-            if value
-        ]
-        for name in (
-            "allQueries", "lastQueries", "executeContinuedProcess",
-            "isPartialSuccess",
-        ):
-            if name not in query:
-                continue
-            value = query[name][0].casefold()
-            if value not in ("true", "false"):
-                raise ProviderError(
-                    f"FLAPI package option '{name}' must be true or false"
-                )
-            params.append((name, value))
-        selects_results = bool(query.get("query")) or any(
-            name in query for name in ("allQueries", "lastQueries")
-        )
-        if not selects_results:
-            params.append(("lastQueries", "true"))
-        return params
+        value = query.get(key, [None])[0]
+        return value.strip() if value else None
