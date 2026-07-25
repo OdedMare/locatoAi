@@ -27,7 +27,6 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 | POST | `/api/layers/sync-mqs` | — | `MqsSyncResponse` | Upsert MQS inventory into the catalog |
 | POST | `/api/layers/activate-tyche` | — | `CatalogLayer` | Probe + idempotently activate the Tyche "כוחותינו" layer |
 | POST | `/api/layers/generate-metadata` | `GenerateLayerMetadataRequest` | `GeneratedLayerMetadataResponse` | LLM-suggest description/tags/parameters before creating a layer |
-| POST | `/api/layers/autocomplete-parameter` | `CubesAutocompleteRequest` | `CubesAutocompleteResponse` | Live values for a Cubes dynamic parameter (never cached) |
 | GET | `/api/settings` | — | `SettingsResponse` | Read runtime settings (secrets masked) |
 | PUT | `/api/settings` | `SettingsUpdate` | `SettingsResponse` | Patch runtime settings (secrets write-only) |
 | GET | `/api/models` | — | `ModelsResponse` | List models using saved settings |
@@ -80,9 +79,8 @@ inconsistency worth knowing about rather than "fixing" incidentally.
 4. Includes all routers + a direct `GET /health` (`HealthRouter.status`).
 
 `ApplicationStateWiring.wire` in three phases:
-1. **`_providers`** — `InMemoryProviderRegistry()`, registers `MqsProvider`, one
-   `FlapiProvider` under both `flapi` and the legacy `cubes` name, and
-   `TycheProvider` (all take the shared `RuntimeSettingsStore`).
+1. **`_providers`** — `InMemoryProviderRegistry()`, registers `MqsProvider`,
+   `FlapiProvider`, and `TycheProvider` (all take the shared `RuntimeSettingsStore`).
 2. **`_services`** — `CatalogService`, `PlanExecutor`, `OpenAIJsonClient`,
    `RuntimeDietMode`, `LayerSelector`, `PlanBuilder`, `LayerMetadataGenerator`,
    `QueryOrchestrator`, `AreaSummaryService`.
@@ -163,11 +161,8 @@ overwrites). Same pattern for `llm_model`. The patch then goes through
 - **`agent/`** — select-layers router, `SelectLayersRequest`,
   `SelectLayersResponse`, and `SelectedLayer`.
 - **`catalog/`** — catalog router, `CatalogLayer`, `CreateLayerRequest`, `UpdateLayerRequest`,
-  `CubesParameterValues` (mixin: `cubes_parameters` / legacy `cubes_dynamic_parameters`,
-  merge helper `.parameter_values()`), `CubesQueryMode` (`Literal["auto","match_not","legacy"]`),
-  `FlapiResourceType` (`"cube"`/`"package"`), typed `package_parameters` and an optional
-  `package_query` on create/generate requests,
-  `CubesAutocompleteRequest`/`Response`/`OptionResponse`, `FlapiParameterResponse`,
+  typed `package_parameters` and an optional `package_query` on create/generate requests,
+  `FlapiParameterResponse`,
   `GenerateLayerMetadataRequest`, `GeneratedLayerMetadataResponse`, `LayersResponse`,
   `MqsSyncResponse`, `RemoteMqsLayerResponse`/`RemoteMqsLayersResponse`.
 - **`models/`** — models router, `ModelsProbeRequest`, `ModelsResponse`.
@@ -182,11 +177,11 @@ Most routers are clean delegates. Two carry real domain logic that a new develop
 should expect to find, even though the project convention is "routers translate HTTP
 only":
 
-1. **`catalog/router.py`** — `normalized_source`, `with_cubes_mode`,
+1. **`catalog/router.py`** — `normalized_source`, `with_package_config`,
    `with_parameters`, `clean_tags`: URL-scheme construction/normalization for
-   `cubes://`/`tyche://` source URLs and tag dedup/truncation. This is domain-specific
+   `flapi://`/`tyche://` source URLs and tag dedup/truncation. This is domain-specific
    transformation, not pure delegation — flagged here so it isn't mistaken for an
-   accident when you go looking for where a `cubes://` URL gets built.
+   accident when you go looking for where a `flapi://` URL gets built.
 2. **`settings/router.py`** — `mask_key`, `mask_db_password`, `_clean_patch`: real
    regex/conditional logic for secret masking, isolated into static/classmethods.
 

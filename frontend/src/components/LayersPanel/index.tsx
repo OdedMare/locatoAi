@@ -427,42 +427,9 @@ export default function LayersPanel({
         setTagDraft("");
       }
       const definitions = [...generated.configurable_parameters];
-      for (const manualName of manualDynamicParameterNames) {
-        if (!definitions.some(
-          (item) => item.name.toLocaleLowerCase() === manualName.toLocaleLowerCase()
-        )) {
-          definitions.push({
-            name: manualName,
-            display_name: "",
-            description: "",
-            type: "string",
-            required: true,
-            single_value: true,
-            ontology_type: "",
-            has_default: false,
-            dynamic: true,
-            options: [],
-          });
-        }
-      }
       const parameterNames = definitions.map((item) => item.name);
       setParameterDefinitions(definitions);
       setDynamicParameterNames(parameterNames);
-      setDynamicParameterOptions((current) => Object.fromEntries(
-        definitions
-          .map((item) => {
-            const staticOptions = item.options.map((value) => ({ value, name: value }));
-            return [
-              item.name,
-              item.dynamic
-                ? current[item.name]
-                : staticOptions.length > 0 ? staticOptions : undefined,
-            ] as const;
-          })
-          .filter((entry): entry is readonly [string, CubesAutocompleteOption[]] =>
-            Boolean(entry[1])
-          )
-      ));
       setDynamicParameterValues((current) => Object.fromEntries(
         parameterNames
           .filter((parameterName) => current[parameterName])
@@ -480,72 +447,18 @@ export default function LayersPanel({
         missingParameters && missingPolygon
           ? "יש לבחור ערכים לפרמטרים הנדרשים ופוליגון לדגימת ה-metadata."
           : missingPolygon
-          ? "ה-Cube דורש פוליגון לדגימת metadata — בחרו פוליגון שצויר במפה או את תחום התצוגה."
+          ? "ה-Flow Package דורש פוליגון לדגימת metadata — בחרו פוליגון שצויר במפה או את תחום התצוגה."
           : missingParameters
           ? "נמצאו פרמטרים נדרשים — יש לבחור ערכים לפני טעינת התוצאות."
           : parameterNames.length > 0
           ? `נטענו ${generated.sample_count} תוצאות עבור הפרמטרים שהוגדרו ונוצרו הצעות.`
           : `נוצרו הצעות מ-${generated.sample_count} ישויות אקראיות — אפשר לערוך לפני ההוספה.`
       );
-      const dynamicNames = isCubeResource ? definitions
-        .filter((item) => item.dynamic)
-        .map((item) => item.name) : [];
-      if (dynamicNames.length > 0) {
-        // Required controls are already visible. Autocomplete hydration runs
-        // separately so a slow child cube cannot keep metadata generation
-        // in its busy state or hide the parameters from the user.
-        void loadDynamicParameterOptions(
-          target.source_url.trim(), dynamicNames
-        );
-      }
     } catch (err) {
       console.error("Layer metadata generation failed", err);
       setFormMessage(layerErrorMessage(err, "יצירת התיאור והתגיות נכשלה."));
     } finally {
       setGeneratingMetadata(false);
-    }
-  };
-
-  const handleFetchDynamicOptions = async (parameterName: string) => {
-    if (!sourceUrl.trim() || loadingDynamicParameter) return;
-    setLoadingDynamicParameter(parameterName);
-    setFormMessage(null);
-    try {
-      const result = await fetchCubesAutocompleteOptions({
-        source_url: sourceUrl.trim(), parameter_name: parameterName,
-      });
-      setDynamicParameterOptions((current) => ({ ...current, [parameterName]: result.options }));
-    } catch (err) {
-      console.error("Cubes autocomplete fetch failed", err);
-      setFormMessage(layerErrorMessage(err, "טעינת אפשרויות הפרמטר נכשלה."));
-    } finally {
-      setLoadingDynamicParameter(null);
-    }
-  };
-
-  const handleSelectDynamicParameter = (parameterName: string, value: string) => {
-    const selectedDynamicValues = {
-      ...dynamicParameterValues,
-      [parameterName]: value,
-    };
-    setDynamicParameterValues(selectedDynamicValues);
-    const allDynamicParametersSelected = dynamicParameterNames.every(
-      (parameterName) => {
-        const definition = parameterDefinitions.find(
-          (item) => item.name === parameterName
-        );
-        return !definition?.required
-          || definition.has_default
-          || isPackageGeometryParameter(definition)
-          || Boolean(selectedDynamicValues[parameterName]);
-      }
-    );
-    if (allDynamicParametersSelected && (!requiresSamplePolygon || cubesSampleBoundary)) {
-      void handleGenerateMetadata(undefined, selectedDynamicValues);
-    } else if (requiresSamplePolygon && !cubesSampleBoundary) {
-      setFormMessage("יש לבחור פוליגון לדגימת ה-metadata.");
-    } else {
-      setFormMessage("יש לבחור ערך לכל הפרמטרים הנדרשים.");
     }
   };
 
@@ -573,35 +486,6 @@ export default function LayersPanel({
     }
   };
 
-  const handleAddDynamicParameter = (parameterName: string): boolean => {
-    if (dynamicParameterNames.some(
-      (name) => name.toLocaleLowerCase() === parameterName.toLocaleLowerCase()
-    )) {
-      setFormMessage(`הפרמטר ${parameterName} כבר נוסף.`);
-      return false;
-    }
-    setManualDynamicParameterNames((current) => [...current, parameterName]);
-    setDynamicParameterNames((current) => [...current, parameterName]);
-    setParameterDefinitions((current) => [...current, {
-      name: parameterName,
-      display_name: "",
-      description: "",
-      type: "string",
-      required: true,
-      single_value: true,
-      ontology_type: "",
-      has_default: false,
-      dynamic: true,
-      options: [],
-    }]);
-    if (sourceUrl.trim()) {
-      void handleFetchDynamicOptions(parameterName);
-    } else {
-      setFormMessage("יש להזין קודם שם Cube, ואז לטעון את אפשרויות הפרמטר.");
-    }
-    return true;
-  };
-
   const selectMqsLayer = (layer: RemoteMqsLayer) => {
     setName(layer.name);
     setDescription(layer.description);
@@ -612,13 +496,12 @@ export default function LayersPanel({
     resetTycheConfig();
     setDisplayField(layer.display_field ?? "");
     setProfiles(layer.profiles?.join(", ") ?? "");
-    setFlapiResourceType("cube");
     setPackageQuery("");
-    setCubesQueryMode("auto");
+    setPackageInputParameter("");
+    setPackageOutputFields([]);
+    setAvailableOutputFields([]);
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
-    setManualDynamicParameterNames([]);
-    setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
@@ -635,13 +518,12 @@ export default function LayersPanel({
     resetTycheConfig();
     setDisplayField("");
     setProfiles("");
-    setFlapiResourceType("cube");
     setPackageQuery("");
-    setCubesQueryMode("auto");
+    setPackageInputParameter("");
+    setPackageOutputFields([]);
+    setAvailableOutputFields([]);
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
-    setManualDynamicParameterNames([]);
-    setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
@@ -655,44 +537,18 @@ export default function LayersPanel({
     setActiveSection("new");
   };
 
-  const startCubesLayer = () => {
-    setProvider("flapi");
-    setFlapiResourceType("cube");
-    setPackageQuery("");
-    setSourceUrl("");
-    resetTycheConfig();
-    setDisplayField("");
-    setProfiles("");
-    setDynamicParameterNames([]);
-    setParameterDefinitions([]);
-    setManualDynamicParameterNames([]);
-    setDynamicParameterOptions({});
-    setDynamicParameterValues({});
-    setRequiresSamplePolygon(false);
-    setCubesSampleBoundary(null);
-    setCubesSampleBoundarySource(null);
-    setName("");
-    setDescription("");
-    setTags([]);
-    setTagDraft("");
-    setCubesQueryMode("auto");
-    setFormMessage("הזינו שם שכבה ושם Cube, ואז הפעילו יצירת תיאור ותגיות.");
-    setDraftSection("cube");
-    setActiveSection("cube");
-  };
-
   const startFlowPackage = () => {
     setProvider("flapi");
-    setFlapiResourceType("package");
     setPackageQuery("");
+    setPackageInputParameter("");
+    setPackageOutputFields([]);
+    setAvailableOutputFields([]);
     setSourceUrl("");
     resetTycheConfig();
     setDisplayField("");
     setProfiles("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
-    setManualDynamicParameterNames([]);
-    setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
@@ -714,13 +570,12 @@ export default function LayersPanel({
     resetTycheConfig();
     setDisplayField("");
     setProfiles("");
-    setFlapiResourceType("cube");
     setPackageQuery("");
-    setCubesQueryMode("auto");
+    setPackageInputParameter("");
+    setPackageOutputFields([]);
+    setAvailableOutputFields([]);
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
-    setManualDynamicParameterNames([]);
-    setDynamicParameterOptions({});
     setDynamicParameterValues({});
     setRequiresSamplePolygon(false);
     setCubesSampleBoundary(null);
@@ -745,8 +600,6 @@ export default function LayersPanel({
       setActiveSection(section);
     } else if (section === "new") {
       startManualLayer();
-    } else if (section === "cube") {
-      startCubesLayer();
     } else if (section === "flow") {
       startFlowPackage();
     } else {
@@ -938,12 +791,12 @@ export default function LayersPanel({
                     resetTycheConfig();
                     setDisplayField("");
                     setProfiles("");
-                    setFlapiResourceType("cube");
                     setPackageQuery("");
+                    setPackageInputParameter("");
+                    setPackageOutputFields([]);
+                    setAvailableOutputFields([]);
                     setDynamicParameterNames([]);
                     setParameterDefinitions([]);
-                    setManualDynamicParameterNames([]);
-                    setDynamicParameterOptions({});
                     setDynamicParameterValues({});
                     setRequiresSamplePolygon(false);
                     setCubesSampleBoundary(null);
@@ -1030,8 +883,6 @@ export default function LayersPanel({
             <label className="field-label" htmlFor="layer-source-url">
               {isFlowPackage
                 ? "Flow Package ID"
-                : isCubeResource
-                ? "שם Cube / database"
                 : providerName === "tyche"
                   ? "נתיב Tyche"
                   : "כתובת המקור"}
@@ -1049,11 +900,9 @@ export default function LayersPanel({
               placeholder={
                 isFlowPackage
                   ? "466192 (or flapi://package/466192)"
-                  : isCubeResource
-                    ? "transport (or flapi://cube/transport)"
-                    : providerName === "tyche"
-                      ? "alerts (או /coordinate/v1/alerts)"
-                      : "https://provider.example/layer"
+                  : providerName === "tyche"
+                    ? "alerts (או /coordinate/v1/alerts)"
+                    : "https://provider.example/layer"
               }
               dir="ltr"
             />
@@ -1195,50 +1044,6 @@ export default function LayersPanel({
                   busy={generatingMetadata || saving}
                 />
               </>
-            )}
-            {isCubeResource && (
-              <fieldset className="cubes-query-mode">
-                <legend>מבנה שאילתת זמן וגיאוגרפיה</legend>
-                <div className="cubes-query-mode-options">
-                  {([
-                    ["auto", "אוטומטי", "לפי ה-metadata של ה-Cube"],
-                    ["match_not", "match / not", "From/To, TimeBack ו-Location"],
-                    ["legacy", "Legacy", "מבנה השעה היחסית הקיים"],
-                  ] as const).map(([value, title, detail]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={cubesQueryMode === value ? "active" : ""}
-                      aria-pressed={cubesQueryMode === value}
-                      onClick={() => setCubesQueryMode(value)}
-                    >
-                      <strong dir={value === "auto" ? "rtl" : "ltr"}>{title}</strong>
-                      <small>{detail}</small>
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-            {isCubeResource && (
-              <CubesParametersFieldset
-                definitions={parameterDefinitions}
-                options={dynamicParameterOptions}
-                values={dynamicParameterValues}
-                loadingParameter={loadingDynamicParameter}
-                busy={generatingMetadata}
-                sourceConfigured={Boolean(sourceUrl.trim())}
-                onAddManual={handleAddDynamicParameter}
-                onFetchOptions={(parameterName) => {
-                  void handleFetchDynamicOptions(parameterName);
-                }}
-                onSelect={handleSelectDynamicParameter}
-                onChangeValue={(parameterName, value) => {
-                  setDynamicParameterValues((current) => ({
-                    ...current,
-                    [parameterName]: value,
-                  }));
-                }}
-              />
             )}
             {isFlowPackage && (
               <PackageParametersFieldset

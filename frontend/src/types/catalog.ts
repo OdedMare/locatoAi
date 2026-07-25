@@ -2,9 +2,6 @@
 
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 
-export type CubesQueryMode = "auto" | "match_not" | "legacy";
-export type FlapiResourceType = "cube" | "package";
-
 export interface CatalogLayer {
   id: string;
   name: string;
@@ -26,10 +23,6 @@ export interface CreateLayerRequest {
   tags: string[];
   provider: string;
   source_url: string;
-  flapi_resource_type?: FlapiResourceType;
-  cubes_query_mode?: CubesQueryMode;
-  cubes_parameters?: Record<string, string>;
-  cubes_dynamic_parameters?: Record<string, string>;
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
   package_input_parameter?: string | null;
@@ -64,10 +57,6 @@ export interface GenerateLayerMetadataRequest {
   name: string;
   provider: string;
   source_url: string;
-  flapi_resource_type?: FlapiResourceType;
-  cubes_query_mode?: CubesQueryMode;
-  cubes_parameters?: Record<string, string>;
-  cubes_dynamic_parameters?: Record<string, string>;
   package_parameters?: Record<string, unknown>;
   package_query?: string | null;
   package_input_parameter?: string | null;
@@ -79,20 +68,6 @@ export interface GenerateLayerMetadataRequest {
   tyche_time_from_field?: string;
   tyche_time_to_field?: string;
   tyche_parameters?: Record<string, string>;
-}
-
-export interface CubesAutocompleteRequest {
-  source_url: string;
-  parameter_name: string;
-}
-
-export interface CubesAutocompleteOption {
-  value: string;
-  name: string;
-}
-
-export interface CubesAutocompleteResponse {
-  options: CubesAutocompleteOption[];
 }
 
 export interface GeneratedLayerMetadataResponse {

@@ -85,7 +85,7 @@ app/
 │   ├── feedback/            # configurable PostgreSQL feedback repository
 │   ├── providers/
 │   │   ├── mqs/             # MQS REST adapter + collaborators
-│   │   ├── flapi/           # Cubes + Flow Packages, shared FLAPI client/schema
+│   │   ├── flapi/           # Flow Package adapter (FLAPI/flunks)
 │   │   ├── tyche/           # Tyche adapter + collaborators
 │   │   └── registry.py      # provider name → adapter instance
 │   └── llm/
@@ -112,8 +112,7 @@ The service tier exposes these routes:
 | `POST /api/layers` | Create one catalog record. |
 | `PUT /api/layers/{id}` | Edit layer name, description, and tags without changing its provider/source. |
 | `DELETE /api/layers/{id}` | Remove one layer from the catalog. |
-| `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities; also reports any Cubes dynamic (autocomplete-backed) parameter names. |
-| `POST /api/layers/autocomplete-parameter` | Fetch live values for a Cubes dynamic parameter (never cached — the source cube can change schema). |
+| `POST /api/layers/generate-metadata` | Suggest editable description/tags from up to 10 random source entities. |
 | `POST /api/layers/activate-tyche` | Probe Tyche and idempotently activate the Our Forces layer. |
 | `GET /api/layers/mqs` | Browse remote MQS inventory without persisting it. |
 | `POST /api/layers/sync-mqs` | Upsert remote MQS inventory into PostgreSQL. |
@@ -124,7 +123,7 @@ The service tier exposes these routes:
 | `POST /api/feedback` | Persist a thumbs verdict and selection context. |
 
 `main.py` creates the settings store, repositories, provider registry, MQS,
-Cubes and Tyche providers, catalog, executor, LLM client, both agent stages,
+FLAPI, and Tyche providers, catalog, executor, LLM client, both agent stages,
 and orchestrator.
 These long-lived objects are attached to `app.state`; routers retrieve them
 directly or through `service/dependencies.py`.
@@ -349,8 +348,8 @@ system-merged-into-user when a compatible server rejects schema guidance.
 
 The catalog's `provider` column routes each layer to a registered adapter
 ([`registry.py`](app/dal/providers/registry.py), wired in `main.py`). **Production
-registers `mqs`, `flapi`, `cubes`, and `tyche`** — `cubes` is a compatibility alias
-for the FLAPI provider, and `arcgis` is not a real provider anymore.
+registers `mqs`, `flapi`, and `tyche`** — the legacy `cubes` provider alias has been
+removed, and `arcgis` is not a real provider anymore.
 Layer selection and explicit-plan validation ignore catalog rows whose provider is not
 registered, while the catalog UI still lists them for repair/editing. If no queryable
 layers remain, selection returns a clarification instead of failing during planning.
@@ -358,7 +357,7 @@ layers remain, selection returns a clarification instead of failing during plann
 Provider modules follow one-class-per-file composition. The public provider classes are
 thin use-case coordinators; source parsing, request building, HTTP/pagination, response
 mapping, schema inference, and dense-result splitting live in named collaborators such as
-`MqsGateway`, `MqsEntityStream`, `CubesQueryBuilder`, `FlapiSchemaMapper`,
+`MqsGateway`, `MqsEntityStream`, `FlapiSchemaMapper`,
 `TycheGateway`, and `TycheFeatureMapper`. Provider files stay below 250 lines, and new
 provider behavior belongs in the collaborator that owns that single responsibility.
 
@@ -400,66 +399,12 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `AILOCATOR_MQS_DETAIL_CONCURRENCY` setting bounds detail fan-out and is listed in
   `.env.example`.
 
-- **`flapi`** — [`provider.py`](app/dal/providers/flapi/provider.py): the top-level
-  dispatcher for `flapi://cube/<name>` and `flapi://package/<id>`. The Cube path
-  delegates to `CubesProvider`; the same facade is also registered as
-  `provider="cubes"` for existing catalog rows. Both paths share one client factory,
-  the configured base URL, Authorization token, optional `username` header, TLS
-  policy, and response/schema mapper.
-
-- **Cubes** — [`cube_provider.py`](app/dal/providers/flapi/cube_provider.py):
-  time-varying entity
-  locations such as buses. Rows use `source_url="cubes://db/<dbname>"`. The provider
-  reads metadata with `GET /cube/v1/<dbname>` and falls back to
-  `GET /cube/v1/<dbname>/parameters` when parameter definitions are not embedded.
-  Name-only entries are hydrated through
-  `GET /cube/v1/<dbname>/parameters/<parameterName>` so required flags, types,
-  options, roles, and defaults are known before any row request.
-  It posts metadata-driven temporal payloads to `/cube/v1/<dbname>`, sends the write-only
-  Authorization token, and converts WKT POINT geometry to WGS84. Declared fields are
-  merged with every non-geometry JSON key discovered dynamically; types, samples, and
-  the temporal field are inferred and cached. Exact `<name>.match` and `<name>.not`
-  names are preserved. `.match` receives the plan's ISO `From`/`To` range, `.not`
-  receives the relative time-back shape, and an unsuffixed parameter keeps the legacy
-  plain/`.not` pair. User geometry is sent through the available temporal parameter's
-  `Location` and is rechecked locally before applying a result limit.
-  A non-empty metadata `Value` is preserved and sent under the parameter's exact name
-  on every request, satisfying required fixed parameters such as `environment=prod`.
-  Configured values are excluded from model-facing schema serialization.
-  Required selectors with options and dynamic selectors are resolved during the
-  two-phase catalog flow, then stored in `source_url` as exact `param_<name>` values.
-  New requests use `cubes_parameters`; `cubes_dynamic_parameters` is retained for
-  compatibility. A declared `polygon` receives `{"value": [<boundary WKT>]}` and a
-  plain `date` receives `{"TimeBackUnit":"no_time","TimeBackValue":1}`.
-  Moving-entity plans use provider-declared identity/time schema roles.
-  `latest_per_entity`, `movement_direction`,
-  `trajectory_relation`, and `origin_movement` prevent repeated observations from being
-  mistaken for multiple vehicles and support single- and multi-track questions.
-  `ResultsLimit` controls truncation detection (default 10,000). When a bounded request
-  reaches it, the provider adaptively splits only saturated spatial tiles, recursively
-  fetches them, and deduplicates complete JSON observations. Depth and a 100,000-row
-  safety ceiling prevent runaway fan-out; an unbounded capped request fails loudly.
-  The generic metadata endpoint accepts a bare database name, normalizes it to
-  `cubes://db/<dbname>`, fetches a bounded sample, and feeds the cube's official
-  name/description, fields, request parameters/options, and entity samples to editable
-  description/tag generation.
-  Dynamic parameter names are arbitrary (for example `vehicleType` or `fl:dynamic`).
-  Metadata can identify them with `Role=dynamic` or a `:dynamic` suffix; if metadata omits
-  one, the catalog accepts its exact name manually and the provider injects the resolved
-  value even without a parameter definition. A dynamic selector is backed by a child
-  autocomplete cube — its declared `Options` are unusable placeholders
-  (`LayerParameter.is_dynamic` marks it and drops those options). The exact name is
-  preserved in the final request body. Valid values come only from
-  `POST /cube/v1/<dbname>/autocomplete/<parameterName>`
-  (`CubesProvider.fetch_autocomplete_options`, never cached — these cubes can change
-  schema), exposed to the catalog UI via `POST /api/layers/autocomplete-parameter`.
-  Metadata generation discovers unresolved dynamic parameters without fetching rows;
-  after the UI resolves them, a second metadata request samples the normal cube route
-  with those values in its request body.
-  Resolution happens once at layer-add time, not per query: the user's chosen
-  `{parameter_name: value}` map is folded into `source_url` as `param_<name>=<value>`
-  query params (`cubes_resolved_parameters`), the same mechanism `query_mode` already
-  uses. A required dynamic parameter with no resolved value fails loudly at fetch time.
+- **`flapi`** — [`provider.py`](app/dal/providers/flapi/provider.py): wraps
+  `FlowPackageProvider` directly — FLAPI serves Flow Package resources only. There is
+  no Cube/Package dispatch and no legacy `cubes` registration; every `flapi://` source
+  is a package. The provider shares one client factory, the configured base URL,
+  Authorization token, optional `username` header, TLS policy, and response/schema
+  mapper.
 
 - **Flow Packages** — [`package_provider.py`](app/dal/providers/flapi/package_provider.py):
   catalog rows use `provider="flapi"` and `flapi://package/<packageId>`. Parameter
@@ -535,8 +480,8 @@ value, GET responses expose only presence or masked hints, and the full values
 remain in the backend runtime settings file.
 
 Every deployable setting has an environment default; see [`.env.example`](.env.example).
-UI values remain live overrides. MQS, Cubes, and Tyche verify TLS certificates by
-default. Cubes and Tyche Authorization tokens have write-only API/UI semantics.
+UI values remain live overrides. MQS, FLAPI, and Tyche verify TLS certificates by
+default. FLAPI and Tyche Authorization tokens have write-only API/UI semantics.
 
 ---
 
