@@ -1,5 +1,6 @@
 
 
+import logging
 import time
 from inspect import signature
 from typing import Dict, List, Optional, Tuple
@@ -26,6 +27,7 @@ class CatalogService:
         self._schema_cache: Dict[
             Tuple[str, Optional[bytes]], Tuple[LayerSchema, float]
         ] = {}
+        self._logger = logging.getLogger(__name__)
 
     def list_layers(self) -> List[LayerMeta]:
         return self._repository.list_layers()
@@ -89,11 +91,25 @@ class CatalogService:
             return cached[0]
         layer = self.get_layer(layer_id)
         provider = self._providers.get(layer.provider)
+        self._logger.info(
+            "Schema describe layer=%s provider=%s has_geometry=%s cached=%s",
+            layer_id, layer.provider, geometry is not None, cached is not None,
+        )
         try:
             schema = self._describe(provider, layer, geometry)
         except Exception as exc:
+            self._logger.error(
+                "Schema describe FAILED layer=%s provider=%s "
+                "has_geometry=%s serving_stale=%s -> %s: %s",
+                layer_id, layer.provider, geometry is not None,
+                cached is not None, type(exc).__name__, exc,
+            )
             return self._stale_or_error(cached, layer, layer_id, exc)
         self._schema_cache[key] = (schema, time.monotonic())
+        self._logger.info(
+            "Schema describe OK layer=%s fields=%d time_field=%s",
+            layer_id, len(schema.fields), schema.temporal_field,
+        )
         return schema
 
     @staticmethod

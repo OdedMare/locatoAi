@@ -23,6 +23,13 @@ full backend pipeline and repository-wide constraints.
   picker. Supported copy formats are lat/lon, lon/lat, DMS, and WKT.
 - Quick-question presets are intentionally absent. `RequestPreview` copies the full
   request/response/plan/trace debug bundle, and frontend failures go to the console.
+- `services/queryDebugLog.ts` mirrors the whole backend pipeline into the DevTools
+  console: `QueryDebugLog.stage` prints each streamed trace entry as it arrives (so a
+  failing step is visible live, not only at the end), and `.completed` prints a
+  collapsed group with timings, tokens, selected layers, plan, and a `console.table` of
+  the trace, re-logging every failed entry with its `error_type`/`error`. Backend
+  `ProviderError` text (e.g. a FLAPI package rejection) reaches it verbatim through the
+  executor's per-step failed trace.
 - Preserve RTL defaults and mark URLs, identifiers, JSON, and credentials LTR.
 - `AgentStudioPanel` edits the `area-summary` profile's numbered
   `## Workflow` section through accessible add/delete/reorder controls; the

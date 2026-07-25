@@ -3,6 +3,7 @@ import type {
   GeoQueryResponse,
   PipelineTraceEntry,
 } from "@/types/geo-query";
+import { QueryDebugLog } from "@/services/queryDebugLog";
 
 export type QueryProgressHandler = (entry: PipelineTraceEntry) => void;
 
@@ -110,6 +111,8 @@ async function readStream(
   }
   for await (const frame of streamFrames(response.body)) {
     if (frame.event === "trace") {
+      // Mirror every stage into DevTools as it streams, not just at the end.
+      QueryDebugLog.stage(frame.data as PipelineTraceEntry);
       onProgress?.(frame.data as PipelineTraceEntry);
     } else if (frame.event === "result") {
       return frame.data as GeoQueryResponse;
@@ -149,7 +152,7 @@ export async function submitQuery(
   streamMode = true,
 ): Promise<GeoQueryResponse> {
   const clientRequestId = crypto.randomUUID();
-  console.info("Query pipeline started", { requestId: clientRequestId, request });
+  QueryDebugLog.started(clientRequestId, request);
   try {
     const response = await fetch(streamMode ? "/api/query/stream" : "/api/query", {
       method: "POST",
@@ -165,17 +168,17 @@ export async function submitQuery(
         ? await readStream(response, clientRequestId, onProgress)
         : await response.json() as GeoQueryResponse
       : await httpFailure(response, clientRequestId);
-    const log = result.status === "error" ? console.error : console.info;
-    log("Query pipeline completed", result);
+    QueryDebugLog.completed(result);
     return result;
   } catch (error) {
     const message = "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.";
     const trace = [transportFailure(message, "NetworkError", {
       cause: error instanceof Error ? error.message : String(error),
     })];
-    console.error("Query pipeline failed", {
+    QueryDebugLog.transportFailed({
       status: 0, detail: message, errorType: "NetworkError",
       pipelineTrace: trace, requestId: clientRequestId,
+      cause: error,
     });
     return failedResponse(message, clientRequestId, trace);
   }

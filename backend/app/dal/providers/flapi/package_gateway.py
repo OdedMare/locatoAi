@@ -12,6 +12,7 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.errors.provider_error import ProviderError
 from app.dal.providers.flapi.client_factory import FlapiClientFactory
 from app.dal.providers.flapi.flunks_metadata_patch import FlunksMetadataPatch
+from app.dal.providers.flapi.package_debug import FlowPackageDebug
 from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
 from app.dal.providers.flapi.source import FlapiSource
 
@@ -55,20 +56,46 @@ class FlowPackageGateway:
         output_cube_name: Optional[str],
     ) -> List[dict]:
         package_id = self._source.package_id(layer)
+        self._logger.info(
+            "FLAPI package RUN id=%s layer=%s output_cube=%r %s",
+            package_id, layer.id, output_cube_name,
+            FlowPackageDebug.input_cube(input_cube),
+        )
         runner = self._build_runner(package_id, input_cube, output_cube_name)
         try:
             records = runner.run()
         except Exception as exc:
+            self._logger.error(
+                "FLAPI package FAILED id=%s layer=%s %s -> %s: %s",
+                package_id, layer.id,
+                FlowPackageDebug.input_cube(input_cube),
+                type(exc).__name__, exc,
+            )
             raise ProviderError(
                 f"FLAPI package {package_id} execution failed: {exc}"
             ) from exc
         finally:
             self.success_chunks = getattr(runner, "success_chunks", 0)
             self.failed_chunks = getattr(runner, "failed_chunks", 0)
-        return self._records(records, output_cube_name)
+            self._logger.info(
+                "FLAPI package CHUNKS id=%s success=%s failed=%s",
+                package_id, self.success_chunks, self.failed_chunks,
+            )
+        rows = self._records(records, output_cube_name)
+        self._logger.info(
+            "FLAPI package OK id=%s layer=%s %s",
+            package_id, layer.id, FlowPackageDebug.records(rows),
+        )
+        return rows
 
     def _build_runner(self, package_id, input_cube, output_cube_name):
         settings = self._clients.require_settings(require_username=True)
+        # Credentials are never logged — only whether they are present.
+        self._logger.info(
+            "FLAPI package CONFIG id=%s base_url=%s username=%s token_set=%s",
+            package_id, settings.cubes_base_url, settings.flapi_username,
+            bool(settings.cubes_token),
+        )
         flapi_config = FlapiConfig(
             username=settings.flapi_username, token=settings.cubes_token,
             base_url=settings.cubes_base_url,

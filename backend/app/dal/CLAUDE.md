@@ -133,6 +133,17 @@ plain `list[dict]` of result records — and reads `runner.success_chunks`/`fail
 for diagnostics. Each record is tagged with `_package_query=<output_cube_name>`;
 non-dict records are skipped, a non-list response raises `ProviderError`.
 
+**Debug logging (`package_debug.py`).** `FlowPackageDebug` renders bounded, log-safe
+descriptions so a failed package run is diagnosable from the console alone. Grep these
+prefixes, in pipeline order: `Schema describe` (BL, includes `has_geometry`) →
+`FLAPI describe_schema` → `FLAPI fetch_features` → `FLAPI source` (parsed cube names +
+`source_url`) → `FLAPI input cube BUILD`/`READY` → `FLAPI package CONFIG` (base URL and
+`token_set`, never the token) → `FLAPI package RUN` → `CHUNKS`/`OK`/`FAILED`.
+`fetch_features` logs `rows`/`mapped`/`after_intersect`/`returned` so rows lost to
+geometry parsing are distinguishable from rows lost to the boundary intersect. An empty
+input cube logs `values=EMPTY (FLAPI will reject this)`; WKT is truncated to 120 chars
+with the total length, keeping geometry type and leading coordinates visible.
+
 **`flunks_metadata_patch.py` — temporary upstream workaround.** flunks types
 `FlowResults.metadata.isPartialSuccess` as `str`, but FLAPI sends a JSON boolean, and
 pydantic v2 does not coerce `bool` -> `str`. Every successful package run therefore died
