@@ -1,7 +1,7 @@
 """Build Tyche requests."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from shapely.geometry.base import BaseGeometry
 
@@ -20,8 +20,15 @@ class TycheQueryBuilder:
         page_tracker: Optional[str] = None,
         time_field: str = "eventTime",
         geo_query_field: str = "location",
+        time_from_field: Optional[str] = None,
+        time_to_field: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> dict:
-        body = self._base_body(now, temporal_range, size, time_field)
+        body = dict(parameters or {})
+        body.update(self._base_body(
+            now, temporal_range, size, time_field,
+            time_from_field, time_to_field,
+        ))
         if geometry is not None:
             body[geo_query_field] = {"match": geometry.wkt}
         if page_tracker:
@@ -34,12 +41,19 @@ class TycheQueryBuilder:
         temporal_range: Optional[Tuple[str, str]],
         size: int,
         time_field: str,
+        time_from_field: Optional[str],
+        time_to_field: Optional[str],
     ) -> dict:
-        return {
-            time_field: {"match": self._time_window(now, temporal_range)},
-            "size": size,
-            "fetchPaging": True,
-        }
+        window = self._time_window(now, temporal_range)
+        body = {"size": size, "fetchPaging": True}
+        if time_from_field and time_to_field:
+            body.update({
+                time_from_field: window["gte"],
+                time_to_field: window["lte"],
+            })
+        else:
+            body[time_field] = {"match": window}
+        return body
 
     def _time_window(
         self,

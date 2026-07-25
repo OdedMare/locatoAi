@@ -93,6 +93,8 @@ class TycheProvider:
             lambda size, tracker: self._query_builder.build(
                 now, geometry, temporal_range, size, tracker,
                 source.time_field, source.geo_query_field,
+                source.time_from_field, source.time_to_field,
+                source.parameters,
             ),
             limit,
         )

@@ -36,6 +36,8 @@ _TYCHE_FIELDS = {
     "geo_query_field": "location",
     "time_field": "eventTime",
     "entity_field": "",
+    "time_from_field": "",
+    "time_to_field": "",
 }
 
 
@@ -148,6 +150,9 @@ class CatalogRouter:
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
                 tyche_entity_field=body.tyche_entity_field,
+                tyche_time_from_field=body.tyche_time_from_field,
+                tyche_time_to_field=body.tyche_time_to_field,
+                tyche_parameters=body.tyche_parameters,
             ),
             sample_geometry=cls._sample_geometry(body),
         )
@@ -224,6 +229,9 @@ class CatalogRouter:
         tyche_geo_query_field: Optional[str] = None,
         tyche_time_field: Optional[str] = None,
         tyche_entity_field: Optional[str] = None,
+        tyche_time_from_field: Optional[str] = None,
+        tyche_time_to_field: Optional[str] = None,
+        tyche_parameters: Optional[Dict[str, str]] = None,
     ) -> str:
         source = source_url.strip()
         if provider.strip().lower() == "cubes":
@@ -243,10 +251,12 @@ class CatalogRouter:
             )
         if provider.strip().lower() == "tyche":
             source = source if "://" in source else f"tyche://{source.strip('/')}"
-            return cls.with_tyche_fields(
+            source = cls.with_tyche_fields(
                 source, tyche_geometry_field,
                 tyche_geo_query_field, tyche_time_field, tyche_entity_field,
+                tyche_time_from_field, tyche_time_to_field,
             )
+            return cls.with_parameters(source, tyche_parameters or {})
         return source
 
     @staticmethod
@@ -275,10 +285,15 @@ class CatalogRouter:
         source: str, geometry_field: Optional[str],
         geo_query_field: Optional[str], time_field: Optional[str],
         entity_field: Optional[str] = None,
+        time_from_field: Optional[str] = None,
+        time_to_field: Optional[str] = None,
     ) -> str:
         parsed = urlsplit(source)
         query = parse_qs(parsed.query, keep_blank_values=True)
-        values = (geometry_field, geo_query_field, time_field, entity_field)
+        values = (
+            geometry_field, geo_query_field, time_field, entity_field,
+            time_from_field, time_to_field,
+        )
         for (key, default), value in zip(_TYCHE_FIELDS.items(), values):
             if value is None:
                 continue
@@ -365,6 +380,9 @@ class CatalogRouter:
                 tyche_geo_query_field=body.tyche_geo_query_field,
                 tyche_time_field=body.tyche_time_field,
                 tyche_entity_field=body.tyche_entity_field,
+                tyche_time_from_field=body.tyche_time_from_field,
+                tyche_time_to_field=body.tyche_time_to_field,
+                tyche_parameters=body.tyche_parameters,
             ),
         )
 

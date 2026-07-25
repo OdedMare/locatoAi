@@ -39,6 +39,9 @@ export interface CreateLayerRequest {
   tyche_geo_query_field?: string;
   tyche_time_field?: string;
   tyche_entity_field?: string;
+  tyche_time_from_field?: string;
+  tyche_time_to_field?: string;
+  tyche_parameters?: Record<string, string>;
 }
 
 export interface UpdateLayerRequest {
@@ -70,6 +73,9 @@ export interface GenerateLayerMetadataRequest {
   tyche_geo_query_field?: string;
   tyche_time_field?: string;
   tyche_entity_field?: string;
+  tyche_time_from_field?: string;
+  tyche_time_to_field?: string;
+  tyche_parameters?: Record<string, string>;
 }
 
 export interface CubesAutocompleteRequest {

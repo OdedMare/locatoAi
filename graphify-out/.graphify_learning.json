@@ -1,5 +1,38 @@
 {
-  "generated_at": "2026-07-25T08:02:57.608278+00:00",
-  "nodes": {},
+  "generated_at": "2026-07-25T08:20:06.927012+00:00",
+  "nodes": {
+    "backend_app_bl_agent_generate_layer_metadata_layer_metadata_generator_rationale_1": {
+      "code_fingerprint": "35dc3e59fe92c2a68407aa240b426baec724120095d116e348326cb1fc2b7baf",
+      "label": "Generate editable catalog metadata from a bounded provider sample.",
+      "last": "2026-07-25T08:13:52.056465+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T08:13:52.056465+00:00",
+          "outcome": "useful",
+          "q": "fix the mqs thing"
+        }
+      ],
+      "score": 0.999899758,
+      "source_file": "backend/app/bl/agent/generate_layer_metadata/layer_metadata_generator.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_mqs_gateway_mqsgateway_entities_page_with_meta": {
+      "code_fingerprint": "e03eaf2419b4456316d320ceec2feb4f0f8a5be293d56c68a722db568ad42561",
+      "label": ".entities_page_with_meta()",
+      "last": "2026-07-25T08:13:52.056465+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T08:13:52.056465+00:00",
+          "outcome": "useful",
+          "q": "fix the mqs thing"
+        }
+      ],
+      "score": 0.999899758,
+      "source_file": "backend/app/dal/providers/mqs/gateway.py",
+      "status": "tentative",
+      "uses": 1
+    }
+  },
   "version": 1
 }

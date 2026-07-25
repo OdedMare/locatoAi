@@ -133,6 +133,28 @@ def test_custom_layer_uses_its_route_and_field_mapping(tmp_path):
     }
 
 
+def test_custom_layer_supports_split_time_and_required_parameters(tmp_path):
+    provider, handler = make_provider(tmp_path, [{
+        "results": [record()], "hasMoreResults": False,
+    }])
+    custom = layer(
+        "tyche://alerts?time_from_field=timeFrom&time_to_field=timeTo"
+        "&param_environment=prod&param_includeArchived=false&param_threshold=3"
+    )
+
+    provider.fetch_features(custom, temporal_range=(
+        "2026-06-06T06:00:00.000Z", "2026-06-06T07:00:00.000Z",
+    ))
+
+    body = request_body(handler.requests[0])
+    assert body["timeFrom"] == "2026-06-06 06:00:00.000"
+    assert body["timeTo"] == "2026-06-06 07:00:00.000"
+    assert "eventTime" not in body
+    assert body["environment"] == "prod"
+    assert body["includeArchived"] is False
+    assert body["threshold"] == 3
+
+
 def test_default_event_window_is_one_hour_ending_at_now(tmp_path):
     provider, handler = make_provider(tmp_path, [{
         "results": [record()], "hasMoreResults": False,
@@ -279,4 +301,12 @@ def test_rejects_invalid_catalog_source(tmp_path):
         provider.fetch_features(layer(
             "tyche://alerts?time_field=observedAt"
             "&entity_field=observedAt"
+        ))
+    with pytest.raises(ProviderError, match="configured together"):
+        provider.fetch_features(layer(
+            "tyche://alerts?time_from_field=timeFrom"
+        ))
+    with pytest.raises(ProviderError, match="configured parameters"):
+        provider.fetch_features(layer(
+            "tyche://alerts?param_size=25"
         ))

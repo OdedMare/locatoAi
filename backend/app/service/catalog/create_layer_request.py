@@ -35,6 +35,15 @@ class CreateLayerRequest(CubesParameterValues):
     tyche_time_field: Optional[str] = Field(
         default=None, min_length=1, max_length=200
     )
+    tyche_time_from_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )
+    tyche_time_to_field: Optional[str] = Field(
+        default=None, min_length=1, max_length=200
+    )
     tyche_entity_field: Optional[str] = Field(
         default=None, min_length=1, max_length=200
+    )
+    tyche_parameters: Dict[str, str] = Field(
+        default_factory=dict, max_length=50
     )
