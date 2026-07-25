@@ -46,33 +46,42 @@ class FlowPackageSerializer:
             kind, input_cube_name, input_cube_parameter, temporal_range,
             FlowPackageDebug.geometry(geometry),
         )
-        if not input_cube_name:
-            raise ProviderError("Flow Package input cube name is required")
-        if not input_cube_parameter:
-            raise ProviderError("Flow Package input cube parameter is required")
+        self._validate_names(input_cube_name, input_cube_parameter)
         if kind == "geo":
-            cube = PackageInputCube(
-                cube_name=input_cube_name,
-                cube_parameter=input_cube_parameter,
-                values=self._multipolygons(geometry),
+            cube = self._geo_cube(
+                input_cube_name, input_cube_parameter, geometry
             )
         else:
-            start, end = self._range(temporal_range, now)
-            cube = PackageInputCube(
-                cube_name=input_cube_name,
-                cube_parameter=input_cube_parameter,
-                start_time=start,
-                end_time=end,
+            cube = self._time_cube(
+                input_cube_name, input_cube_parameter, temporal_range, now
             )
         self._logger.info(
             "FLAPI input cube READY %s", FlowPackageDebug.input_cube(cube)
         )
         return cube
 
+    @staticmethod
+    def _validate_names(name: Optional[str], parameter: Optional[str]) -> None:
+        if not name:
+            raise ProviderError("Flow Package input cube name is required")
+        if not parameter:
+            raise ProviderError("Flow Package input cube parameter is required")
+
+    def _geo_cube(self, name, parameter, geometry):
+        return PackageInputCube(
+            cube_name=name,
+            cube_parameter=parameter,
+            values=self._multipolygons(geometry),
+        )
+
+    def _time_cube(self, name, parameter, temporal_range, now):
+        start, end = self._range(temporal_range, now)
+        return PackageInputCube(
+            cube_name=name, cube_parameter=parameter,
+            start_time=start, end_time=end,
+        )
+
     def _multipolygons(self, geometry: Optional[BaseGeometry]) -> List[str]:
-        # FLAPI rejects an empty main cube input ("Please enter values for the
-        # main cube input"), so there is no useful no-geometry fallback here —
-        # say which layer configuration is at fault instead.
         if geometry is None or geometry.is_empty:
             raise ProviderError(
                 "Flow Package geographic input requires a query boundary — "
@@ -80,8 +89,6 @@ class FlowPackageSerializer:
             )
         parts = getattr(geometry, "geoms", None)
         polygons = list(parts) if parts is not None else [geometry]
-        # One geographic layer is one identifier: every boundary polygon goes
-        # into a single MULTIPOLYGON so the package runs as one chunk.
         return [MultiPolygon(polygons).wkt]
 
     def _range(
