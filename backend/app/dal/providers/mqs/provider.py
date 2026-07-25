@@ -294,9 +294,8 @@ class MqsProvider:
         self, client, layer_id, geometry, depth, parent_total,
         parent_observed, attribute_filters,
     ) -> Iterable[dict]:
-        buffered, next_page, total, visited = self._probe_region(
-            client, layer_id, geometry, attribute_filters,
-        )
+        probe = self._probe_region(client, layer_id, geometry, attribute_filters)
+        buffered, next_page, total, visited = probe
         chunks = self._split_chunks(
             geometry, depth, total, next_page, len(buffered),
             parent_total, parent_observed,
@@ -306,13 +305,11 @@ class MqsProvider:
             for chunk in chunks:
                 yield from self._geometry_region(
                     client, layer_id, chunk, depth + 1, total,
-                    len(buffered), attribute_filters,
-                )
+                    len(buffered), attribute_filters)
             return
         yield from buffered
         yield from self._remaining_pages(
-            client, layer_id, geometry, attribute_filters, next_page, visited,
-        )
+            client, layer_id, geometry, attribute_filters, next_page, visited)
 
     def _probe_region(
         self, client, layer_id, geometry, attribute_filters,

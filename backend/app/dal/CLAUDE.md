@@ -12,8 +12,8 @@ allowed to speak HTTP to external GIS/LLM systems or SQL to Postgres. `bl` never
 imports `dal` directly — everything is wired together in `app/main.py` /
 `app/application_state_wiring.py` (the composition root).
 
-Per the code-size standard in the root `CLAUDE.md`, each subsystem is split into
-one-class-per-file collaborators coordinated by a thin top-level `*Provider` class.
+Each GIS adapter intentionally has two production classes: a `*Mapper` for all
+input/output shapes and a `*Provider` for communication and use-case orchestration.
 
 ```
 app/dal/
@@ -47,47 +47,17 @@ override with no restart required.
 
 ## MQS provider — `providers/mqs/`
 
-Pipeline: `MqsSource` (parse `source_url`) → `MqsGateway` (HTTP/pagination) →
-`MqsEntityStream` (adaptive quadtree splitting/dedup/enrichment) → `MqsEntityMapper`
-(schema mapping) → `MqsSchemaBuilder` (dynamic field inference), coordinated by
-`MqsProvider` (implements `Provider`).
+There are exactly two production classes:
 
-| File | Class | Role |
-|---|---|---|
-| `provider.py` | `MqsProvider` | Orchestrator |
-| `source.py` | `MqsSource` | Parses `mqs://layer/<id>`; resolves the temporal field tag |
-| `filter_builder.py` | `MqsFilterBuilder` | Builds the POST filter body (`geo_polygon`/`geo_bounding_box`, `simple_operators.match`); quadrant-splits a geometry |
-| `gateway.py` | `MqsGateway` | HTTP boundary: GET/POST, pagination, `/MoriaProject/{id}/EntityInfo/{entity_id}` detail fetch, layer listing |
-| `entity_stream.py` | `MqsEntityStream` | Adaptive quadtree splitting, cross-tile dedup by `entity_id`, concurrent detail enrichment, per-layer cap |
-| `entity_mapper.py` | `MqsEntityMapper` | Normalizes entity JSON variants (`property_list` schema-agnostic parsing, WKT geometry) into GeoDataFrame records |
-| `schema_builder.py` | `MqsSchemaBuilder` | Infers `LayerSchema` from enriched sample entities |
+- `MqsMapper` (`mapper.py`) parses the layer ID, builds geography/attribute filters,
+  splits geometry, normalizes every `property_list` variant, maps WKT, and infers schema.
+- `MqsProvider` (`provider.py`) owns HTTP, paging, adaptive quadrant loading, dedup,
+  concurrent best-effort EntityInfo enrichment, sampling, and safety caps.
 
-**`MqsProvider`** public methods: `describe_schema`, `fetch_features`,
-`sample_for_metadata(layer, limit=100)` (used by catalog metadata generation — samples
-`_METADATA_SAMPLE_SIZE=10` entities, preferring ones with real business properties),
-`sample_field_values`, `list_remote_layers()` (MQS inventory browsing for the catalog UI).
-
-**Where the documented MQS business rules live** (see root `CLAUDE.md` "MQS bounded
-loading" / "MQS business metadata" sections):
-- Quadtree splitting: `MqsEntityStream._geometry_region` / `_should_split` /
-  `_split_chunks`, using `MqsFilterBuilder.split`. Bounded by `_MAX_SPLIT_DEPTH = 4`;
-  splits only when `total > PAGE_SIZE(10000)` and the region actually shrank.
-- Dedup by `entity_id`: `MqsEntityStream._bounded_query` (`seen_ids` set).
-- 10,000-row page / per-layer cap: `MqsGateway.PAGE_SIZE = 10000`;
-  `MqsEntityStream.MAX_FEATURES_PER_LAYER = 10000` in `_validate_layer_cap`.
-- 50,000-feature query-wide ceiling: `MqsGateway.MAX_FEATURES = 50000`.
-- Local re-intersection regardless of remote filter honoring:
-  `MqsEntityMapper.to_gdf(..., boundary=...)`.
-- `eq`-only `attribute_filter` pushdown as `simple_operators.match`:
-  `MqsFilterBuilder._attributes`, merged into the same POST body by `.build()`.
-- EntityInfo enrichment is best-effort: `MqsGateway.entity_detail` → `_safe_detail`
-  catches `ProviderError`, falls back to the `/Entities` row — never raises 502 for a
-  detail-fetch failure.
-- `property_list` variant parsing (object/name-value-array/camel-Pascal/nested/JSON
-  string): `MqsEntityMapper.property_attributes` → `_decode_properties`.
-- Fixed transport fields with `metadata_relevant=False`: `MqsEntityMapper.FIXED_FIELDS`
-  (`triangle`, `clearence_level`, `source_id`, `date`, `area`, `perimeter`).
-- `geo_bounding_box` vs `geo_polygon` choice: `MqsFilterBuilder._geometry`.
+The preserved limits are 10,000 rows per page/layer and 50,000 per bounded request.
+Provider geometry is always rechecked locally. Dense regions split only while child
+loads shrink; cross-tile rows deduplicate by `entity_id`. EntityInfo still uses its
+distinct route and falls back to the list entity on failure.
 
 ## FLAPI provider — `providers/flapi/`
 
@@ -113,24 +83,15 @@ FLUNKS owns endpoint routing, chunking, and retries.
 
 ## Tyche provider — `providers/tyche/`
 
-Tyche coordinate-layer provider. `tyche://ourforces` remains the canonical layer;
-additional catalog rows carry their route and field mapping in `source_url`.
+There are exactly two production classes:
 
-| File | Class | Role |
-|---|---|---|
-| `provider.py` | `TycheProvider` | Orchestrates configured Tyche catalog layers |
-| `source.py` | `TycheSource` | Parses route, geometry/geography/time field overrides, split time fields, and typed fixed request parameters |
-| `gateway.py` | `TycheGateway` | Posts to the configured route; `pageTracker` pagination, dedup, safety cap |
-| `query_builder.py` | `TycheQueryBuilder` | Builds nested or split time fields, fixed parameters, geography, and `pageTracker` |
-| `feature_mapper.py` | `TycheFeatureMapper` | Parses the configured geometry field; row dedup by `id` |
-| `schema_builder.py` | `TycheSchemaBuilder` | Fixed Our Forces fields or sampled custom-layer fields |
+- `TycheMapper` (`mapper.py`) parses `source_url`, validates field mappings, builds
+  time/geography request bodies, parses geometry, deduplicates rows, and builds schemas.
+- `TycheProvider` (`provider.py`) owns HTTP, `pageTracker` pagination, settings, local
+  boundary recheck, samples, and the 100,000-row safety cap.
 
-`TycheProvider` caches the last 100 fetched rows per layer for schema description.
-`TycheGateway._MAX_ROWS = 100000` safety cap; repeated `pageTracker` raises
-`ProviderError`; page size 10,000 — same pagination/cap/dedup pattern as MQS.
-Custom layers store split request-time names as `time_from_field`/`time_to_field` and
-fixed body values as `param_<name>` in `source_url`. Both time names must be configured
-together; fixed parameters cannot replace time, geography, or paging fields.
+`tyche://ourforces` remains canonical. Custom layers may configure split time fields and
+typed `param_<name>` values; they cannot replace time, geography, or paging fields.
 
 ## Provider registry — `providers/registry.py`
 
@@ -208,9 +169,7 @@ INSERTs. Per root `CLAUDE.md`, downvotes here are meant to be mined as new cases
 
 - `app/dal/__init__.py`, `providers/__init__.py`, `llm/__init__.py` are empty — import
   concrete modules directly, no package-level re-exports.
-- `mqs/provider.py` keeps a few module-level compatibility aliases at the bottom (e.g.
-  `mqs_layer_id`) for backward compatibility with older imports/tests — prefer the class
-  methods (`MqsSource.layer_id`) in new code.
-- Provider files stay below ~250 lines per the root `CLAUDE.md` code-size standard; new
-  provider behavior belongs in the collaborator that owns that single responsibility,
-  not bolted onto the orchestrator class.
+- `mqs/provider.py` keeps `mqs_layer_id` as a compatibility alias; new code should call
+  `MqsMapper.layer_id`.
+- Keep new GIS behavior in the existing mapper/provider pair; do not reintroduce
+  one-use gateway, source, builder, stream, schema, or client-factory classes.

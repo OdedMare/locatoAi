@@ -357,15 +357,14 @@ Layer selection and explicit-plan validation ignore catalog rows whose provider 
 registered, while the catalog UI still lists them for repair/editing. If no queryable
 layers remain, selection returns a clarification instead of failing during planning.
 
-Provider modules follow one-class-per-file composition. The public provider classes are
-thin use-case coordinators; source parsing, request building, HTTP/pagination, response
-mapping, schema inference, and dense-result splitting live in named collaborators such as
-`MqsGateway`, `MqsEntityStream`, `FlapiSchemaMapper`,
-`TycheGateway`, and `TycheFeatureMapper`. Provider files stay below 250 lines, and new
-provider behavior belongs in the collaborator that owns that single responsibility.
+Each GIS adapter now has exactly two production classes: its `*Provider` owns
+communication/orchestration and its `*Mapper` owns every input/output shape. Do not
+reintroduce one-use source, gateway, builder, stream, schema, or client-factory classes.
 
-- **`mqs`** — [`provider.py`](app/dal/providers/mqs/provider.py): the MQS (Moria Query Service)
-  REST API. Catalog rows store `source_url = "mqs://layer/{layerId}"` (base-URL-
+- **`mqs`** — [`MqsProvider`](app/dal/providers/mqs/provider.py) owns HTTP, pagination,
+  splitting, and EntityInfo enrichment; [`MqsMapper`](app/dal/providers/mqs/mapper.py)
+  owns source, filter, entity, geometry, and schema shapes. Catalog rows store
+  `source_url = "mqs://layer/{layerId}"` (base-URL-
   independent; the live base URL is the `mqs_base_url` setting, read per call —
   unset means the provider errors with a clear message → HTTP 502). MQS layers are not
   mirrored into process memory. Query-time loading pushes the request boundary to
@@ -402,30 +401,16 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `AILOCATOR_MQS_DETAIL_CONCURRENCY` setting bounds detail fan-out and is listed in
   `.env.example`.
 
-- **`flapi`** — [`provider.py`](app/dal/providers/flapi/provider.py): wraps
-  `FlowPackageProvider` directly — FLAPI serves Flow Package resources only. There is
-  no Cube/Package dispatch and no legacy `cubes` registration; every `flapi://` source
-  is a package. The provider shares one client factory, the configured base URL,
-  Authorization token, optional `username` header, TLS policy, and response/schema
-  mapper.
+- **`flapi`** — [`FlapiProvider`](app/dal/providers/flapi/provider.py) runs
+  `FlunksRunner`; [`FlunksMapper`](app/dal/providers/flapi/mapper.py) parses its source,
+  input cube, DataFrame output, geometry, and schema. FLUNKS owns HTTP, chunking, and
+  retries. Catalog rows use `flapi://package/<packageId>` plus input cube, parameter,
+  kind, and output cube options.
 
-- **Flow Packages** — [`package_provider.py`](app/dal/providers/flapi/package_provider.py):
-  catalog rows use `provider="flapi"` and `flapi://package/<packageId>`. **flunks owns
-  the entire FLAPI HTTP conversation**, so no FLAPI route or API version appears in this
-  provider — there is no parameter-discovery request, no per-parameter JSON persisted in
-  the source URL, and no `httpx` client. A layer is configured by four cube fields:
-  `input_cube_name`, `input_cube_parameter`, `input_cube_kind` (`time` | `geo`), and
-  `output_cube_name`. `FlowPackageSerializer` turns the query into one
-  `PackageInputCube` — `start_time`/`end_time` for `time`, or the whole boundary as a
-  single WKT `MULTIPOLYGON` in `values` for `geo` — and `FlowPackageGateway` runs it
-  through `FlunksRunner`. Because packages expose no discovery call, the layer schema is
-  inferred from the returned DataFrame and cached per layer. `FlowPackageRecords`
-  converts that frame to JSON-safe rows, `FlapiSchemaMapper` parses them, and the
-  provider tags them with `_package_query` before producing one GeoDataFrame. Package
-  results are currently uncapped.
-
-- **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): Tyche coordinate
-  APIs, including Our Forces at `POST /coordinate/v1/ourforces`. The canonical row uses
+- **`tyche`** — [`TycheProvider`](app/dal/providers/tyche/provider.py) owns HTTP and
+  pagination; [`TycheMapper`](app/dal/providers/tyche/mapper.py) owns source, request,
+  geometry, dedup, and schema shapes. The API includes Our Forces at
+  `POST /coordinate/v1/ourforces`. The canonical row uses
   `source_url="tyche://ourforces"`. Additional rows can select another route and store
   `geometry_field`, `geo_query_field`, `time_field`, and optional `entity_field` query
   parameters in that URL. The entity mapping declares the stable identity role used by
@@ -439,7 +424,7 @@ provider behavior belongs in the collaborator that owns that single responsibili
   `location` object with polygon WKT and is rechecked locally for correctness.
   The supplied ReDoc extract omitted the inner `location` schema, so its inferred
   `{ "match": "<WKT>" }` encoding is intentionally isolated in
-  `TycheQueryBuilder` for a local adjustment against the full OpenAPI schema.
+  `TycheMapper` for a local adjustment against the full OpenAPI schema.
   Responses accept WKT, GeoJSON objects/strings, nested geometry values, and
   longitude/latitude objects, preserving the parsed value as the GeoDataFrame
   geometry using the configured response field. Custom schemas are inferred from a

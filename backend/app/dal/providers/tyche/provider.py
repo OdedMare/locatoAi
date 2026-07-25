@@ -71,10 +71,7 @@ class TycheProvider:
         geometry: Optional[BaseGeometry], limit: Optional[int],
         temporal_range: Optional[Tuple[str, str]],
     ) -> List[dict]:
-        rows: List[dict] = []
-        tracker = None
-        seen: Set[str] = set()
-        has_more = False
+        rows, tracker, seen, has_more = [], None, set(), False
         with self._client() as client:
             while self._page_size(rows, limit) > 0:
                 body = self._mapper.request(

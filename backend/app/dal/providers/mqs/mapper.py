@@ -307,7 +307,11 @@ class MqsMapper:
         gdf = gpd.GeoDataFrame(
             list(attributes), geometry=list(geometries), crs=WGS84
         )
-        bounds = gdf.total_bounds
+        MqsMapper._validate_bounds(gdf.total_bounds)
+        return gdf
+
+    @staticmethod
+    def _validate_bounds(bounds) -> None:
         if (
             len(bounds) == 4 and not any(value != value for value in bounds)
             and not (
@@ -319,7 +323,6 @@ class MqsMapper:
                 "MQS geometry coordinates %s are outside WGS84 lon/lat range"
                 % list(bounds)
             )
-        return gdf
 
     @staticmethod
     def _dicts(values: List[object]) -> List[dict]:

@@ -111,10 +111,8 @@ class TycheMapper:
         return LayerSchema(
             layer_id=layer.id, geometry_type="Geometry", fields=fields,
             source_name="Our Forces" if source["is_our_forces"] else layer.name,
-            source_description=(
-                "Tyche own-force events and geographic positions"
-                if source["is_our_forces"] else layer.description
-            ),
+            source_description=("Tyche own-force events and geographic positions"
+                                if source["is_our_forces"] else layer.description),
             entity_field=layer.entity_field or source["entity_field"],
             temporal_field=temporal, display_field=layer.display_field,
         )
