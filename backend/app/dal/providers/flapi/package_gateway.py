@@ -13,6 +13,7 @@ from app.common.errors.provider_error import ProviderError
 from app.dal.providers.flapi.client_factory import FlapiClientFactory
 from app.dal.providers.flapi.flunks_metadata_patch import FlunksMetadataPatch
 from app.dal.providers.flapi.package_debug import FlowPackageDebug
+from app.dal.providers.flapi.package_records import FlowPackageRecords
 from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
 from app.dal.providers.flapi.source import FlapiSource
 
@@ -124,6 +125,7 @@ class FlowPackageGateway:
         )
 
     def _records(self, records: object, output_cube_name: str) -> List[dict]:
+        records = self._normalized(records)
         if not isinstance(records, list):
             # The type alone is the diagnosis: an envelope/dict here means flunks
             # changed its return contract, not that the package returned nothing.
