@@ -70,14 +70,20 @@ locatoAi/
 1. The user enters a question in `GeoQueryInput`.
 2. `AppShell` combines the text with one of three geography modes: current viewport, polygon, or rectangle.
 3. Polygon and viewport shapes are normalized to GeoJSON `MultiPolygon`, producing exactly `{query, boundaries}`.
-4. `geoQueryService` posts the request to `/api/query`. Next.js rewrites it to the FastAPI backend configured by `BACKEND_URL`.
+4. `geoQueryService` posts the request to `/api/query/stream`. Next.js rewrites it
+   to FastAPI, which sends real layer-selection, planning, and execution events over SSE.
 5. FastAPI validates the transport DTO and converts a boundary to a Shapely geometry.
 6. `LayerSelector` reads layer metadata from the PostgreSQL catalog, sanitizes it, and asks the configured model to return known layer IDs or a short Hebrew clarification.
 7. `PlanBuilder` obtains provider schemas and sample values for the selected layers. The model may request up to three additional `sample_field` rounds.
 8. The model returns a `GeoQueryPlan`. Shape and semantic errors are fed back for one bounded correction.
 9. The executor records per-step counts. Zero rows permit one tool-assisted diagnosis and replan; code rejects any revision that removes or widens an original user constraint before re-execution.
-10. The backend returns GeoJSON features or a `scalar_result`, plus the plan, selected layers, reasoning, timing, token usage, tool calls, and a structured pipeline trace. Count plans return only the scalar and omit redundant geometry.
-11. The frontend shows the pipeline timeline, agent trace, results, bounded conversation history, and copyable debug data. GeoJSON is drawn with Leaflet and the map fits the result bounds. Agent Studio exposes the live prompts and planner skills for editing and skill creation.
+10. The backend streams every operation and its row counts, then returns GeoJSON
+    features or a `scalar_result`, plus the plan, selected layers, reasoning, timing,
+    token usage, tool calls, and the complete structured pipeline trace.
+11. The frontend updates the timeline in real time—including loading, filtering, and
+    clustering—then shows the results, bounded conversation history, and copyable debug data.
+    GeoJSON is drawn with Leaflet and the map fits the result bounds. Agent Studio exposes
+    the live prompts and planner skills for editing and skill creation.
 12. A thumbs-up/down vote posts the selection context to the configurable PostgreSQL feedback table.
 
 Clarification is a successful product outcome, not an exception. Either agent stage can return `status: "clarify"` when the request is ambiguous or unsupported, and an unsafe zero-result revision is also returned as a clarification. The UI threads the next reply into the previous request as explicit clarification context. Infrastructure and domain failures use typed errors mapped to HTTP status codes and produce structured console/file diagnostics.
@@ -345,7 +351,6 @@ seed future regression cases.
 - Clarification follow-ups include the immediately preceding request as textual context; this is bounded UI context, not a persistent server-side conversation or general conversational memory.
 - MQS pushes geometry and `eq`-operator attribute filters down server-side, but always re-filters locally too; other operators (`neq`/`gt`/`lt`/`contains`/`fuzzy_contains`) are fetch-then-filter only. Safety caps: 10,000 features per layer load, 50,000 per query overall.
 - Runtime settings persist to a local JSON file and are not multi-user settings.
-- There is no streaming progress channel; the UI shows a single loading phase.
 - The production provider registry registers MQS, FLAPI (Cube and Flow Package), the
   legacy Cubes alias, and Tyche. Test providers and fixtures live outside `backend/app`
   and are excluded from the image.

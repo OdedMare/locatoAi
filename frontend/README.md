@@ -81,8 +81,10 @@ Component-local state is used for modal forms, catalog searches, feedback voting
    - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon (the default).
    - `polygon` or `rectangle`: Leaflet Draw produces a Polygon, then `polygonToMultiPolygon` wraps it for the API.
 3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`. Before a later submission, the completed turn moves into bounded history. When the previous response asked for clarification, the new text is appended to that request as explicit clarification context.
-4. `geoQueryService.submitQuery()` posts JSON to `/api/query`.
-5. While waiting, `AgentTrace` shows the selection loading state.
+4. `geoQueryService.submitQuery()` posts JSON to `/api/query/stream` and parses the
+   server-sent event stream using the browser Fetch/Streams APIs.
+5. While work is running, `AgentTrace` progressively renders the real selection,
+   planning, load, filter, cluster, count, and response events with per-step counts.
 6. When the response arrives:
    - `AgentTrace` resolves plan layer IDs to selected layer names and displays the structured pipeline timeline, selection reasoning, sampled fields, the plan, timing, and token use.
    - `ResultsPanel` shows a clarification, error, scalar count, or feature-property table.
@@ -238,7 +240,7 @@ src/
 
 | Service | Backend endpoint | Use |
 |---|---|---|
-| `submitQuery` | `POST /api/query` | Run the complete natural-language pipeline. |
+| `submitQuery` | `POST /api/query/stream` | Run the pipeline and surface each SSE trace event before the final response. |
 | `getLayers` | `GET /api/layers` | Read catalog metadata. |
 | `getMqsLayers` | `GET /api/layers/mqs` | Browse remote inventory without writing. |
 | `createLayer` | `POST /api/layers` | Add one catalog entry. |
@@ -306,6 +308,5 @@ Remote map tiles require browser network access to Esri and OpenStreetMap tile h
 
 - Up to eight completed turns are kept in browser memory only; history is neither persisted nor stored as a server-side conversation.
 - Only clarification follow-ups receive prior textual context. Ordinary later turns remain independent backend queries.
-- Query progress is not streamed by stage.
 - There is no dedicated frontend test suite yet; lint, TypeScript checking, and production build are the current automated frontend gates.
 - The result table shows at most 20 rows, while the map may display the full returned collection.

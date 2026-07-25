@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import GeoQueryInput from "@/components/GeoQueryInput";
 import GeographyControls from "@/components/GeographyControls";
 import AgentTrace from "@/components/AgentTrace";
@@ -62,11 +63,18 @@ export default function QueryPanel({
   isDarkMode,
   onToggleTheme,
 }: QueryPanelProps) {
+  const conversationRef = useRef<HTMLDivElement>(null);
   const needsDrawing = geographyMode === "polygon" || geographyMode === "rectangle";
   const canRun =
     queryText.trim().length > 0 &&
     !isSubmitting &&
     (!needsDrawing || hasDrawnGeometry);
+
+  useEffect(() => {
+    if (!isSubmitting) return;
+    const conversation = conversationRef.current;
+    conversation?.scrollTo({ top: conversation.scrollHeight, behavior: "auto" });
+  }, [isSubmitting, liveTrace.length]);
 
   return (
     <aside className="query-panel">
@@ -160,7 +168,7 @@ export default function QueryPanel({
           </div>
         </header>
 
-        <div className="query-panel-body">
+        <div className="query-panel-body" ref={conversationRef}>
           {!lastRequest && !isSubmitting ? (
             <div className="chat-welcome">
               <div className="welcome-visual">

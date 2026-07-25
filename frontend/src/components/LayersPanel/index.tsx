@@ -344,6 +344,7 @@ export default function LayersPanel({
       setProfiles("");
       setPackageQuery("");
       setPackageInputCubeName("");
+      setPackageInputCubeKind("time");
       setPackageInputCubeParameter("");
       setPackageOutputCubeName("");
       setDynamicParameterNames([]);
@@ -503,6 +504,7 @@ export default function LayersPanel({
     setProfiles(layer.profiles?.join(", ") ?? "");
     setPackageQuery("");
     setPackageInputCubeName("");
+    setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setDynamicParameterNames([]);
@@ -525,6 +527,7 @@ export default function LayersPanel({
     setProfiles("");
     setPackageQuery("");
     setPackageInputCubeName("");
+    setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setDynamicParameterNames([]);
@@ -546,6 +549,7 @@ export default function LayersPanel({
     setProvider("flapi");
     setPackageQuery("");
     setPackageInputCubeName("");
+    setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setSourceUrl("");
@@ -577,6 +581,7 @@ export default function LayersPanel({
     setProfiles("");
     setPackageQuery("");
     setPackageInputCubeName("");
+    setPackageInputCubeKind("time");
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setDynamicParameterNames([]);
@@ -798,6 +803,7 @@ export default function LayersPanel({
                     setProfiles("");
                     setPackageQuery("");
                     setPackageInputCubeName("");
+                    setPackageInputCubeKind("time");
                     setPackageInputCubeParameter("");
                     setPackageOutputCubeName("");
                     setDynamicParameterNames([]);
@@ -1036,9 +1042,11 @@ export default function LayersPanel({
                 <PackageCubesFieldset
                   inputCubeName={packageInputCubeName}
                   inputCubeParameter={packageInputCubeParameter}
+                  inputCubeKind={packageInputCubeKind}
                   outputCubeName={packageOutputCubeName}
                   onChangeInputCubeName={setPackageInputCubeName}
                   onChangeInputCubeParameter={setPackageInputCubeParameter}
+                  onChangeInputCubeKind={setPackageInputCubeKind}
                   onChangeOutputCubeName={setPackageOutputCubeName}
                   busy={generatingMetadata || saving}
                 />

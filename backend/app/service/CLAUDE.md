@@ -32,12 +32,15 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 | GET | `/api/models` | — | `ModelsResponse` | List models using saved settings |
 | POST | `/api/models` | `ModelsProbeRequest` | `ModelsResponse` | List models using unsaved override URL/key |
 | POST | `/api/feedback` | `FeedbackRequest` | `dict` | Persist a 👍/👎 verdict + selection context |
+| POST | `/api/query/stream` | `QueryRequest` | SSE | Stream `trace` events, then one final `result` or `error` event |
 
 ## Router-by-router
 
 - **`query/router.py`** — `orchestrator.run_query(query, boundaries, event_sink=...)`.
   Validates/generates `X-Request-ID`, seeds `request.state.pipeline_trace`, wires a
-  `QueryEventSink` so the orchestrator can stream trace events into it as it runs. On
+  `QueryEventSink` so the orchestrator can stream trace events into it as it runs.
+  `/api/query/stream` forwards the same sink through `QueryStream`; `/api/query`
+  retains the normal JSON response for integrations. On
   exception: logs then **re-raises** — HTTP mapping happens in the global
   `ErrorHandlerRegistry`, not here. Builds `QueryResponse.from_outcome(outcome)`.
 - **`area_summary/router.py`** — validates the polygon translation and delegates to

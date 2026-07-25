@@ -1,7 +1,7 @@
 """Server-sent events for one blocking query execution."""
 
 import json
-from queue import Queue
+from queue import Empty, Queue
 from threading import Thread
 from typing import Any, Callable, Dict
 
@@ -42,7 +42,11 @@ class QueryStream:
 
     def _events(self):
         while True:
-            item = self._queue.get()
+            try:
+                item = self._queue.get(timeout=15)
+            except Empty:
+                yield ": keep-alive\n\n"
+                continue
             if item is _DONE:
                 return
             yield item

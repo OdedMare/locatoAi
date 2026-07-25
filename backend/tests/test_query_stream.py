@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.bl.query_orchestrator.query_outcome import QueryOutcome
 from app.service.dependencies import get_orchestrator
 from app.service.query.router import router
@@ -21,6 +22,18 @@ class StreamingOrchestrator:
             "step_id": "load_entities", "operation": "load", "output_count": 2,
         })
         return QueryOutcome(status="ok", scalar_result=2)
+
+
+def test_run_stage_emits_start_and_completion():
+    events = []
+
+    result = QueryOrchestrator._run_stage("execution", lambda: 2, events.append)
+
+    assert result == 2
+    assert events == [
+        {"stage": "execution", "status": "started"},
+        {"stage": "execution", "status": "completed"},
+    ]
 
 
 def test_query_stream_sends_trace_before_final_result():

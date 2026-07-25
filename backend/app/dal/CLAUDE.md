@@ -95,36 +95,35 @@ loading" / "MQS business metadata" sections):
 resources only. The legacy `provider=cubes` catalog alias, cube-resource dispatch, and
 `FlapiSource.resource_type()` have been removed; every `flapi://` source is a package.
 
-Flow Package pipeline: `FlapiSource` parses persisted typed inputs and selected queries
-→ `FlowPackageGateway.definitions()` fetches `/package/v1/quick/{id}` directly via
-`httpx` → `FlowPackageMetadata` normalizes grouped definitions →
-`FlowPackageSerializer` validates exact text/number/boolean/WKT/time shapes and splits
-configured parameters into a `flunks.PackageInputCube` (the chunked dimension) plus a
-`static_parameters` dict (every other configured/declared value, serialized exactly as
-before). The input-cube driving parameter is explicit, not guessed: the catalog UI
-persists it as `input_cube_param=<name>` in `source_url` (read by
-`FlapiSource.package_input_parameter`); `FlowPackageSerializer.build_input_cube` uses
-that named definition (time-typed → `start_time`/`end_time` from `temporal_range`,
-otherwise → identifier `values`), falling back to the first declared time parameter or
-the first configured multi-value parameter when no explicit choice was persisted (older
-catalog rows). Output field selection is likewise explicit: `output_fields=<JSON list>`
-in `source_url` (`FlapiSource.package_output_fields`) feeds `PackageOutputCube.cube_fields`;
-the catalog UI's metadata-generation step now returns `output_fields` (real field names
-inferred from a live sample, via `GeneratedLayerMetadata.output_fields`) so the user
-picks from real values instead of typing blind. →
-`FlowPackageGateway.execute()` builds a `flunks.config.FlapiConfig` from
-`RuntimeSettingsStore` (`cubes_base_url`/`cubes_token`/`flapi_username`) and a
-`flunks.config.FlunksPackageConfig` (package id, input cube, `PackageOutputCube` named
-after the first selected query, `static_parameters`), runs it through
-`flunks.FlunksRunner.run()`, and reads `runner.success_chunks`/`failed_chunks` for
-diagnostics → `FlowPackageProvider` maps each `FlowResults.results` query result with
-`FlapiSchemaMapper`. Chunking, retries, adaptive chunk sizing, and status/regex-based
-exception mapping for the `/package/v3/{id}` execution call are now owned by flunks, not
-this codebase — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
-`FlowPackageGateway` is constructed with overrides. Each row still carries
-`_package_query`; partial-success trace IDs and query result-limit warnings are read off
-`FlowResults.metadata` and logged the same as before. `flunks` is an internal library
-not resolvable from the public index — see `pyproject.toml`.
+Flow Package pipeline: the catalog UI persists three free-text cube names plus an input
+kind in `source_url` — `input_cube_name`, `input_cube_parameter`, `input_cube_kind`
+(`time` | `geo`, default `time`), and `output_cube_name`. `FlapiSource` reads them via
+`package_input_cube_name` / `package_input_cube_parameter` / `package_input_cube_kind` /
+`package_output_cube_name`. Only the input cube's `cube_parameter` varies per query;
+every other package parameter is fixed inside the package itself, so nothing else is
+serialized. `FlowPackageGateway.definitions()` still fetches `/package/v1/quick/{id}`
+directly via `httpx` (used only for the metadata-generation preview). →
+`FlowPackageSerializer.build_input_cube(name, parameter, kind, temporal_range, geometry,
+now)` assembles one `flunks.PackageInputCube`: for `kind="time"` it sets
+`start_time`/`end_time` from the query `temporal_range` (falling back to a 1-hour window
+ending at `now` on the schema/sample path where no range exists); for `kind="geo"` it
+passes the query boundary polygons as a list of WKT `MULTIPOLYGON` strings via `values`
+(empty list when no geometry — the sample path only). →
+`FlowPackageGateway.execute(layer, input_cube, output_cube_name)` builds a
+`flunks.config.FlapiConfig` from `RuntimeSettingsStore`
+(`cubes_base_url`/`cubes_token`/`flapi_username`) and a
+`flunks.config.FlunksPackageConfig(package_id, main_input_cube, output_cube)` with
+`PackageOutputCube(cube_name=output_cube_name)` (no `cube_fields`, no
+`static_parameters`), runs it through `flunks.FlunksRunner.run()` — which returns a
+plain `list[dict]` of result records — and reads `runner.success_chunks`/`failed_chunks`
+for diagnostics. Each record is tagged with `_package_query=<output_cube_name>`;
+non-dict records are skipped, a non-list response raises `ProviderError`. Chunking,
+retries, and exception mapping for the `/package/v3/{id}` execution call are owned by
+flunks — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
+`FlowPackageGateway` is constructed with overrides. `flunks` is an internal library not
+resolvable from the public index — see `pyproject.toml`; the amd64 Docker image builds
+against a private index, so the FLAPI package tests cannot run in an environment without
+it.
 
 ## Tyche provider — `providers/tyche/`
 

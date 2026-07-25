@@ -85,13 +85,18 @@ function streamedError(
 ): GeoQueryResponse {
   const error = data as {
     detail?: string;
+    error_type?: string;
     request_id?: string;
     pipeline_trace?: PipelineTraceEntry[];
   };
+  const message = error.detail || "זרם הביצוע הופסק לפני שהתקבלה תשובה.";
+  const trace = error.pipeline_trace?.length
+    ? error.pipeline_trace
+    : [transportFailure(message, error.error_type || "StreamError")];
   return failedResponse(
-    error.detail || "זרם הביצוע הופסק לפני שהתקבלה תשובה.",
+    message,
     error.request_id || fallbackId,
-    error.pipeline_trace ?? [],
+    trace,
   );
 }
 
@@ -157,7 +162,8 @@ export async function submitQuery(
     const result = response.ok
       ? await readStream(response, clientRequestId, onProgress)
       : await httpFailure(response, clientRequestId);
-    console.info("Query pipeline completed", result);
+    const log = result.status === "error" ? console.error : console.info;
+    log("Query pipeline completed", result);
     return result;
   } catch (error) {
     const message = "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.";

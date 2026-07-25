@@ -82,7 +82,18 @@ def configured_source():
         package_query="FinalCube",
         package_input_cube_name="RawInput",
         package_input_cube_parameter="TimeRange",
+        package_input_cube_kind="time",
         package_output_cube_name="הכנסה - 👑",
+    )
+
+
+def geo_source():
+    return CatalogRouter.normalized_source(
+        "flapi", "466192",
+        package_input_cube_name="RawInput",
+        package_input_cube_parameter="GeoQuery",
+        package_input_cube_kind="geo",
+        package_output_cube_name="FinalCube",
     )
 
 
@@ -147,6 +158,47 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(
     }
 
 
+def test_geo_input_cube_passes_query_boundary_polygons_as_wkt(
+    tmp_path, monkeypatch
+):
+    definitions_handler = DefinitionsHandler(definitions())
+    provider = make_provider(
+        tmp_path, definitions_handler, StubRunner, monkeypatch
+    )
+    boundary = box(34.7, 32.0, 34.9, 32.2)
+
+    provider.fetch_features(package_layer(geo_source()), geometry=boundary)
+
+    runner = StubRunner.last_instance
+    input_cube = runner.package_config.main_input_cube
+    assert input_cube.cube_name == "RawInput"
+    assert input_cube.cube_parameter == "GeoQuery"
+    assert len(input_cube.values) == 1
+    assert input_cube.values[0].startswith("MULTIPOLYGON")
+    assert runner.package_config.output_cube.cube_name == "FinalCube"
+
+
+def test_geo_input_cube_wkt_round_trips_to_query_boundary(tmp_path, monkeypatch):
+    from shapely import wkt
+
+    definitions_handler = DefinitionsHandler(definitions())
+    provider = make_provider(
+        tmp_path, definitions_handler, StubRunner, monkeypatch
+    )
+    boundary = box(34.7, 32.0, 34.9, 32.2)
+
+    provider.fetch_features(package_layer(geo_source()), geometry=boundary)
+
+    input_cube = StubRunner.last_instance.package_config.main_input_cube
+    parsed = wkt.loads(input_cube.values[0])
+    assert parsed.equals(boundary)
+
+
+def test_geo_source_persists_kind():
+    layer = package_layer(geo_source())
+    assert FlapiSource.package_input_cube_kind(layer) == "geo"
+
+
 def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
     definitions_handler = DefinitionsHandler(definitions())
     provider = make_provider(
@@ -206,6 +258,7 @@ def test_package_source_persists_cube_names():
     assert source.startswith("flapi://package/466192?")
     assert parsed_source.package_input_cube_name(layer) == "RawInput"
     assert parsed_source.package_input_cube_parameter(layer) == "TimeRange"
+    assert parsed_source.package_input_cube_kind(layer) == "time"
     assert parsed_source.package_output_cube_name(layer) == "הכנסה - 👑"
 
 

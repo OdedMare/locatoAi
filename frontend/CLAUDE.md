@@ -14,7 +14,9 @@ full backend pipeline and repository-wide constraints.
   `MultiPolygon`; the supported scopes are viewport, polygon, and rectangle.
 - Keep HTTP calls in `src/services` and mirror backend DTOs in `src/types`.
 - `AgentTrace` renders the public `pipeline_trace`, plan, tool calls, timings,
-  selected layers, and feedback. It must support all 14 plan operations.
+  selected layers, and feedback. During submission it consumes the SSE trace live,
+  including each load/filter/cluster operation and its counts. It must support all
+  18 plan operations.
 - Keep Leaflet and Leaflet Draw behind the dynamically imported client-only map
   path. GeoJSON is `[lng, lat]`; Leaflet positions are `[lat, lng]`.
 - Keep the coordinate console top-center so it does not overlap the top-right layer
