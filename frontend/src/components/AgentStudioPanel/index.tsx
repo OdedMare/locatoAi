@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2, FileText, LoaderCircle, MapPinned, Plus, RefreshCw, Save,
-  Sparkles, TriangleAlert, Wrench, X,
+  ArrowDown, ArrowUp, CheckCircle2, FileText, ListOrdered, LoaderCircle,
+  MapPinned, Plus, RefreshCw, Save, Sparkles, Trash2, TriangleAlert, Wrench, X,
 } from "lucide-react";
 import {
   createAgentSkill,
@@ -31,12 +31,128 @@ step ids, provider names, field names, or operation defaults.
 `;
 
 const AREA_SUMMARY_NAME = /סיכום\s+(?:של\s+)?תא\s+שטח|summari[sz]e[-_ ]area|area[-_ ]summary/i;
+const AREA_SUMMARY_WORKFLOW = /^##\s+(?:שלבי העבודה|שלבים|workflow)\s*$/i;
 const AREA_SUMMARY_EXAMPLES = [
   { text: "נמצאו 2 מבנים מסוג בניין.", source: "שכבת מבנים" },
   { text: "עודד ביקר כאן במהלך 24 השעות האחרונות.", source: "שכבת חברים" },
   { text: "נמצאה כאן המלצת Google Maps ששמר עודד.", source: "שכבת המלצות" },
   { text: "בשעה 14:00 עודד ומשה שהו כאן יחד.", source: "שכבת חברים" },
 ];
+
+const workflowBounds = (content: string) => {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const start = lines.findIndex((line) => AREA_SUMMARY_WORKFLOW.test(line.trim()));
+  const next = start < 0
+    ? -1
+    : lines.findIndex((line, index) => index > start && /^##\s+/.test(line));
+  return { lines, start, end: next < 0 ? lines.length : next };
+};
+
+const areaSummarySteps = (content: string) => {
+  const { lines, start, end } = workflowBounds(content);
+  if (start < 0) return [];
+  return lines.slice(start + 1, end).flatMap((line) => {
+    const match = line.match(/^\s*\d+\.\s*(.*)$/);
+    return match ? [match[1]] : [];
+  });
+};
+
+const withAreaSummarySteps = (content: string, steps: string[]) => {
+  const { lines, start, end } = workflowBounds(content);
+  const block = [
+    "## שלבי העבודה", "",
+    ...steps.map((step, index) => `${index + 1}. ${step}`),
+  ];
+  if (start >= 0) {
+    const suffix = lines.slice(end);
+    if (suffix.length && suffix[0].startsWith("## ")) block.push("");
+    return [...lines.slice(0, start), ...block, ...suffix].join("\n");
+  }
+  return `${content.trimEnd()}\n\n${block.join("\n")}\n`;
+};
+
+function AreaSummaryWorkflowEditor({
+  steps,
+  onChange,
+}: {
+  steps: string[];
+  onChange: (steps: string[]) => void;
+}) {
+  const updateStep = (index: number, value: string) => {
+    onChange(steps.map((step, position) => position === index ? value : step));
+  };
+  const moveStep = (index: number, offset: number) => {
+    const moved = [...steps];
+    [moved[index], moved[index + offset]] = [moved[index + offset], moved[index]];
+    onChange(moved);
+  };
+
+  return (
+    <section className="agent-workflow-editor" aria-labelledby="area-workflow-title">
+      <header>
+        <span className="agent-workflow-icon" aria-hidden="true">
+          <ListOrdered size={18} />
+        </span>
+        <div>
+          <h4 id="area-workflow-title">שלבי סיכום תא השטח</h4>
+          <p>אפשר לערוך, לשנות סדר, למחוק ולהוסיף שלבים.</p>
+        </div>
+        <button
+          type="button"
+          className="agent-workflow-add"
+          onClick={() => onChange([...steps, "שלב חדש"])}
+        >
+          <Plus size={16} /> הוספת שלב
+        </button>
+      </header>
+      <ol>
+        {steps.map((step, index) => (
+          <li key={index}>
+            <label htmlFor={`area-summary-step-${index}`}>
+              <span>שלב {index + 1}</span>
+              <input
+                id={`area-summary-step-${index}`}
+                value={step}
+                onChange={(event) => updateStep(index, event.target.value)}
+                dir="auto"
+              />
+            </label>
+            <div className="agent-workflow-actions">
+              <button
+                type="button"
+                onClick={() => moveStep(index, -1)}
+                disabled={index === 0}
+                aria-label={`העברת שלב ${index + 1} למעלה`}
+              >
+                <ArrowUp size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveStep(index, 1)}
+                disabled={index === steps.length - 1}
+                aria-label={`העברת שלב ${index + 1} למטה`}
+              >
+                <ArrowDown size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange(steps.filter((_, position) => position !== index))}
+                aria-label={`מחיקת שלב ${index + 1}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {!steps.length && (
+        <p className="agent-workflow-empty">
+          אין שלבים עדיין. לחצו על “הוספת שלב” כדי להתחיל.
+        </p>
+      )}
+    </section>
+  );
+}
 
 const itemKey = (item: AgentContent) => `${item.kind}:${item.id}`;
 const kindLabel = (kind: AgentContent["kind"] | undefined) => (
@@ -76,9 +192,12 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
   );
   const activeItem = allItems.find((item) => itemKey(item) === activeKey) ?? null;
   const canBindField = creating || Boolean(activeItem?.is_custom);
-  const showAreaSummaryExamples = canBindField && AREA_SUMMARY_NAME.test(
+  const showAreaSummaryWorkflow = (
+    creating || activeItem?.kind === "skill"
+  ) && AREA_SUMMARY_NAME.test(
     `${skillTitle} ${activeItem?.title ?? ""} ${draft}`
   );
+  const workflowSteps = useMemo(() => areaSummarySteps(draft), [draft]);
   const dirty = creating
     ? draft !== SKILL_TEMPLATE || skillTitle.trim().length > 0
     : activeItem !== null && draft !== activeItem.content;
@@ -347,7 +466,19 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                     </button>
                   </div>
                 )}
+                {showAreaSummaryWorkflow && (
+                  <AreaSummaryWorkflowEditor
+                    steps={workflowSteps}
+                    onChange={(steps) => setDraft((current) => (
+                      withAreaSummarySteps(current, steps)
+                    ))}
+                  />
+                )}
+                <label className="agent-raw-editor-label" htmlFor="agent-content-source">
+                  תוכן מלא — עריכה מתקדמת
+                </label>
                 <textarea
+                  id="agent-content-source"
                   ref={textareaRef}
                   className="agent-content-textarea"
                   dir="ltr"
@@ -356,7 +487,7 @@ export default function AgentStudioPanel({ onClose }: AgentStudioPanelProps) {
                   spellCheck={false}
                   aria-label="תוכן ההוראה"
                 />
-                {showAreaSummaryExamples && (
+                {showAreaSummaryWorkflow && (
                   <section
                     className="agent-summary-examples"
                     aria-labelledby="agent-summary-examples-title"

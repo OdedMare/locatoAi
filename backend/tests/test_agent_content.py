@@ -28,6 +28,11 @@ def make_repository(tmp_path):
     (profiles / "our-force.md").write_text(
         "# OurForce mission profile\n\nPROFILE BODY", encoding="utf-8"
     )
+    (profiles / "area-summary.md").write_text(
+        "# סיכום תא שטח\n\n## שלבי העבודה\n\n"
+        "1. בדוק שכבות סטטיות.\n2. סכם.",
+        encoding="utf-8",
+    )
     settings = Settings(
         _env_file=None,
         runtime_settings_file=str(tmp_path / "runtime-settings.json"),
@@ -72,6 +77,27 @@ def test_domain_profile_is_rendered_only_when_activated(tmp_path):
 
     assert "PROFILE BODY" not in skills.render()
     assert "PROFILE BODY" in skills.render(profile_ids={"our-force"})
+
+
+def test_area_summary_workflow_is_listed_and_editable(tmp_path):
+    repository = make_repository(tmp_path)
+    profile = next(
+        item for item in repository.list_skills()
+        if item["id"] == "area-summary.md"
+    )
+
+    assert "1. בדוק שכבות סטטיות." in profile["content"]
+    saved = repository.update(
+        "skill", "area-summary.md",
+        "# סיכום תא שטח\n\n## שלבי העבודה\n\n1. שלב שנערך.",
+    )
+
+    assert saved["is_overridden"] is True
+    reloaded = next(
+        item for item in make_repository(tmp_path).list_skills()
+        if item["id"] == "area-summary.md"
+    )
+    assert "1. שלב שנערך." in reloaded["content"]
 
 
 def test_plan_loop_loads_custom_skill_before_planning(tmp_path, catalog):
