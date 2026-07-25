@@ -42,9 +42,7 @@ class FlowPackageGateway:
         self.failed_chunks = 0
 
     def execute(
-        self,
-        layer: LayerMeta,
-        input_cube: PackageInputCube,
+        self, layer: LayerMeta, input_cube: PackageInputCube,
         output_cube_name: Optional[str],
     ) -> List[dict]:
         package_id = self._source.package_id(layer)
@@ -54,7 +52,9 @@ class FlowPackageGateway:
             FlowPackageDebug.input_cube(input_cube),
         )
         runner = self._build_runner(package_id, input_cube, output_cube_name)
-        result = self._run(runner, package_id, layer, input_cube)
+        result = self._run(
+            runner, package_id, layer, input_cube, output_cube_name
+        )
         rows = self._records(result, output_cube_name)
         self._logger.info(
             "FLAPI package OK id=%s layer=%s %s",
@@ -62,20 +62,21 @@ class FlowPackageGateway:
         )
         return rows
 
-    def _run(self, runner, package_id, layer, input_cube):
+    def _run(self, runner, package_id, layer, input_cube, output_cube_name):
+        identifiers = FlowPackageDebug.identifiers(
+            package_id, input_cube, output_cube_name
+        )
         try:
             return runner.run()
         except Exception as exc:
             detail = FlowPackageDebug.exception(exc)
             self._logger.error(
-                "FLAPI package FAILED id=%s layer=%s %s -> %s",
-                package_id, layer.id,
-                FlowPackageDebug.input_cube(input_cube),
-                detail,
+                "FLAPI package FAILED layer=%s %s -> %s",
+                layer.id, identifiers, detail,
             )
             self._logger.debug("Full flunks failure", exc_info=True)
             raise ProviderError(
-                f"FLAPI package {package_id} execution failed: {detail}"
+                f"FLAPI {identifiers} failed: {detail}"
             ) from exc
         finally:
             self._remember_chunks(runner, package_id)
@@ -90,16 +91,16 @@ class FlowPackageGateway:
 
     def _build_runner(self, package_id, input_cube, output_cube_name):
         settings = self._clients.require_settings(require_username=True)
+        flapi_config = self._flapi_config(settings)
+        package_config = self._package_config(
+            package_id, input_cube, output_cube_name
+        )
         self._logger.info(
-            "FLAPI package CONFIG id=%s base_url=%s username=%s token_set=%s",
-            package_id, settings.cubes_base_url, settings.flapi_username,
-            bool(settings.cubes_token),
+            "FLAPI flunks INPUT %s",
+            FlowPackageDebug.runner_input(flapi_config, package_config),
         )
         return FlunksRunner(
-            flapi_config=self._flapi_config(settings),
-            package_config=self._package_config(
-                package_id, input_cube, output_cube_name
-            ),
+            flapi_config=flapi_config, package_config=package_config,
         )
 
     @staticmethod

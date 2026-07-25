@@ -34,6 +34,28 @@ class FlowPackageDebug:
         return " ".join(parts)
 
     @classmethod
+    def identifiers(
+        cls, package_id: str, cube: Any, output_cube_name: str
+    ) -> str:
+        return "package_id=%r input_cube=%r parameter=%r output_cube=%r" % (
+            package_id, getattr(cube, "cube_name", None),
+            getattr(cube, "cube_parameter", None), output_cube_name,
+        )
+
+    @classmethod
+    def runner_input(cls, flapi_config: Any, package_config: Any) -> str:
+        cube = getattr(package_config, "main_input_cube", None)
+        output = getattr(package_config, "output_cube", None)
+        return "base_url=%r username=%r token_set=%s package_id=%r %s output_cube=%r" % (
+            getattr(flapi_config, "base_url", None),
+            getattr(flapi_config, "username", None),
+            bool(getattr(flapi_config, "token", None)),
+            getattr(package_config, "package_id", None),
+            cls.input_cube(cube),
+            getattr(output, "cube_name", None),
+        )
+
+    @classmethod
     def _values(cls, values: Optional[list]) -> str:
         if not values:
             # The failure mode FLAPI reports as "Please enter values for the
