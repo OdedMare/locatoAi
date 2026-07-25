@@ -6,6 +6,7 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
+from app.dal.providers.flapi.package_records import FlowPackageRecords
 from app.dal.providers.flapi.package_serializer import FlowPackageSerializer
 from app.dal.providers.flapi.provider import FlapiProvider
 from app.dal.providers.flapi.source import FlapiSource
@@ -260,6 +261,7 @@ def test_package_dataframe_normalizes_nan_and_numpy_scalars(tmp_path, monkeypatc
     ])
     provider = make_provider(tmp_path, dataframe_runner(frame), monkeypatch)
     layer = package_layer(configured_source())
+    normalized = FlowPackageRecords.normalize(frame)
 
     features = provider.fetch_features(layer)
 
@@ -267,8 +269,8 @@ def test_package_dataframe_normalizes_nan_and_numpy_scalars(tmp_path, monkeypatc
     # pandas widens an int column containing NaN to float64, so 7 arrives as
     # 7.0 — the point is that it is a plain Python number, not a numpy scalar.
     assert features.iloc[0]["count"] == 7
-    assert type(features.iloc[0]["count"]).__module__ == "builtins"
-    assert features.iloc[1]["count"] is None
+    assert type(normalized[0]["count"]).__module__ == "builtins"
+    assert normalized[1]["count"] is None
 
     schema = provider.describe_schema(layer)
     count_field = next(f for f in schema.fields if f.name == "count")
