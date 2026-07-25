@@ -184,11 +184,12 @@ first when `isPartialSuccess` errors return.
 **Delete the module and its import when flunks fixes the type upstream.**
 
 Endpoint routing, chunking, retries, and exception mapping for the execution call are
-owned by flunks — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
-`FlowPackageGateway` is constructed with overrides. `flunks` is an internal library not
-resolvable from the public index — see `pyproject.toml`; the amd64 Docker image builds
-against a private index, so the FLAPI package tests cannot run in an environment without
-it.
+owned by flunks. The gateway does not construct or inject `FlunksConfig` or
+`FlunksExceptionsConfig`; passing an empty config from an incompatible build caused
+`max_threads` attribute errors, while omitting both lets `FlunksRunner` own its matching
+defaults. `flunks` is an internal library not resolvable from the public index — see
+`pyproject.toml`; the amd64 Docker image builds against a private index, so the FLAPI
+package tests cannot run in an environment without it.
 
 ## Tyche provider — `providers/tyche/`
 

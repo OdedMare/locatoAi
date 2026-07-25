@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-25T15:57:15.950776+00:00",
+  "generated_at": "2026-07-25T16:24:55.658584+00:00",
   "nodes": {
     "backend_app_bl_agent_generate_layer_metadata_layer_metadata_generator_rationale_1": {
       "code_fingerprint": "6accd344fd245fd4baea0a9f5d13879d70a9df1794ac8fadc70afa7024a7aa03",
@@ -12,8 +12,24 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.992592314,
+      "score": 0.992151864,
       "source_file": "backend/app/bl/agent/generate_layer_metadata/layer_metadata_generator.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_flapi_provider_flapiprovider": {
+      "code_fingerprint": "3f503470aed6a5b856ef75ba0049d49417dade02f220d1e8d3e43f063fc16963",
+      "label": "FlapiProvider",
+      "last": "2026-07-25T16:12:05.071910+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T16:12:05.071910+00:00",
+          "outcome": "useful",
+          "q": "טוב flunks עדיין לא עובד לי ויש שם קטעי קוד ענקים שקשה לדבג צמצם אותם רק לחלקים הרלוונטים; אני מקבל שגיאה is_partial_success should be a valid str; flunks בסוף מחזיר dataframe"
+        }
+      ],
+      "score": 0.999793953,
+      "source_file": "backend/app/dal/providers/flapi/provider.py",
       "status": "tentative",
       "uses": 1
     },
@@ -28,7 +44,7 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.992592314,
+      "score": 0.992151864,
       "source_file": "backend/app/dal/providers/mqs/gateway.py",
       "status": "tentative",
       "uses": 1
@@ -44,7 +60,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.992893942,
+      "score": 0.992453358,
       "source_file": "backend/app/dal/providers/tyche/query_builder.py",
       "status": "tentative",
       "uses": 1
@@ -60,7 +76,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.992893942,
+      "score": 0.992453358,
       "source_file": "backend/app/dal/providers/tyche/source.py",
       "status": "tentative",
       "uses": 1
@@ -76,7 +92,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.992893942,
+      "score": 0.992453358,
       "source_file": "backend/app/service/catalog/router.py",
       "status": "tentative",
       "uses": 1
@@ -97,7 +113,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 1.995690124,
+      "score": 1.994804562,
       "source_file": "backend/app/service/query/event_sink.py",
       "status": "preferred",
       "uses": 2
@@ -113,7 +129,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.999722216,
+      "score": 0.999278602,
       "source_file": "backend/app/service/query/router.py",
       "status": "tentative",
       "uses": 1
@@ -129,7 +145,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.995967908,
+      "score": 0.99552596,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
@@ -145,7 +161,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.995967908,
+      "score": 0.99552596,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
@@ -161,7 +177,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.992893942,
+      "score": 0.992453358,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
@@ -177,7 +193,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.999722216,
+      "score": 0.999278602,
       "source_file": "frontend/src/components/AgentTrace/index.tsx",
       "status": "tentative",
       "uses": 1
@@ -193,7 +209,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.995967908,
+      "score": 0.99552596,
       "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1
@@ -209,7 +225,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.999722216,
+      "score": 0.999278602,
       "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1

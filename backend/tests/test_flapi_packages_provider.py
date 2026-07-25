@@ -109,6 +109,8 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(
     runner = StubRunner.last_instance
     assert runner.flapi_config.username == "oded"
     assert runner.flapi_config.token == "jwt"
+    assert runner.flunks_config is None
+    assert runner.exceptions_config is None
     assert runner.package_config.package_id == "466192"
     assert runner.package_config.output_cube.cube_name == "הכנסה - 👑"
     assert runner.package_config.main_input_cube.cube_name == "RawInput"

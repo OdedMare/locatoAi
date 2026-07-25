@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.dal.providers.flapi.flunks_metadata_patch import FlunksMetadataPatch
 from app.dal.providers.flapi.package_debug import FlowPackageDebug
@@ -35,6 +35,24 @@ def test_patch_rebuilds_metadata_before_flow_results():
     assert models.FlowResults.model_validate(
         {"metadata": {"isPartialSuccess": None}}
     ).metadata.isPartialSuccess is None
+
+
+def test_patch_finds_snake_case_field_by_alias():
+    class MetaData(BaseModel):
+        is_partial_success: Optional[str] = Field(
+            default=None, alias="isPartialSuccess"
+        )
+
+    class FlowResults(BaseModel):
+        metadata: MetaData
+
+    models = SimpleNamespace(MetaData=MetaData, FlowResults=FlowResults)
+
+    assert FlunksMetadataPatch.apply(models) is True
+    result = FlowResults.model_validate(
+        {"metadata": {"isPartialSuccess": False}}
+    )
+    assert result.metadata.is_partial_success is False
 
 
 def test_validation_error_preview_is_bounded():
