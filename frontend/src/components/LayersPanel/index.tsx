@@ -26,6 +26,7 @@ import type {
 } from "@/types/catalog";
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
 import CubesParametersFieldset from "./CubesParametersFieldset";
+import PackageCubesFieldset from "./PackageCubesFieldset";
 import PackageParametersFieldset, {
   isPackageGeometryParameter,
   isPackageTimeParameter,
@@ -1233,6 +1234,21 @@ export default function LayersPanel({
                   onChange={(event) => setPackageQuery(event.target.value)}
                   placeholder="FinalCubeName"
                   dir="ltr"
+                />
+                <PackageCubesFieldset
+                  definitions={parameterDefinitions}
+                  inputParameter={packageInputParameter}
+                  onChangeInputParameter={setPackageInputParameter}
+                  availableOutputFields={availableOutputFields}
+                  outputFields={packageOutputFields}
+                  onToggleOutputField={(field) => {
+                    setPackageOutputFields((current) =>
+                      current.includes(field)
+                        ? current.filter((item) => item !== field)
+                        : [...current, field]
+                    );
+                  }}
+                  busy={generatingMetadata || saving}
                 />
               </>
             )}

@@ -11,7 +11,6 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.flapi.package_gateway import FlowPackageGateway
 from app.dal.providers.flapi.package_metadata import FlowPackageMetadata
 from app.dal.providers.flapi.package_serializer import FlowPackageSerializer
 from app.dal.providers.flapi.provider import FlapiProvider
