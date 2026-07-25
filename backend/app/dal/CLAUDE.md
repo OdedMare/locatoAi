@@ -101,8 +101,14 @@ kind in `source_url` — `input_cube_name`, `input_cube_parameter`, `input_cube_
 `package_input_cube_name` / `package_input_cube_parameter` / `package_input_cube_kind` /
 `package_output_cube_name`. Only the input cube's `cube_parameter` varies per query;
 every other package parameter is fixed inside the package itself, so nothing else is
-serialized. `FlowPackageGateway.definitions()` still fetches `/package/v1/quick/{id}`
-directly via `httpx` (used only for the metadata-generation preview). →
+serialized. **There is no raw-HTTP path left in this provider and no FLAPI route or API
+version appears in the code** — flunks owns the whole conversation. Parameter discovery
+(`GET /package/v1/quick/{id}`), `FlowPackageMetadata`, `FlapiSource.execution_params` /
+`package_queries` / `package_inputs`, `list_configurable_parameters`,
+`requires_geometry`, and the `httpx` transport seam are all gone; `FlapiClientFactory`
+now only validates settings for `FlapiConfig`, and `FlapiProvider(settings_store)` takes
+no transport. Because BL looks those up with `getattr`, the catalog UI's parameter form
+is simply empty and `requires_sample_polygon` is always false. →
 `FlowPackageSerializer.build_input_cube(name, parameter, kind, temporal_range, geometry,
 now)` assembles one `flunks.PackageInputCube`: for `kind="time"` it sets
 `start_time`/`end_time` from the query `temporal_range` (falling back to a 1-hour window
@@ -119,8 +125,8 @@ list when no geometry — the sample path only). →
 `static_parameters`), runs it through `flunks.FlunksRunner.run()` — which returns a
 plain `list[dict]` of result records — and reads `runner.success_chunks`/`failed_chunks`
 for diagnostics. Each record is tagged with `_package_query=<output_cube_name>`;
-non-dict records are skipped, a non-list response raises `ProviderError`. Chunking,
-retries, and exception mapping for the `/package/v3/{id}` execution call are owned by
+non-dict records are skipped, a non-list response raises `ProviderError`. Endpoint
+routing, chunking, retries, and exception mapping for the execution call are owned by
 flunks — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
 `FlowPackageGateway` is constructed with overrides. `flunks` is an internal library not
 resolvable from the public index — see `pyproject.toml`; the amd64 Docker image builds

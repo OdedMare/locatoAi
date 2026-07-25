@@ -414,16 +414,19 @@ provider behavior belongs in the collaborator that owns that single responsibili
   mapper.
 
 - **Flow Packages** — [`package_provider.py`](app/dal/providers/flapi/package_provider.py):
-  catalog rows use `provider="flapi"` and `flapi://package/<packageId>`. Parameter
-  definitions come from `GET /package/v1/quick/<id>` and are normalized even when the
-  server groups them under a package identifier. Typed inputs are JSON-encoded into the
-  catalog source URL, validated and serialized just before execution, and sent by
-  `POST /package/v3/<id>`. With no selected query the request uses
-  `lastQueries=true`; otherwise it repeats the `queries` option. Result entries are
-  parsed independently through `FlapiSchemaMapper`, tagged with `_package_query`, and
-  merged into one GeoDataFrame. Partial-success trace IDs and capped queries are logged,
-  and a 100,000-row safety ceiling prevents an unbounded response from exhausting the
-  process.
+  catalog rows use `provider="flapi"` and `flapi://package/<packageId>`. **flunks owns
+  the entire FLAPI HTTP conversation**, so no FLAPI route or API version appears in this
+  provider — there is no parameter-discovery request, no per-parameter JSON persisted in
+  the source URL, and no `httpx` client. A layer is configured by four cube fields:
+  `input_cube_name`, `input_cube_parameter`, `input_cube_kind` (`time` | `geo`), and
+  `output_cube_name`. `FlowPackageSerializer` turns the query into one
+  `PackageInputCube` — `start_time`/`end_time` for `time`, or the whole boundary as a
+  single WKT `MULTIPOLYGON` in `values` for `geo` — and `FlowPackageGateway` runs it
+  through `FlunksRunner`. Because packages expose no discovery call, the layer schema is
+  inferred from the rows a run returns and cached per layer. Result entries are parsed
+  independently through `FlapiSchemaMapper`, tagged with `_package_query`, and merged
+  into one GeoDataFrame. A 100,000-row safety ceiling prevents an unbounded response
+  from exhausting the process.
 
 - **`tyche`** — [`provider.py`](app/dal/providers/tyche/provider.py): Tyche coordinate
   APIs, including Our Forces at `POST /coordinate/v1/ourforces`. The canonical row uses

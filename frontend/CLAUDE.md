@@ -32,5 +32,8 @@ full backend pipeline and repository-wide constraints.
   marker. The current `GeoQueryPlan` executor remains sequential.
 - Keep the Settings UI: environment variables are deployment defaults and saved UI
   values are live overrides. Provider TLS verification must default to enabled.
-- `LayersPanel` adds both FLAPI Cubes and Flow Packages. Packages discover typed
-  parameters before execution and use `flapi://package/<id>` catalog sources.
+- `LayersPanel` adds Flow Packages via `flapi://package/<id>` catalog sources,
+  configured through the four cube fields only. There is no per-parameter form and no
+  hand-entered WKT/geometry: flunks owns the request, and a geo package receives the
+  query boundary automatically. The sample-polygon picker appears for the `geo` input
+  kind, which needs a boundary to sample metadata.

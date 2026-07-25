@@ -44,13 +44,18 @@ polygon, triangle, clearance, area, perimeter, source-id, record-id, or timestam
 
 **FLAPI Flow Packages:** FLAPI now serves Flow Package resources only (the Cubes
 resource type and its `provider=cubes` legacy alias have been removed). New rows use
-`provider=flapi` with `flapi://package/<id>`. Packages fetch
-typed parameter definitions from `GET /package/v1/quick/{id}`, persist configured
-values as JSON in the source URL, and execute `POST /package/v3/{id}` with
-`lastQueries=true` unless a query is selected. Preserve exact boolean/string casing,
-numeric JSON values, raw WKT geometry text, WKT coordinate order, and JSON-object
-relative/absolute time shapes. Map result entries independently through the Cube mapper,
-tag rows with `_package_query`, and log partial-success trace IDs and capped queries.
+`provider=flapi` with `flapi://package/<id>`. **flunks owns every FLAPI HTTP call** —
+no FLAPI route or API version (`v1`/`v3`) may appear in our code, and there is no
+parameter-discovery call, no persisted per-parameter JSON, and no `httpx` transport in
+the provider. A layer is configured by four cube fields only: `input_cube_name`,
+`input_cube_parameter`, `input_cube_kind` (`time` | `geo`), `output_cube_name`. The
+input cube carries either `start_time`/`end_time` (`time`) or the whole query boundary
+as ONE WKT `MULTIPOLYGON` in a single-element `values` list (`geo`) — one geographic
+layer is one flunks identifier, never one chunk per polygon. Never ask the user to type
+WKT or geometry JSON. Preserve exact boolean/string casing, numeric JSON values, raw WKT
+text, WKT coordinate order, and JSON-object relative/absolute time shapes. Map result
+entries independently through the Cube mapper, tag rows with `_package_query`, and log
+partial-success trace IDs and capped queries.
 
 ## Commands
 
