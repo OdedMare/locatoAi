@@ -341,10 +341,6 @@ export default function LayersPanel({
       setPackageInputCubeKind("time");
       setPackageInputCubeParameter("");
       setPackageOutputCubeName("");
-      setDynamicParameterNames([]);
-      setParameterDefinitions([]);
-      setDynamicParameterValues({});
-      setRequiresSamplePolygon(false);
       setCubesSampleBoundary(null);
       setCubesSampleBoundarySource(null);
       setFormMessage("השכבה נוספה לקטלוג בהצלחה.");
