@@ -1,6 +1,5 @@
 from typing import List
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -9,7 +8,7 @@ from app.bl.catalog.mqs_sync.sync_mqs_layers import sync_mqs_layers
 from app.common.errors.provider_error import ProviderError
 from app.main import _register_error_handlers
 from app.service.catalog import router as catalog_router
-from app.service.catalog.router import _normalized_source
+from app.service.catalog.router import normalized_source
 from tests.conftest import FakeLayersRepository
 
 
@@ -158,9 +157,9 @@ def test_browse_endpoint_unknown_provider_payload_is_502():
 
 
 def test_tyche_fields_normalize_to_catalog_source_url():
-    assert _normalized_source("tyche", "ourforces") == "tyche://ourforces"
-    assert _normalized_source("tyche", "tyche://ourforces") == "tyche://ourforces"
-    assert _normalized_source(
+    assert normalized_source("tyche", "ourforces") == "tyche://ourforces"
+    assert normalized_source("tyche", "tyche://ourforces") == "tyche://ourforces"
+    assert normalized_source(
         "tyche", "/coordinate/v1/alerts",
         tyche_geometry_field="geo",
         tyche_geo_query_field="area",
@@ -178,4 +177,4 @@ def test_tyche_fields_normalize_to_catalog_source_url():
         "&entity_field=alertId&time_from_field=timeFrom&time_to_field=timeTo"
         "&param_environment=prod&param_includeArchived=false"
     )
-    assert _normalized_source("mqs", "mqs://layer/42") == "mqs://layer/42"
+    assert normalized_source("mqs", "mqs://layer/42") == "mqs://layer/42"

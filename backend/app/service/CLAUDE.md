@@ -40,7 +40,7 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
   `QueryEventSink` so the orchestrator records trace events in logs and the final
   JSON response. On
   exception: logs then **re-raises** — HTTP mapping happens in the global
-  `ErrorHandlerRegistry`, not here. Builds `QueryResponse.from_outcome(outcome)`.
+  `register_error_handlers`, not here. Builds `QueryResponse.from_outcome(outcome)`.
 - **`area_summary/router.py`** — validates the polygon translation and delegates to
   `app.state.area_summary`; layer-level errors remain successful partial responses.
 - **`plan/router.py`** — `orchestrator.execute_plan(body.plan, boundaries)`. No LLM
@@ -72,19 +72,19 @@ inconsistency worth knowing about rather than "fixing" incidentally.
 
 ## Composition root: `app/main.py` + `app/application_state_wiring.py`
 
-`ApplicationFactory.create()`:
+`create_app()`:
 1. `FastAPI(title="AiLocator", version="0.1.0")`.
-2. `ApplicationStateWiring.wire(application, get_settings())` — builds the full
+2. `wire(application, get_settings())` — builds the full
    dependency graph and attaches it to `app.state` (see below).
-3. `ErrorHandlerRegistry.register(application)` — domain-error → HTTP-status handlers.
-4. Includes all routers + a direct `GET /health` (`HealthRouter.status`).
+3. `register_error_handlers(application)` — domain-error → HTTP-status handlers.
+4. Includes all routers + a direct `GET /health` (`status`).
 
-`ApplicationStateWiring.wire` in three phases:
+`wire` uses three module-level helpers:
 1. **`_providers`** — `InMemoryProviderRegistry()`, registers `MqsProvider`,
    `FlapiProvider`, and `TycheProvider` (all take the shared `RuntimeSettingsStore`).
 2. **`_services`** — `CatalogService`, `PlanExecutor`, `OpenAIJsonClient`,
-   `RuntimeDietMode`, `LayerSelector`, `PlanBuilder`, `LayerMetadataGenerator`,
-   `QueryOrchestrator`, `AreaSummaryService`.
+   `LayerSelector`, `PlanBuilder`, `LayerMetadataGenerator`, `QueryOrchestrator`,
+   `AreaSummaryService`, and `RankingService`. Diet mode is a live settings lambda.
 3. **`_assign`** — sets on `app.state`: `settings_store`, `repository`
    (`PostgresLayersRepository`), `feedback_repository`, `mqs_provider`,
    `flapi_provider`, `tyche_provider`, `catalog`, `layer_selector`, `llm_client`,
@@ -157,7 +157,7 @@ overwrites). Same pattern for `llm_model`. The patch then goes through
 - **`area_summary/`** — area-summary router and a timezone-aware request DTO with
   polygon, optional `from`/`to`, encounter distance, and time tolerance.
 - **`plan/`** — execute-plan router and `ExecutePlanRequest`.
-- **`shared/`** — `GeoJSONMultiPolygon` plus `FeatureCollectionMapper`
+- **`shared/`** — `GeoJSONMultiPolygon` plus `gdf_to_feature_collection`
   (GeoDataFrame → GeoJSON).
 - **`agent/`** — select-layers router, `SelectLayersRequest`,
   `SelectLayersResponse`, and `SelectedLayer`.

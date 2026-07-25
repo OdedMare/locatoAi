@@ -172,7 +172,7 @@ trace dicts to `trace_sink` when provided.
 - **`op_handler.py`** — `OpHandler(ABC)`: one abstract method
   `run(self, step, ctx) -> Union[gpd.GeoDataFrame, int]`.
 - **`op_registry.py`** — module-level `_REGISTRY: Dict[str, OpHandler]`;
-  `register_op = OpRegistry.register`, `get_op_handler = OpRegistry.get` (raises
+  `register_op`, `get_op_handler` (raises
   `KeyError` if unregistered).
 - **`op_registration.py`** — `OpRegistration`, the `@register_op("name")` decorator:
   instantiates the handler once and stores that single instance in the registry.
@@ -221,7 +221,7 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
 | `spatial_relation/contains_op.py` | `ContainsOp` | `ContainsStep` | `predicate="contains"` |
 | `spatial_relation/crosses_op.py` | `CrossesOp` | `CrossesStep` | `predicate="crosses"` |
 | `spatial_relation/touches_op.py` | `TouchesOp` | `TouchesStep` | `predicate="touches"` |
-| `reference_entity_filter.py` | `ReferenceEntityFilter` (helper, no `@register_op`) | shared | Optional field/operator/value filter on proximity/relation targets |
+| `reference_entity_filter.py` | `filter_reference_entities` (no `@register_op`) | shared | Optional field/operator/value filter on proximity/relation targets |
 | `union_find.py` | `UnionFind` (helper) | shared | Deterministic union-find for `cluster.py` |
 | `proximity_result_builder.py` | `ProximityResultBuilder` (helper) | shared | Builds `distance_to_target_m`, `match_reason` (Hebrew), `nearest_target_feature` for `near`/`nearest_n` |
 
@@ -280,8 +280,8 @@ and prompt/trace/tests/docs updates. Both build prompt profiles consume the shar
 - **`layer_prompt_formatter.py`** — `LayerPromptFormatter(catalog).format(layers,
   diet=False)` — renders each layer's id/name/geometry type/fields with up to 2 (diet)
   or 5 (full) sample values, pulling live schema via `catalog.get_schema`.
-- **`preserves_constraints.py`** — `ConstraintPreserver.preserves(original, revised) ->
-  bool` (exposed as `preserves_constraints`). Builds a `(op, tuple of constraint field
+- **`preserves_constraints.py`** — `preserves_constraints(original, revised) ->
+  bool`. Builds a `(op, tuple of constraint field
   values)` signature per step for a fixed `_CONSTRAINT_FIELDS` table covering
   `attribute_filter`, `near`, `nearest_n`, `near_all`, `between`, `temporal_filter`,
   `cluster`, `movement_direction`, `latest_per_entity`, `within_geometry`. Returns

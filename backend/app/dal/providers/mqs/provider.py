@@ -3,7 +3,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import parse_qs, quote, urlparse
 
 import geopandas as gpd

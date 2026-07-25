@@ -16,36 +16,37 @@ from app.service.agent.selected_layer import SelectedLayer
 router = APIRouter()
 
 
-class AgentRouter:
-    @staticmethod
-    def select_layers(
-        body: SelectLayersRequest, request: Request
-    ) -> SelectLayersResponse:
-        selector: LayerSelector = request.app.state.layer_selector
-        started = time.perf_counter()
-        selection = selector.select(body.query)
-        timing_ms = int((time.perf_counter() - started) * 1000)
-        AgentRouter._log(request, body.query, selection, timing_ms)
-        return SelectLayersResponse(
-            layers=[SelectedLayer(id=item.id, name=item.name, tags=item.tags)
-                    for item in selection.layers],
-            clarify=selection.clarify,
-            reasoning=selection.reasoning,
-            timing_ms=timing_ms,
-        )
-
-    @staticmethod
-    def _log(request, query, selection, timing_ms) -> None:
-        request.app.state.request_log.info(
-            "select_layers", query=query,
-            selected=[layer.name for layer in selection.layers],
-            clarify=selection.clarify, timing_ms=timing_ms,
-            token_usage=selection.token_usage,
-        )
+def select_layers(body: SelectLayersRequest, request: Request) -> SelectLayersResponse:
+    selector: LayerSelector = request.app.state.layer_selector
+    started = time.perf_counter()
+    selection = selector.select(body.query)
+    timing_ms = int((time.perf_counter() - started) * 1000)
+    _log(request, body.query, selection, timing_ms)
+    return SelectLayersResponse(
+        layers=[
+            SelectedLayer(id=item.id, name=item.name, tags=item.tags)
+            for item in selection.layers
+        ],
+        clarify=selection.clarify,
+        reasoning=selection.reasoning,
+        timing_ms=timing_ms,
+    )
 
 
-select_layers = AgentRouter.select_layers
+def _log(request, query, selection, timing_ms) -> None:
+    request.app.state.request_log.info(
+        "select_layers",
+        query=query,
+        selected=[layer.name for layer in selection.layers],
+        clarify=selection.clarify,
+        timing_ms=timing_ms,
+        token_usage=selection.token_usage,
+    )
+
+
 router.add_api_route(
-    "/api/select-layers", select_layers,
-    methods=["POST"], response_model=SelectLayersResponse,
+    "/api/select-layers",
+    select_layers,
+    methods=["POST"],
+    response_model=SelectLayersResponse,
 )

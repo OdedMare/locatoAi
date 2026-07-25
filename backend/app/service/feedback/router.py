@@ -12,13 +12,10 @@ from app.service.feedback.request import FeedbackRequest
 router = APIRouter()
 
 
-class FeedbackRouter:
-    @staticmethod
-    def submit(body: FeedbackRequest, request: Request) -> dict:
-        repository = request.app.state.feedback_repository
-        repository.add(**body.model_dump(), timestamp=datetime.now(timezone.utc))
-        return {"status": "ok"}
+def submit_feedback(body: FeedbackRequest, request: Request) -> dict:
+    repository = request.app.state.feedback_repository
+    repository.add(**body.model_dump(), timestamp=datetime.now(timezone.utc))
+    return {"status": "ok"}
 
 
-submit_feedback = FeedbackRouter.submit
 router.add_api_route("/api/feedback", submit_feedback, methods=["POST"])

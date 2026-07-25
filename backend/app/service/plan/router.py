@@ -14,33 +14,36 @@ from app.service.query.response import QueryResponse
 router = APIRouter()
 
 
-class PlanRouter:
-    @staticmethod
-    def execute_plan(
-        body: ExecutePlanRequest,
-        request: Request,
-        orchestrator: QueryOrchestrator = Depends(get_orchestrator),
-    ) -> QueryResponse:
-        boundaries = body.boundaries.to_shapely()
-        outcome = orchestrator.execute_plan(body.plan, boundaries)
-        PlanRouter._log(request, body, boundaries, outcome)
-        return QueryResponse.from_outcome(outcome)
-
-    @staticmethod
-    def _log(request, body, boundaries, outcome) -> None:
-        result_count = (
-            len(outcome.features) if outcome.features is not None
-            else outcome.scalar_result or 0
-        )
-        request.app.state.request_log.info(
-            "execute_plan", plan_output=body.plan.output,
-            has_boundaries=boundaries is not None, status=outcome.status,
-            result_count=result_count, timing_ms=outcome.timing_ms,
-        )
+def execute_plan(
+    body: ExecutePlanRequest,
+    request: Request,
+    orchestrator: QueryOrchestrator = Depends(get_orchestrator),
+) -> QueryResponse:
+    boundaries = body.boundaries.to_shapely()
+    outcome = orchestrator.execute_plan(body.plan, boundaries)
+    _log(request, body, boundaries, outcome)
+    return QueryResponse.from_outcome(outcome)
 
 
-execute_plan = PlanRouter.execute_plan
+def _log(request, body, boundaries, outcome) -> None:
+    result_count = (
+        len(outcome.features)
+        if outcome.features is not None
+        else outcome.scalar_result or 0
+    )
+    request.app.state.request_log.info(
+        "execute_plan",
+        plan_output=body.plan.output,
+        has_boundaries=boundaries is not None,
+        status=outcome.status,
+        result_count=result_count,
+        timing_ms=outcome.timing_ms,
+    )
+
+
 router.add_api_route(
-    "/api/execute-plan", execute_plan,
-    methods=["POST"], response_model=QueryResponse,
+    "/api/execute-plan",
+    execute_plan,
+    methods=["POST"],
+    response_model=QueryResponse,
 )

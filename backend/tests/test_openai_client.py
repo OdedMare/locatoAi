@@ -77,7 +77,7 @@ def test_retries_transient_connection_error_then_succeeds(tmp_path, monkeypatch)
             self.chat = FakeChat()
 
     monkeypatch.setattr("app.dal.llm.openai_client.OpenAI", FakeOpenAI)
-    monkeypatch.setattr("app.dal.llm.openai_client.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("app.dal.llm.completion_retry.time.sleep", lambda _seconds: None)
 
     client = OpenAIJsonClient(make_store(tmp_path))
     data = client.complete_json(system="s", user="u")
@@ -106,7 +106,7 @@ def test_gives_up_after_max_transient_attempts(tmp_path, monkeypatch):
             self.chat = FakeChat()
 
     monkeypatch.setattr("app.dal.llm.openai_client.OpenAI", FakeOpenAI)
-    monkeypatch.setattr("app.dal.llm.openai_client.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("app.dal.llm.completion_retry.time.sleep", lambda _seconds: None)
 
     client = OpenAIJsonClient(make_store(tmp_path))
     with pytest.raises(AgentError, match="LLM request failed"):

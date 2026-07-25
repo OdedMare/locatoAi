@@ -8,7 +8,6 @@ import sys
 from datetime import datetime, timezone
 
 from app.bl.agent.build_plan.plan_builder import PlanBuilder
-from app.bl.agent.runtime_diet_mode import RuntimeDietMode
 from app.bl.catalog.models.layer_field import LayerField
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
@@ -79,7 +78,7 @@ def main() -> int:
     store = RuntimeSettingsStore(get_settings())
     builder = PlanBuilder(
         OpenAIJsonClient(store), SyntheticCatalog(),
-        diet_mode=RuntimeDietMode(store),
+        diet_mode=lambda: store.get().llm_diet_mode,
     )
     passed = 0
     for query, layers, expected_ops, role_check in CASES:

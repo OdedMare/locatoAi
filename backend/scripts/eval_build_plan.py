@@ -12,7 +12,6 @@ import time
 from datetime import datetime, timezone
 
 from app.bl.agent.build_plan.plan_builder import PlanBuilder
-from app.bl.agent.runtime_diet_mode import RuntimeDietMode
 from app.bl.catalog.catalog_service import CatalogService
 from app.common.config.settings_provider import get_settings
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -344,7 +343,8 @@ def main():
     catalog = _catalog(store, settings)
     available = catalog.list_queryable_layers()
     builder = PlanBuilder(
-        OpenAIJsonClient(store), catalog, diet_mode=RuntimeDietMode(store)
+        OpenAIJsonClient(store), catalog,
+        diet_mode=lambda: store.get().llm_diet_mode,
     )
     now = datetime.now(timezone.utc)
     print("model:", store.get().llm_model, "| diet:", store.get().llm_diet_mode,

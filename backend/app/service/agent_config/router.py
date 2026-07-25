@@ -11,65 +11,64 @@ from app.service.agent_config.update_request import UpdateAgentContentRequest
 router = APIRouter()
 
 
-class AgentConfigRouter:
-    @staticmethod
-    def list_content(request: Request) -> AgentConfigResponse:
-        repository = request.app.state.agent_content
-        return AgentConfigResponse(
-            prompts=repository.list_prompts(),
-            skills=repository.list_skills(),
+def list_content(request: Request) -> AgentConfigResponse:
+    repository = request.app.state.agent_content
+    return AgentConfigResponse(
+        prompts=repository.list_prompts(),
+        skills=repository.list_skills(),
+    )
+
+
+def update_content(
+    kind: str,
+    content_id: str,
+    body: UpdateAgentContentRequest,
+    request: Request,
+) -> AgentContentResponse:
+    try:
+        _validate_references(kind, body.content, request)
+        return AgentContentResponse(
+            **request.app.state.agent_content.update(kind, content_id, body.content)
         )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
-    @staticmethod
-    def update_content(
-        kind: str, content_id: str,
-        body: UpdateAgentContentRequest, request: Request,
-    ) -> AgentContentResponse:
-        try:
-            AgentConfigRouter._validate_references(
-                kind, body.content, request
-            )
-            return AgentContentResponse(
-                **request.app.state.agent_content.update(
-                    kind, content_id, body.content
-                )
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
 
-    @staticmethod
-    def create_skill(
-        body: CreateAgentSkillRequest, request: Request,
-    ) -> AgentContentResponse:
-        try:
-            AgentConfigRouter._validate_references(
-                "skill", body.content, request
-            )
-            item = request.app.state.agent_content.add_skill(
-                body.title, body.content
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
-        return AgentContentResponse(**item)
+def create_skill(
+    body: CreateAgentSkillRequest,
+    request: Request,
+) -> AgentContentResponse:
+    try:
+        _validate_references("skill", body.content, request)
+        item = request.app.state.agent_content.add_skill(body.title, body.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return AgentContentResponse(**item)
 
-    @staticmethod
-    def _validate_references(kind: str, content: str, request: Request) -> None:
-        if kind == "skill" and "@field[" in content:
-            SkillFieldReferences(request.app.state.catalog).render(content)
+
+def _validate_references(kind: str, content: str, request: Request) -> None:
+    if kind == "skill" and "@field[" in content:
+        SkillFieldReferences(request.app.state.catalog).render(content)
 
 
 router.add_api_route(
-    "/api/agent-config", AgentConfigRouter.list_content,
-    methods=["GET"], response_model=AgentConfigResponse,
+    "/api/agent-config",
+    list_content,
+    methods=["GET"],
+    response_model=AgentConfigResponse,
 )
 router.add_api_route(
     "/api/agent-config/{kind}/{content_id}",
-    AgentConfigRouter.update_content,
-    methods=["PUT"], response_model=AgentContentResponse,
+    update_content,
+    methods=["PUT"],
+    response_model=AgentContentResponse,
 )
 router.add_api_route(
-    "/api/agent-config/skills", AgentConfigRouter.create_skill,
-    methods=["POST"], response_model=AgentContentResponse, status_code=201,
+    "/api/agent-config/skills",
+    create_skill,
+    methods=["POST"],
+    response_model=AgentContentResponse,
+    status_code=201,
 )

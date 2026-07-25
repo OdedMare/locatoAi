@@ -42,8 +42,8 @@ defaults) > dataclass field defaults.**
   `tyche_base_url` /
   `tyche_username` / `tyche_token` / `tyche_verify_tls`, `runtime_settings_file`,
   `schema_cache_ttl_seconds`, `request_log_path`.
-  - `SettingsProvider.get()` (`config/settings_provider.py`, `@lru_cache`) memoizes one
-    `Settings()` instance per process. `settings_provider.get_settings = SettingsProvider.get`.
+  - `get_settings()` (`config/settings_provider.py`, `@lru_cache`) memoizes one
+    `Settings()` instance per process.
   - **`get_settings()` is called exactly once**, at startup in `main.py`, purely to seed
     the `RuntimeSettingsStore`. Nothing else should call it.
 
@@ -53,7 +53,7 @@ defaults) > dataclass field defaults.**
   `quoted_layers_table()` / `quoted_feedback_table()` double-quote each
   dot-separated identifier part for safe SQL interpolation.
 
-- **`runtime_settings/normalizers.py`** — `class RuntimeSettingsNormalizer`: validates
+- **`runtime_settings/normalizers.py`** — module-level functions validate
   and cleans values before they enter the store (all raise `ValueError` on bad input).
   `llm_base_url` / `mqs_base_url` / `cubes_base_url` / `tyche_base_url` strip known
   suffixes and require an `http(s)://` scheme. `database_url` strips a leading `jdbc:`
@@ -111,7 +111,7 @@ for these five types.
 ## Geo math: `utils/geo_utils.py`
 
 **All meters math goes through here — never do distance/buffer math directly in WGS84
-degrees.** `class GeoUtils`:
+degrees.** Module-level helpers:
 - `metric_crs_for(*frames) -> CRS` — picks a locally-accurate metric CRS by
   reprojecting to WGS84, taking the combined-bounds center, and calling
   `estimate_utm_crs()` (falls back to Web Mercator `EPSG:3857` if that fails or all
@@ -125,13 +125,11 @@ degrees.** `class GeoUtils`:
 - `empty_features_gdf()` — a consistent empty `GeoDataFrame` (`geometry` column,
   `crs=WGS84`) for "no results."
 
-Module-level aliases exist for every method (`from app.common.utils.geo_utils import to_metric`).
-
 ## Logging: `logging/console_logger.py` + `logging/configurator.py`
 
 Console-first, dual-destination structured logging:
 
-- **`LoggingConfigurator.configure(request_log_path) -> ConsoleFirstLogger`** — called
+- **`configure_logging(request_log_path) -> ConsoleFirstLogger`** — called
   once at startup with `settings.request_log_path` (default `backend/logs/requests.jsonl`).
   Wires two stdlib loggers (`"ailocator.requests"` → file, `"ailocator.requests.console"`
   → console) plus the general `"app"` logger → console, all `propagate=False`.
@@ -147,7 +145,7 @@ Two destinations: stdout (dev visibility) and `backend/logs/requests.jsonl`
 
 ## Text: `utils/normalizer.py`
 
-`class TextNormalizer` / `normalize_text = TextNormalizer.normalize` — NFKC-normalizes,
+`normalize_text` — NFKC-normalizes,
 strips Hebrew niqqud and punctuation (`״`/`׳` and ASCII stand-ins), folds Hebrew final
 letters to regular form (`ך→כ`, `ם→מ`, `ן→נ`, `ף→פ`, `ץ→צ`), collapses whitespace/`-`/
 `_`/`.` runs, strips and casefolds. Fixes mismatches like `"תל אביב"` vs `"ת״א"` or
@@ -160,6 +158,6 @@ consumed by `bl`, confirming the dependency direction never reverses.
 - Need a new setting? Start in `config/settings.py` + `runtime_settings/runtime_settings.py`.
 - Need to raise a typed failure? Pick from `errors/` — don't invent a new exception type
   without a good reason; the HTTP mapping lives in `app/service/errors/registry.py`.
-- Doing distance/buffer/reprojection? Everything you need is a `GeoUtils` static method.
+- Doing distance/buffer/reprojection? Use the functions in `utils/geo_utils.py`.
 - Adding a log line? Use the `ConsoleFirstLogger` at `app.state.request_log`, not raw
   `logging.getLogger`.

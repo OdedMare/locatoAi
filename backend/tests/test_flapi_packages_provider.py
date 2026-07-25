@@ -9,7 +9,7 @@ from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.flapi.mapper import FlunksMapper
 from app.dal.providers.flapi.provider import FlapiProvider
-from app.service.catalog.router import CatalogRouter
+from app.service.catalog.router import normalized_source
 
 
 def package_records():
@@ -49,7 +49,7 @@ def package_layer(source_url):
 
 
 def configured_source():
-    return CatalogRouter.normalized_source(
+    return normalized_source(
         "flapi", "466192",
         package_query="FinalCube",
         package_input_cube_name="RawInput",
@@ -60,7 +60,7 @@ def configured_source():
 
 
 def geo_source():
-    return CatalogRouter.normalized_source(
+    return normalized_source(
         "flapi", "466192",
         package_input_cube_name="RawInput",
         package_input_cube_parameter="GeoQuery",
@@ -406,7 +406,7 @@ def test_input_cube_defaults_time_window_when_range_absent():
 
 def test_package_output_cube_name_required_at_execution(tmp_path, monkeypatch):
     provider = make_provider(tmp_path, StubRunner, monkeypatch)
-    source = CatalogRouter.normalized_source(
+    source = normalized_source(
         "flapi", "466192",
         package_input_cube_name="RawInput",
         package_input_cube_parameter="TimeRange",

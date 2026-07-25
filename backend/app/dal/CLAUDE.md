@@ -114,17 +114,17 @@ OpenAI-compatible servers (Ollama/vLLM/Groq); primary target is Gemma via Ollama
 
 **The degradation ladder** (`_attempts`, executed by `_complete`): when supplied,
 1) JSON Schema → 2) JSON mode (`response_format: json_object`) → 3) plain → 4) plain with the
-system prompt merged into the user turn via `MessageMerger.merge_system_into_user` (for
+system prompt merged into the user turn via `merge_system_into_user` (for
 servers/models that reject a system role). Each rung is tried in order; a
 `BadRequestError` falls through to the next, anything else aborts as `AgentError`.
 
 Supporting collaborators:
-- `completion_retry.py` — `CompletionRetry.create` — bounded retry (`_ATTEMPTS=2`,
+- `completion_retry.py` — `create_with_retry` — bounded retry (`_ATTEMPTS=2`,
   `_DELAY_SECONDS=0.3`) for transient rate-limit/connection/timeout errors.
-- `json_response_parser.py` — `JsonResponseParser.parse` — strips code fences, falls
+- `json_response_parser.py` — `extract_json` — strips code fences, falls
   back to the substring between the first `{` and last `}`.
-- `message_merger.py` — `MessageMerger.merge_system_into_user` — for rung 3 above.
-- `model_id_extractor.py` — `ModelIdExtractor.extract` — normalizes OpenAI/gateway/bare
+- `message_merger.py` — `merge_system_into_user` — for rung 3 above.
+- `model_id_extractor.py` — `extract_model_ids` — normalizes OpenAI/gateway/bare
   list/keyed-item model list shapes into a sorted, deduplicated set.
 
 One `OpenAI` SDK client is cached per `(api_key, base_url)` to avoid a handshake per
@@ -151,7 +151,7 @@ description, tags, provider, source_url`.
 alone encodes/decodes those values as legacy semantic tags so existing six-column
 catalog tables require no migration; business tags remain clean everywhere above DAL.
 
-`PostgresConnection.connect(store)` (`database/postgres.py`) — `psycopg` connection with
+`connect(store)` (`database/postgres.py`) — `psycopg` connection with
 `dict_row` factory. Host/port/database/user/password can be set individually in
 runtime settings, overriding the equivalent parts embedded in `database_url`; blank
 overrides fall back to the URL.
