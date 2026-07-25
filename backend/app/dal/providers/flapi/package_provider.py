@@ -75,6 +75,7 @@ class FlowPackageProvider:
             self._source.package_input_cube_name(layer),
             self._source.package_input_cube_parameter(layer),
             temporal_range,
+            now=now,
         )
         rows = self._gateway.execute(
             layer, input_cube, self._source.package_output_cube_name(layer),

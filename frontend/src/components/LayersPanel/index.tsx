@@ -128,9 +128,9 @@ export default function LayersPanel({
   const [displayField, setDisplayField] = useState("");
   const [profiles, setProfiles] = useState("");
   const [packageQuery, setPackageQuery] = useState("");
-  const [packageInputParameter, setPackageInputParameter] = useState("");
-  const [packageOutputFields, setPackageOutputFields] = useState<string[]>([]);
-  const [availableOutputFields, setAvailableOutputFields] = useState<string[]>([]);
+  const [packageInputCubeName, setPackageInputCubeName] = useState("");
+  const [packageInputCubeParameter, setPackageInputCubeParameter] = useState("");
+  const [packageOutputCubeName, setPackageOutputCubeName] = useState("");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
   const [parameterDefinitions, setParameterDefinitions] =
     useState<FlapiParameterDefinition[]>([]);
@@ -311,9 +311,12 @@ export default function LayersPanel({
           ? packageParameterValues(parameterDefinitions, dynamicParameterValues)
           : {},
         package_query: isFlowPackage ? packageQuery.trim() || null : null,
-        package_input_parameter: isFlowPackage
-          ? packageInputParameter.trim() || null : null,
-        package_output_fields: isFlowPackage ? packageOutputFields : [],
+        package_input_cube_name: isFlowPackage
+          ? packageInputCubeName.trim() || null : null,
+        package_input_cube_parameter: isFlowPackage
+          ? packageInputCubeParameter.trim() || null : null,
+        package_output_cube_name: isFlowPackage
+          ? packageOutputCubeName.trim() || null : null,
         entity_field: tycheEntityField.trim() || undefined,
         display_field: displayField.trim() || undefined,
         profiles: profiles.split(",").map((item) => item.trim()).filter(Boolean),
@@ -337,9 +340,9 @@ export default function LayersPanel({
       setDisplayField("");
       setProfiles("");
       setPackageQuery("");
-      setPackageInputParameter("");
-      setPackageOutputFields([]);
-      setAvailableOutputFields([]);
+      setPackageInputCubeName("");
+      setPackageInputCubeParameter("");
+      setPackageOutputCubeName("");
       setDynamicParameterNames([]);
       setParameterDefinitions([]);
       setDynamicParameterValues({});
@@ -396,8 +399,12 @@ export default function LayersPanel({
       source_url: selected?.source_url ?? sourceUrl,
       package_parameters: packageParameters,
       package_query: isFlowPackage ? packageQuery.trim() || null : null,
-      package_input_parameter: isFlowPackage
-        ? packageInputParameter.trim() || null : null,
+      package_input_cube_name: isFlowPackage
+        ? packageInputCubeName.trim() || null : null,
+      package_input_cube_parameter: isFlowPackage
+        ? packageInputCubeParameter.trim() || null : null,
+      package_output_cube_name: isFlowPackage
+        ? packageOutputCubeName.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
       tyche_geometry_field: tycheGeometryField.trim(),
       tyche_geo_query_field: tycheGeoQueryField.trim(),
@@ -415,12 +422,6 @@ export default function LayersPanel({
     try {
       const generated = await generateLayerMetadata(target);
       setRequiresSamplePolygon(generated.requires_sample_polygon);
-      if (isFlowPackage) {
-        setAvailableOutputFields(generated.output_fields);
-        setPackageOutputFields((current) =>
-          current.filter((field) => generated.output_fields.includes(field))
-        );
-      }
       if (generated.sample_count > 0) {
         setDescription(generated.description);
         setTags(generated.tags);
@@ -497,9 +498,9 @@ export default function LayersPanel({
     setDisplayField(layer.display_field ?? "");
     setProfiles(layer.profiles?.join(", ") ?? "");
     setPackageQuery("");
-    setPackageInputParameter("");
-    setPackageOutputFields([]);
-    setAvailableOutputFields([]);
+    setPackageInputCubeName("");
+    setPackageInputCubeParameter("");
+    setPackageOutputCubeName("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setDynamicParameterValues({});
@@ -519,9 +520,9 @@ export default function LayersPanel({
     setDisplayField("");
     setProfiles("");
     setPackageQuery("");
-    setPackageInputParameter("");
-    setPackageOutputFields([]);
-    setAvailableOutputFields([]);
+    setPackageInputCubeName("");
+    setPackageInputCubeParameter("");
+    setPackageOutputCubeName("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setDynamicParameterValues({});
@@ -540,9 +541,9 @@ export default function LayersPanel({
   const startFlowPackage = () => {
     setProvider("flapi");
     setPackageQuery("");
-    setPackageInputParameter("");
-    setPackageOutputFields([]);
-    setAvailableOutputFields([]);
+    setPackageInputCubeName("");
+    setPackageInputCubeParameter("");
+    setPackageOutputCubeName("");
     setSourceUrl("");
     resetTycheConfig();
     setDisplayField("");
@@ -571,9 +572,9 @@ export default function LayersPanel({
     setDisplayField("");
     setProfiles("");
     setPackageQuery("");
-    setPackageInputParameter("");
-    setPackageOutputFields([]);
-    setAvailableOutputFields([]);
+    setPackageInputCubeName("");
+    setPackageInputCubeParameter("");
+    setPackageOutputCubeName("");
     setDynamicParameterNames([]);
     setParameterDefinitions([]);
     setDynamicParameterValues({});
@@ -792,9 +793,9 @@ export default function LayersPanel({
                     setDisplayField("");
                     setProfiles("");
                     setPackageQuery("");
-                    setPackageInputParameter("");
-                    setPackageOutputFields([]);
-                    setAvailableOutputFields([]);
+                    setPackageInputCubeName("");
+                    setPackageInputCubeParameter("");
+                    setPackageOutputCubeName("");
                     setDynamicParameterNames([]);
                     setParameterDefinitions([]);
                     setDynamicParameterValues({});
@@ -1029,18 +1030,12 @@ export default function LayersPanel({
                   dir="ltr"
                 />
                 <PackageCubesFieldset
-                  definitions={parameterDefinitions}
-                  inputParameter={packageInputParameter}
-                  onChangeInputParameter={setPackageInputParameter}
-                  availableOutputFields={availableOutputFields}
-                  outputFields={packageOutputFields}
-                  onToggleOutputField={(field) => {
-                    setPackageOutputFields((current) =>
-                      current.includes(field)
-                        ? current.filter((item) => item !== field)
-                        : [...current, field]
-                    );
-                  }}
+                  inputCubeName={packageInputCubeName}
+                  inputCubeParameter={packageInputCubeParameter}
+                  outputCubeName={packageOutputCubeName}
+                  onChangeInputCubeName={setPackageInputCubeName}
+                  onChangeInputCubeParameter={setPackageInputCubeParameter}
+                  onChangeOutputCubeName={setPackageOutputCubeName}
                   busy={generatingMetadata || saving}
                 />
               </>

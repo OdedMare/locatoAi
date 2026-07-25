@@ -1,80 +1,80 @@
-import type { FlapiParameterDefinition } from "@/types/catalog";
-
 interface PackageCubesFieldsetProps {
-  definitions: FlapiParameterDefinition[];
-  inputParameter: string;
-  onChangeInputParameter: (name: string) => void;
-  availableOutputFields: string[];
-  outputFields: string[];
-  onToggleOutputField: (field: string) => void;
+  inputCubeName: string;
+  inputCubeParameter: string;
+  outputCubeName: string;
+  onChangeInputCubeName: (value: string) => void;
+  onChangeInputCubeParameter: (value: string) => void;
+  onChangeOutputCubeName: (value: string) => void;
   busy: boolean;
 }
 
-/** flunks input/output cube config: which parameter drives chunking, and which
- * response fields the output cube should carry. */
+/** flunks input/output cube config: the input cube name and its time-range
+ * cube_parameter that drives parallel runs, and the output cube to read back.
+ * The time range itself comes from the query at execution time. */
 export default function PackageCubesFieldset({
-  definitions,
-  inputParameter,
-  onChangeInputParameter,
-  availableOutputFields,
-  outputFields,
-  onToggleOutputField,
+  inputCubeName,
+  inputCubeParameter,
+  outputCubeName,
+  onChangeInputCubeName,
+  onChangeInputCubeParameter,
+  onChangeOutputCubeName,
   busy,
 }: PackageCubesFieldsetProps) {
   return (
     <>
       <fieldset className="cubes-query-mode">
-        <legend>Input Cube — פרמטר הפיצול לריצות מקבילות</legend>
-        <label className="field-label" htmlFor="package-input-parameter">
-          פרמטר{" "}
-          <span className="optional">
-            (אופציונלי; ריק = ריצה בודדת ללא פיצול)
-          </span>
+        <legend>Input Cube — קוביית הקלט לריצות מקבילות</legend>
+        <label className="field-label" htmlFor="package-input-cube-name">
+          שם קוביית הקלט (cube_name)
         </label>
-        <select
-          id="package-input-parameter"
+        <input
+          id="package-input-cube-name"
           className="settings-input"
-          value={inputParameter}
-          onChange={(event) => onChangeInputParameter(event.target.value)}
-          disabled={busy || definitions.length === 0}
+          type="text"
+          value={inputCubeName}
+          onChange={(event) => onChangeInputCubeName(event.target.value)}
+          disabled={busy}
+          placeholder="שם קוביית הקלט"
           dir="ltr"
+        />
+        <label
+          className="field-label"
+          htmlFor="package-input-cube-parameter"
         >
-          <option value="">ללא פיצול</option>
-          {definitions.map((definition) => (
-            <option key={definition.name} value={definition.name}>
-              {definition.display_name || definition.name} ({definition.name})
-            </option>
-          ))}
-        </select>
+          פרמטר טווח הזמן (cube_parameter)
+        </label>
+        <input
+          id="package-input-cube-parameter"
+          className="settings-input"
+          type="text"
+          value={inputCubeParameter}
+          onChange={(event) => onChangeInputCubeParameter(event.target.value)}
+          disabled={busy}
+          placeholder="שם פרמטר טווח הזמן"
+          dir="ltr"
+        />
         <small dir="auto">
-          פרמטר מזהים (רשימת ערכים) יפוצל ל-chunks; פרמטר זמן יפוצל לטווחי זמן.
-          הערכים עצמם נקבעים בשדה המתאים למטה.
+          הפרמטר מקבל את טווח הזמן (start_time / end_time) שנגזר מהשאילתה
+          בזמן הריצה.
         </small>
       </fieldset>
       <fieldset className="cubes-query-mode">
-        <legend>Output Cube — שדות תוצאה</legend>
-        {availableOutputFields.length === 0 ? (
-          <small dir="auto">
-            צרו הצעות metadata כדי לטעון את רשימת השדות האמיתית מהתגובה.
-          </small>
-        ) : (
-          <div className="cubes-query-mode-options">
-            {availableOutputFields.map((field) => (
-              <button
-                key={field}
-                type="button"
-                className={outputFields.includes(field) ? "active" : ""}
-                aria-pressed={outputFields.includes(field)}
-                disabled={busy}
-                onClick={() => onToggleOutputField(field)}
-              >
-                <strong dir="ltr">{field}</strong>
-              </button>
-            ))}
-          </div>
-        )}
+        <legend>Output Cube — קוביית הפלט</legend>
+        <label className="field-label" htmlFor="package-output-cube-name">
+          שם קוביית הפלט (cube_name)
+        </label>
+        <input
+          id="package-output-cube-name"
+          className="settings-input"
+          type="text"
+          value={outputCubeName}
+          onChange={(event) => onChangeOutputCubeName(event.target.value)}
+          disabled={busy}
+          placeholder="שם קוביית הפלט"
+          dir="ltr"
+        />
         <small dir="auto">
-          אופציונלי; ריק = כל השדות שמוחזרים בתוצאה.
+          שם הקובייה שממנה נקראת התוצאה הסופית.
         </small>
       </fieldset>
     </>

@@ -1,6 +1,6 @@
 """Build the flunks input cube from configured cube names and a time range."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 from flunks import PackageInputCube
@@ -17,26 +17,38 @@ class FlowPackageSerializer:
     is serialized here.
     """
 
+    _SAMPLE_WINDOW = timedelta(hours=1)
+
     def build_input_cube(
         self,
         input_cube_name: Optional[str],
         input_cube_parameter: Optional[str],
         temporal_range: Optional[Tuple[str, str]] = None,
+        now: Optional[datetime] = None,
     ) -> PackageInputCube:
         if not input_cube_name:
             raise ProviderError("Flow Package input cube name is required")
         if not input_cube_parameter:
             raise ProviderError("Flow Package input cube parameter is required")
-        if temporal_range is None:
-            raise ProviderError(
-                "Flow Package input cube requires a query time range"
-            )
+        start, end = self._range(temporal_range, now)
         return PackageInputCube(
             cube_name=input_cube_name,
             cube_parameter=input_cube_parameter,
-            start_time=self._parse_iso(temporal_range[0]),
-            end_time=self._parse_iso(temporal_range[1]),
+            start_time=start,
+            end_time=end,
         )
+
+    def _range(
+        self,
+        temporal_range: Optional[Tuple[str, str]],
+        now: Optional[datetime],
+    ) -> Tuple[datetime, datetime]:
+        if temporal_range is not None:
+            return self._parse_iso(temporal_range[0]), self._parse_iso(
+                temporal_range[1]
+            )
+        end = now or datetime.now(timezone.utc)
+        return end - self._SAMPLE_WINDOW, end
 
     @staticmethod
     def _parse_iso(value: str) -> datetime:
