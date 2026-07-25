@@ -4,6 +4,13 @@ import type {
   PipelineTraceEntry,
 } from "@/types/geo-query";
 
+export type QueryProgressHandler = (entry: PipelineTraceEntry) => void;
+
+interface StreamFrame {
+  event: "trace" | "result" | "error";
+  data: unknown;
+}
+
 function failedResponse(
   message: string, requestId: string, trace: PipelineTraceEntry[]
 ): GeoQueryResponse {
@@ -43,30 +50,115 @@ function errorDetail(body: unknown): string {
   return detail == null ? "" : String(detail);
 }
 
+function parseFrame(raw: string): StreamFrame | null {
+  const event = raw.match(/^event:\s*(.+)$/m)?.[1];
+  const data = raw
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trimStart())
+    .join("\n");
+  if (!event || !data) return null;
+  return { event: event as StreamFrame["event"], data: JSON.parse(data) };
+}
+
+async function* streamFrames(
+  body: ReadableStream<Uint8Array>
+): AsyncGenerator<StreamFrame> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const parts = buffer.replaceAll("\r\n", "\n").split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const frame = parseFrame(part);
+      if (frame) yield frame;
+    }
+    if (done) break;
+  }
+}
+
+function streamedError(
+  data: unknown, fallbackId: string
+): GeoQueryResponse {
+  const error = data as {
+    detail?: string;
+    request_id?: string;
+    pipeline_trace?: PipelineTraceEntry[];
+  };
+  return failedResponse(
+    error.detail || "זרם הביצוע הופסק לפני שהתקבלה תשובה.",
+    error.request_id || fallbackId,
+    error.pipeline_trace ?? [],
+  );
+}
+
+async function readStream(
+  response: Response,
+  requestId: string,
+  onProgress?: QueryProgressHandler,
+): Promise<GeoQueryResponse> {
+  if (!response.body) {
+    return failedResponse("השרת לא החזיר זרם ביצוע.", requestId, []);
+  }
+  for await (const frame of streamFrames(response.body)) {
+    if (frame.event === "trace") {
+      onProgress?.(frame.data as PipelineTraceEntry);
+    } else if (frame.event === "result") {
+      return frame.data as GeoQueryResponse;
+    } else if (frame.event === "error") {
+      return streamedError(frame.data, requestId);
+    }
+  }
+  return failedResponse("זרם הביצוע הסתיים ללא תשובה.", requestId, []);
+}
+
+async function httpFailure(
+  response: Response, clientRequestId: string
+): Promise<GeoQueryResponse> {
+  const raw = await response.text().catch(() => "");
+  let body: Record<string, unknown> = {};
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    body = {};
+  }
+  const message = errorDetail(body) || raw || `השרת החזיר שגיאה ${response.status}`;
+  const requestId = typeof body.request_id === "string"
+    ? body.request_id
+    : response.headers.get("X-Request-ID") ?? clientRequestId;
+  const trace = Array.isArray(body.pipeline_trace)
+    ? body.pipeline_trace as PipelineTraceEntry[]
+    : [transportFailure(message, "UnstructuredHttpError", { http_status: response.status })];
+  return failedResponse(message, requestId, trace);
+}
+
 /**
- * Real backend call. `/api/*` is proxied to the FastAPI backend by the
- * rewrite in next.config.ts, so the backend must be running:
- *
- *   cd backend && .venv/bin/uvicorn app.main:app --port 8000
- *
- * Day 1: the backend's agent is stubbed, so this returns a `clarify`
- * response. The contract is final — nothing here changes on Day 2.
+ * Stream the real backend pipeline while retaining the final response contract.
  */
 export async function submitQuery(
-  request: GeoQueryRequest
+  request: GeoQueryRequest,
+  onProgress?: QueryProgressHandler,
 ): Promise<GeoQueryResponse> {
-  let res: Response;
   const clientRequestId = crypto.randomUUID();
   console.info("Query pipeline started", { requestId: clientRequestId, request });
   try {
-    res = await fetch("/api/query", {
+    const response = await fetch("/api/query/stream", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Accept": "text/event-stream",
         "X-Request-ID": clientRequestId,
       },
       body: JSON.stringify(request),
     });
+    const result = response.ok
+      ? await readStream(response, clientRequestId, onProgress)
+      : await httpFailure(response, clientRequestId);
+    console.info("Query pipeline completed", result);
+    return result;
   } catch (error) {
     const message = "לא ניתן להתחבר לשרת. בדקו שהשרת פועל ונסו שוב.";
     const trace = [transportFailure(message, "NetworkError", {
@@ -78,40 +170,4 @@ export async function submitQuery(
     });
     return failedResponse(message, clientRequestId, trace);
   }
-
-  if (!res.ok) {
-    const raw = await res.text().catch(() => "");
-    let detail = "";
-    let body: Record<string, unknown> = {};
-    try {
-      body = JSON.parse(raw) as Record<string, unknown>;
-      detail = errorDetail(body);
-    } catch {
-      detail = raw;
-    }
-    const message = detail || `השרת החזיר שגיאה ${res.status}`;
-    const requestId = typeof body.request_id === "string"
-      ? body.request_id
-      : res.headers.get("X-Request-ID") ?? clientRequestId;
-    const errorType = typeof body.error_type === "string"
-      ? body.error_type
-      : "UnstructuredHttpError";
-    const trace = Array.isArray(body.pipeline_trace)
-      ? body.pipeline_trace as GeoQueryResponse["pipeline_trace"]
-      : [transportFailure(message, errorType, {
-          http_status: res.status,
-          raw_response: raw.slice(0, 1000),
-        })];
-    console.error("Query pipeline failed", {
-      status: res.status,
-      requestId,
-      pipelineTrace: trace,
-      errorType,
-      detail: message,
-    });
-    return failedResponse(message, requestId, trace);
-  }
-  const response = await res.json() as GeoQueryResponse;
-  console.info("Query pipeline completed", response);
-  return response;
 }

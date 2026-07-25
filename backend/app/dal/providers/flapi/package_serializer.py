@@ -1,20 +1,27 @@
-"""Build the flunks input cube from configured cube names and a time range."""
+"""Build the flunks input cube from configured cube names and query inputs."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from flunks import PackageInputCube
+from shapely.geometry import MultiPolygon
+from shapely.geometry.base import BaseGeometry
 
 from app.common.errors.provider_error import ProviderError
 
 
 class FlowPackageSerializer:
-    """Assembles a time-range `PackageInputCube` from the configured cube names.
+    """Assembles the flunks input cube from the configured cube names.
 
-    Per the flunks Package API the input cube is driven by a single time-range
-    parameter (``cube_parameter``) receiving ``start_time``/``end_time``. Every
-    other package parameter is fixed inside the package itself, so nothing else
-    is serialized here.
+    The input cube is driven by a single ``cube_parameter`` whose values come
+    from the query. Two kinds are supported:
+
+    - ``geo``  — the query boundary polygons are passed as a list of WKT
+      multipolygons via ``values`` (one per drawn/viewport polygon).
+    - ``time`` — the query time range is passed as ``start_time``/``end_time``.
+
+    Every other package parameter is fixed inside the package itself, so
+    nothing else is serialized here.
     """
 
     _SAMPLE_WINDOW = timedelta(hours=1)
@@ -23,13 +30,21 @@ class FlowPackageSerializer:
         self,
         input_cube_name: Optional[str],
         input_cube_parameter: Optional[str],
+        kind: str = "time",
         temporal_range: Optional[Tuple[str, str]] = None,
+        geometry: Optional[BaseGeometry] = None,
         now: Optional[datetime] = None,
     ) -> PackageInputCube:
         if not input_cube_name:
             raise ProviderError("Flow Package input cube name is required")
         if not input_cube_parameter:
             raise ProviderError("Flow Package input cube parameter is required")
+        if kind == "geo":
+            return PackageInputCube(
+                cube_name=input_cube_name,
+                cube_parameter=input_cube_parameter,
+                values=self._multipolygons(geometry),
+            )
         start, end = self._range(temporal_range, now)
         return PackageInputCube(
             cube_name=input_cube_name,
@@ -37,6 +52,15 @@ class FlowPackageSerializer:
             start_time=start,
             end_time=end,
         )
+
+    def _multipolygons(self, geometry: Optional[BaseGeometry]) -> List[str]:
+        if geometry is None or geometry.is_empty:
+            raise ProviderError(
+                "Flow Package geo input cube requires query boundaries"
+            )
+        parts = getattr(geometry, "geoms", None)
+        polygons = list(parts) if parts is not None else [geometry]
+        return [MultiPolygon([polygon]).wkt for polygon in polygons]
 
     def _range(
         self,

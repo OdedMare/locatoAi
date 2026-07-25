@@ -16,6 +16,7 @@ import {
   type GeoQueryRequest,
   type GeoQueryResponse,
   type MapViewState,
+  type PipelineTraceEntry,
 } from "@/types/geo-query";
 
 /** Default view: Tel Aviv. */
@@ -36,6 +37,7 @@ export default function AppShell() {
   const [mapView, setMapView] = useState<MapViewState>(INITIAL_VIEW);
   const [lastRequest, setLastRequest] = useState<GeoQueryRequest | null>(null);
   const [lastResponse, setLastResponse] = useState<GeoQueryResponse | null>(null);
+  const [liveTrace, setLiveTrace] = useState<PipelineTraceEntry[]>([]);
   const [lastDisplayQuery, setLastDisplayQuery] = useState("");
   const [history, setHistory] = useState<Array<{
     request: GeoQueryRequest;
@@ -89,6 +91,7 @@ export default function AppShell() {
     setDrawnGeometry(null);
     setLastRequest(null);
     setLastResponse(null);
+    setLiveTrace([]);
     setLastDisplayQuery("");
     setHistory([]);
   }, []);
@@ -122,10 +125,14 @@ export default function AppShell() {
     setLastDisplayQuery(displayQuery);
     setLastRequest(request);
     setLastResponse(null);
+    setLiveTrace([]);
     setQueryText("");
     setIsSubmitting(true);
     try {
-      const response = await submitQuery(request);
+      const response = await submitQuery(
+        request,
+        (event) => setLiveTrace((trace) => [...trace, event]),
+      );
       setLastResponse(response);
     } finally {
       setIsSubmitting(false);
@@ -144,6 +151,7 @@ export default function AppShell() {
         isSubmitting={isSubmitting}
         lastRequest={lastRequest}
         lastResponse={lastResponse}
+        liveTrace={liveTrace}
         lastDisplayQuery={lastDisplayQuery}
         history={history}
         onOpenSettings={() => setIsSettingsOpen(true)}

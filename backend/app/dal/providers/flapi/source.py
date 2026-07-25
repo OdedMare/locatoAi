@@ -62,6 +62,12 @@ class FlapiSource:
         value = query.get("output_cube_name", [None])[0]
         return value or None
 
+    @staticmethod
+    def package_input_cube_kind(layer: LayerMeta) -> str:
+        query = parse_qs(urlsplit(layer.source_url).query)
+        value = (query.get("input_cube_kind", [None])[0] or "time").strip().lower()
+        return "geo" if value == "geo" else "time"
+
     def execution_params(self, layer: LayerMeta):
         query = parse_qs(urlsplit(layer.source_url).query)
         params = [

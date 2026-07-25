@@ -74,7 +74,9 @@ class FlowPackageProvider:
         input_cube = self._serializer.build_input_cube(
             self._source.package_input_cube_name(layer),
             self._source.package_input_cube_parameter(layer),
-            temporal_range,
+            kind=self._source.package_input_cube_kind(layer),
+            temporal_range=temporal_range,
+            geometry=geometry,
             now=now,
         )
         rows = self._gateway.execute(
