@@ -36,23 +36,25 @@ const SUMMARY_SKILL_TEMPLATE = `# \`summary-workflow\`
 
 **Do not use when:** One direct query or one existing operation fully answers the request.
 
-## יעד הסיכום
+## Summary target
 
-קבע את יעד הסיכום: תא שטח מהבקשה, המקום האחרון שבו חבר נצפה, או מיקום שהתקבל משלב קודם.
+Determine the summary target: the request polygon, the latest place where a friend was observed, or a location produced by an earlier step.
 
-## שלבי העבודה
+## Workflow
 
-1. קבע את יעד הסיכום לפי הבקשה והמידע הזמין.
-2. בדוק מידע סטטי רלוונטי בתוך יעד הסיכום.
-3. [parallel] בדוק תנועה, נוכחות ומפגשים הקשורים ליעד.
-4. [parallel] בדוק אירועים והמלצות בסביבת היעד.
-5. סכם את התוצאות וציין שכבות שנכשלו או מידע שחסר.
+1. Determine the summary target from the request and available evidence.
+2. Check relevant static information inside the target.
+3. [parallel] Check movement, presence, and encounters related to the target.
+4. [parallel] Check events and recommendations near the target.
+5. Summarize the results and identify failed layers or missing information.
 
-## כללי הסיכום
+## Summary rules
 
-אל תמציא שכבה, שדה, ישות, זמן או קשר. כאשר היעד הוא המיקום האחרון של ישות,
-השתמש בתפקידי ה-entity וה-time מה-schema. שלבים המסומנים [parallel] בלתי תלויים
-ויכולים לרוץ במקביל; המתן לכולם לפני השלב הסדרתי הבא. המשך לאחר כשל נקודתי וסמן סיכום חלקי.
+Never invent a layer, field, entity, time, or relationship. When the target is an
+entity's latest location, use the schema's entity and time roles. Steps marked
+[parallel] are independent and may run concurrently; wait for all of them before
+the next sequential step. Continue after an isolated failure and mark partial coverage.
+Write the final user-facing summary in Hebrew.
 `;
 
 const AREA_SUMMARY_NAME = /סיכום\s+(?:של\s+)?תא\s+שטח|summari[sz]e[-_ ]area|area[-_ ]summary/i;
@@ -103,7 +105,7 @@ const summarySteps = (content: string) => {
 
 const withSummaryTarget = (content: string, target: string) => {
   const { lines, start, end } = sectionBounds(content, SUMMARY_TARGET);
-  const block = ["## יעד הסיכום", "", target, ""];
+  const block = ["## Summary target", "", target, ""];
   if (start >= 0) return [...lines.slice(0, start), ...block, ...lines.slice(end)].join("\n");
   return `${content.trimEnd()}\n\n${block.join("\n")}`;
 };
@@ -111,7 +113,7 @@ const withSummaryTarget = (content: string, target: string) => {
 const withSummarySteps = (content: string, steps: SummaryStep[]) => {
   const { lines, start, end } = sectionBounds(content, SUMMARY_WORKFLOW);
   const block = [
-    "## שלבי העבודה", "",
+    "## Workflow", "",
     ...steps.map((step, index) => (
       `${index + 1}. ${step.parallel ? "[parallel] " : ""}${step.text}`
     )),

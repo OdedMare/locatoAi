@@ -23,7 +23,7 @@ full backend pipeline and repository-wide constraints.
   request/response/plan/trace debug bundle, and frontend failures go to the console.
 - Preserve RTL defaults and mark URLs, identifiers, JSON, and credentials LTR.
 - `AgentStudioPanel` edits the `area-summary` profile's numbered
-  `## שלבי העבודה` section through accessible add/delete/reorder controls; the
+  `## Workflow` section through accessible add/delete/reorder controls; the
   generated Markdown remains the persisted source of truth.
 - Keep the Settings UI: environment variables are deployment defaults and saved UI
   values are live overrides. Provider TLS verification must default to enabled.

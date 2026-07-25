@@ -313,7 +313,7 @@ validated before saving. Custom skills can bind a field selected from a live cat
 schema; the binding is validated on save, contributes its required layer to selection,
 and resolves to the current layer/field names when loaded. These skills compose existing typed plan operations; adding a
 new executable operation still requires its model, validator, executor, trace, and tests.
-The built-in `area-summary` profile contains an ordered `## שלבי העבודה` Markdown
+The built-in `area-summary` profile contains an ordered `## Workflow` Markdown
 section. Agent Studio renders that section as editable steps with add, delete, and
 reorder controls while retaining the complete Markdown editor as the source of truth.
 

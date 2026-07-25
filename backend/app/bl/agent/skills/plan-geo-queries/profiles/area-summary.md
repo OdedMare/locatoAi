@@ -1,20 +1,25 @@
-# סיכום תא שטח
+# Area summary
 
 **Use when:** The user asks for an area overview or a free-language summary of what exists, happened, or matters inside and immediately around the requested polygon.
 
 **Do not use when:** The user asks one narrow geographic question that a normal single-layer plan answers directly.
 
-## יעד הסיכום
+## Summary target
 
-תא השטח שהתקבל בבקשה.
+Use the polygon received with the request.
 
-## שלבי העבודה
+## Workflow
 
-1. בדוק את השכבות הסטטיות: בתים, בתי כנסת ובתי ספר.
-2. [parallel] בדוק הגעות משותפות בשכבת הגעות חברים.
-3. [parallel] בדוק אם יש משהו חשוב בסמוך משכבת אירועים.
-4. סכם את העובדות לפי סדר השלבים.
+1. Check the static house, synagogue, and school layers.
+2. [parallel] Check shared arrivals in the friends-arrivals layer.
+3. [parallel] Check the events layer for anything important nearby.
+4. Summarize the facts in workflow order.
 
-## כללי הסיכום
+## Summary rules
 
-עבוד לפי סדר השלבים ואל תמציא שכבה, שדה או ישות. שלבים המסומנים `[parallel]` בלתי תלויים ויכולים לרוץ במקביל; המתן לכולם לפני השלב הסדרתי הבא. החל את תא השטח על כל שכבה רלוונטית. שמור בכל טענה את שכבת המקור, זמן התצפית והראיות הזמינות. אם שכבה אחת נכשלת, המשך עם היתר וציין שהסיכום חלקי.
+Follow the workflow order and never invent a layer, field, or entity. Steps marked
+`[parallel]` are independent and may run concurrently; wait for all of them before
+the next sequential step. Apply the target polygon to every relevant layer. Preserve
+the source layer, observation time, and available evidence for every claim. Continue
+when one layer fails and report partial coverage. Write the final user-facing summary
+in Hebrew.
