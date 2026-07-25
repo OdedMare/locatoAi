@@ -142,6 +142,7 @@ class CatalogRouter:
                 package_query=body.package_query,
                 package_input_cube_name=body.package_input_cube_name,
                 package_input_cube_parameter=body.package_input_cube_parameter,
+                package_input_cube_kind=body.package_input_cube_kind,
                 package_output_cube_name=body.package_output_cube_name,
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,
@@ -229,6 +230,7 @@ class CatalogRouter:
         package_query: Optional[str],
         package_input_cube_name: Optional[str] = None,
         package_input_cube_parameter: Optional[str] = None,
+        package_input_cube_kind: Optional[str] = None,
         package_output_cube_name: Optional[str] = None,
     ) -> str:
         source = (
@@ -238,7 +240,7 @@ class CatalogRouter:
         return cls.with_package_config(
             source, package_parameters or {}, package_query,
             package_input_cube_name, package_input_cube_parameter,
-            package_output_cube_name,
+            package_input_cube_kind, package_output_cube_name,
         )
 
     @classmethod
@@ -296,6 +298,7 @@ class CatalogRouter:
         selected_query: Optional[str] = None,
         input_cube_name: Optional[str] = None,
         input_cube_parameter: Optional[str] = None,
+        input_cube_kind: Optional[str] = None,
         output_cube_name: Optional[str] = None,
     ) -> str:
         parsed = urlsplit(source)
@@ -303,7 +306,8 @@ class CatalogRouter:
         for key in [key for key in query if key.startswith(_PACKAGE_INPUT_PREFIX)]:
             query.pop(key)
         for key in (
-            "query", "input_cube_name", "input_cube_parameter", "output_cube_name",
+            "query", "input_cube_name", "input_cube_parameter",
+            "input_cube_kind", "output_cube_name",
         ):
             query.pop(key, None)
         for name, value in parameters.items():
@@ -317,6 +321,8 @@ class CatalogRouter:
             query["input_cube_name"] = [input_cube_name.strip()]
         if input_cube_parameter and input_cube_parameter.strip():
             query["input_cube_parameter"] = [input_cube_parameter.strip()]
+        if input_cube_kind and input_cube_kind.strip().lower() == "geo":
+            query["input_cube_kind"] = ["geo"]
         if output_cube_name and output_cube_name.strip():
             query["output_cube_name"] = [output_cube_name.strip()]
         return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
@@ -357,6 +363,7 @@ class CatalogRouter:
                 package_query=body.package_query,
                 package_input_cube_name=body.package_input_cube_name,
                 package_input_cube_parameter=body.package_input_cube_parameter,
+                package_input_cube_kind=body.package_input_cube_kind,
                 package_output_cube_name=body.package_output_cube_name,
                 tyche_geometry_field=body.tyche_geometry_field,
                 tyche_geo_query_field=body.tyche_geo_query_field,

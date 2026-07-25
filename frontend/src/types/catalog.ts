@@ -27,6 +27,7 @@ export interface CreateLayerRequest {
   package_query?: string | null;
   package_input_cube_name?: string | null;
   package_input_cube_parameter?: string | null;
+  package_input_cube_kind?: string | null;
   package_output_cube_name?: string | null;
   entity_field?: string;
   display_field?: string;
@@ -62,6 +63,7 @@ export interface GenerateLayerMetadataRequest {
   package_query?: string | null;
   package_input_cube_name?: string | null;
   package_input_cube_parameter?: string | null;
+  package_input_cube_kind?: string | null;
   package_output_cube_name?: string | null;
   cubes_sample_boundary?: GeoJSONMultiPolygon | null;
   tyche_geometry_field?: string;

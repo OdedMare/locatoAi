@@ -130,6 +130,8 @@ export default function LayersPanel({
   const [packageQuery, setPackageQuery] = useState("");
   const [packageInputCubeName, setPackageInputCubeName] = useState("");
   const [packageInputCubeParameter, setPackageInputCubeParameter] = useState("");
+  const [packageInputCubeKind, setPackageInputCubeKind] =
+    useState<"time" | "geo">("time");
   const [packageOutputCubeName, setPackageOutputCubeName] = useState("");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
   const [parameterDefinitions, setParameterDefinitions] =

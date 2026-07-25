@@ -1,8 +1,13 @@
 "use client";
 
+import {
+  CheckCircle2, CircleHelp, LoaderCircle, XCircle,
+} from "lucide-react";
 import { useState } from "react";
 import { submitFeedback } from "@/services/feedbackService";
-import type { GeoPlanStep, GeoQueryResponse } from "@/types/geo-query";
+import type {
+  GeoPlanStep, GeoQueryResponse, PipelineTraceEntry,
+} from "@/types/geo-query";
 
 const EXTREME_DIRECTION_HE: Record<string, string> = {
   north: "הצפוני ביותר",
@@ -85,8 +90,12 @@ const STAGE_HE: Record<string, string> = {
   response: "הכנת תשובה",
 };
 
-const STATUS_MARK: Record<string, string> = {
-  started: "◌", completed: "✓", clarify: "?", failed: "✕", error: "✕",
+const STATUS_HE: Record<string, string> = {
+  started: "מתבצע עכשיו",
+  completed: "הושלם",
+  clarify: "נדרש חידוד",
+  failed: "נכשל",
+  error: "שגיאה",
 };
 
 const OP_HE: Record<string, string> = {
@@ -100,27 +109,102 @@ const OP_HE: Record<string, string> = {
   origin_movement: "תנועה מנקודת מוצא", count: "ספירה",
 };
 
-function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
-  const trace = response.pipeline_trace ?? [];
-  if (trace.length === 0) return null;
+function latestTrace(trace: PipelineTraceEntry[]): PipelineTraceEntry[] {
+  return trace.reduce<PipelineTraceEntry[]>((entries, entry) => {
+    const key = `${entry.stage}:${entry.step_id ?? ""}`;
+    const index = entries.findIndex(
+      (item) => `${item.stage}:${item.step_id ?? ""}` === key,
+    );
+    if (index === -1) entries.push(entry);
+    else entries[index] = entry;
+    return entries;
+  }, []);
+}
+
+function StatusIcon({ status }: { status: PipelineTraceEntry["status"] }) {
+  if (status === "started") {
+    return <LoaderCircle className="pipeline-spinner" size={17} />;
+  }
+  if (status === "completed") return <CheckCircle2 size={17} />;
+  if (status === "clarify") return <CircleHelp size={17} />;
+  return <XCircle size={17} />;
+}
+
+interface PipelineTimelineProps {
+  trace: PipelineTraceEntry[];
+  requestId?: string | null;
+  live?: boolean;
+}
+
+function PipelineTimeline({ trace, requestId, live = false }: PipelineTimelineProps) {
+  const entries = latestTrace(trace);
   return (
-    <div className="plan-trace pipeline-timeline" dir="auto">
-      <p className="agent-step done">פירוט מלא של הצינור:</p>
-      {response.request_id && (
-        <p className="plan-explanation" dir="ltr">request_id: {response.request_id}</p>
+    <div
+      className={`plan-trace pipeline-timeline${live ? " live" : ""}`}
+      aria-live="polite"
+      aria-label={live ? "תוכנית ביצוע בזמן אמת" : "תוכנית הביצוע שהושלמה"}
+    >
+      <div className="pipeline-heading">
+        <strong>{live ? "תוכנית ביצוע בזמן אמת" : "מה קרה בפועל"}</strong>
+        {live && <span className="pipeline-live-badge"><i /> חי</span>}
+      </div>
+      {requestId && (
+        <p className="plan-explanation" dir="ltr">request_id: {requestId}</p>
       )}
-      <ol className="plan-steps">
-        {trace.map((entry, index) => (
-          <li key={`${index}-${entry.stage}-${entry.step_id ?? ""}`} className="plan-step">
-            <div>
-              <strong>{STATUS_MARK[entry.status] ?? "•"} {STAGE_HE[entry.stage] ?? entry.stage}</strong>
-              <span dir="ltr"> · {entry.status}</span>
-              {entry.operation && <span dir="ltr"> · {entry.operation}</span>}
-              {typeof entry.duration_ms === "number" && ` · ${entry.duration_ms} מ״ש`}
+      <ol className="pipeline-steps">
+        {entries.length === 0 && (
+          <li className="pipeline-step started">
+            <span className="pipeline-step-icon">
+              <LoaderCircle className="pipeline-spinner" size={17} />
+            </span>
+            <div className="pipeline-step-body">
+              <strong>מתחבר לצינור הביצוע</strong>
+              <small>האירוע הראשון יופיע כאן מיד כשהשרת מתחיל לעבוד</small>
             </div>
+          </li>
+        )}
+        {entries.map((entry, index) => (
+          <li
+            key={`${index}-${entry.stage}-${entry.step_id ?? ""}`}
+            className={`pipeline-step ${entry.status}`}
+          >
+            <span className="pipeline-step-icon">
+              <StatusIcon status={entry.status} />
+            </span>
+            <div className="pipeline-step-body">
+              <div className="pipeline-step-title">
+                <strong>
+                  {entry.operation
+                    ? OP_HE[entry.operation] ?? entry.operation
+                    : STAGE_HE[entry.stage] ?? entry.stage}
+                </strong>
+                <span>{STATUS_HE[entry.status] ?? entry.status}</span>
+                {typeof entry.duration_ms === "number" && (
+                  <small>{entry.duration_ms} מ״ש</small>
+                )}
+              </div>
+              {entry.operation && (
+                <code dir="ltr">{entry.operation}</code>
+              )}
             {entry.selected_layer_names?.length ? (
-              <div>שכבות: {entry.selected_layer_names.join(", ")}</div>
+                <p>שכבות: {entry.selected_layer_names.join(", ")}</p>
             ) : null}
+              {(entry.input_count !== undefined || entry.output_count !== undefined) && (
+                <p className="pipeline-counts">
+                  <span>קלט {entry.input_count ?? "—"}</span>
+                  <span>פלט {entry.output_count ?? "—"}</span>
+                </p>
+              )}
+              {entry.geometry_returned && (
+                <p>הוחזרו {entry.feature_count ?? 0} ישויות עם גאומטריה</p>
+              )}
+              {entry.explanation && <p>{entry.explanation}</p>}
+              {entry.clarify && <p>{entry.clarify}</p>}
+              {entry.error && (
+                <p className="pipeline-error" dir="auto">
+                  {entry.error_type ? `${entry.error_type}: ` : ""}{entry.error}
+                </p>
+              )}
             {(entry.requested_layer_ids?.length || entry.dropped_layer_ids?.length) ? (
               <details>
                 <summary>מזהי שכבות מהמודל</summary>
@@ -131,28 +215,15 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
                 }, null, 2)}</pre>
               </details>
             ) : null}
-            {entry.explanation && <div>{entry.explanation}</div>}
-            {entry.clarify && <div>{entry.clarify}</div>}
-            {entry.error && (
-              <div className="agent-step clarify" dir="auto">
-                {entry.error_type ? `${entry.error_type}: ` : ""}{entry.error}
-              </div>
-            )}
-            {typeof entry.attempts === "number" && <div>ניסיונות תכנון: {entry.attempts}</div>}
+              {typeof entry.attempts === "number" && (
+                <p>ניסיונות תכנון: {entry.attempts}</p>
+              )}
             {entry.tool_calls?.length ? (
               <details>
                 <summary>קריאות כלי תכנון</summary>
                 <pre dir="ltr">{JSON.stringify(entry.tool_calls, null, 2)}</pre>
               </details>
             ) : null}
-            {(entry.input_count !== undefined || entry.output_count !== undefined) && (
-              <div>
-                קלט: {entry.input_count ?? "—"} · פלט: {entry.output_count ?? "—"}
-              </div>
-            )}
-            {entry.geometry_returned && (
-              <div>גאומטריה הוחזרה · {entry.feature_count ?? 0} ישויות</div>
-            )}
             {entry.parameters && Object.keys(entry.parameters).length > 0 && (
               <details>
                 <summary>פרמטרים</summary>
@@ -165,6 +236,7 @@ function PipelineTimeline({ response }: { response: GeoQueryResponse }) {
                 <pre dir="ltr">{JSON.stringify(entry.diagnostics, null, 2)}</pre>
               </details>
             ) : null}
+            </div>
           </li>
         ))}
       </ol>
@@ -177,6 +249,7 @@ interface AgentTraceProps {
   isSubmitting: boolean;
   /** The query text that produced `response` (for feedback logging). */
   query: string;
+  liveTrace: PipelineTraceEntry[];
 }
 
 /**
@@ -184,7 +257,9 @@ interface AgentTraceProps {
  * (with tags + timing) or the clarification it asked instead — so
  * selection quality can be judged at a glance.
  */
-export default function AgentTrace({ response, isSubmitting, query }: AgentTraceProps) {
+export default function AgentTrace({
+  response, isSubmitting, query, liveTrace,
+}: AgentTraceProps) {
   const [voteState, setVoteState] = useState<{
     query: string;
     verdict: "up" | "down";
@@ -254,19 +329,16 @@ export default function AgentTrace({ response, isSubmitting, query }: AgentTrace
         )}
       </header>
 
-      {!isSubmitting && response && <PipelineTimeline response={response} />}
-
       {isSubmitting ? (
-        <div className="plan-trace" aria-live="polite">
-          <p className="agent-step running">⏳ הצינור פועל בשרת…</p>
-          <ol className="plan-steps debug-stage-list">
-            <li>בחירת שכבות</li>
-            <li>בניית תוכנית ואימותה</li>
-            <li>ביצוע התוכנית</li>
-          </ol>
-          <p className="plan-explanation">השרת מחזיר תשובה רק לאחר סיום הביצוע.</p>
-        </div>
-      ) : response!.status === "error" ? (
+        <PipelineTimeline trace={liveTrace} live />
+      ) : response && (
+        <PipelineTimeline
+          trace={response.pipeline_trace}
+          requestId={response.request_id}
+        />
+      )}
+
+      {isSubmitting ? null : response!.status === "error" ? (
         <div className="plan-trace">
           <p className="agent-step clarify" dir="auto">✕ הצינור נכשל</p>
           {response!.clarify && <p className="plan-explanation" dir="auto">{response!.clarify}</p>}

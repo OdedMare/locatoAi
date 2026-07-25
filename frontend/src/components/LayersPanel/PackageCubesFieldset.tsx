@@ -1,22 +1,28 @@
 interface PackageCubesFieldsetProps {
   inputCubeName: string;
   inputCubeParameter: string;
+  inputCubeKind: "time" | "geo";
   outputCubeName: string;
   onChangeInputCubeName: (value: string) => void;
   onChangeInputCubeParameter: (value: string) => void;
+  onChangeInputCubeKind: (value: "time" | "geo") => void;
   onChangeOutputCubeName: (value: string) => void;
   busy: boolean;
 }
 
-/** flunks input/output cube config: the input cube name and its time-range
- * cube_parameter that drives parallel runs, and the output cube to read back.
- * The time range itself comes from the query at execution time. */
+/** flunks input/output cube config: the input cube name and its cube_parameter
+ * that drives parallel runs, and the output cube to read back. The
+ * cube_parameter receives either the query time range (kind="time") or the
+ * query boundary polygons as a list of WKT multipolygons (kind="geo"), both
+ * supplied from the query at execution time. */
 export default function PackageCubesFieldset({
   inputCubeName,
   inputCubeParameter,
+  inputCubeKind,
   outputCubeName,
   onChangeInputCubeName,
   onChangeInputCubeParameter,
+  onChangeInputCubeKind,
   onChangeOutputCubeName,
   busy,
 }: PackageCubesFieldsetProps) {
@@ -37,11 +43,26 @@ export default function PackageCubesFieldset({
           placeholder="שם קוביית הקלט"
           dir="ltr"
         />
+        <label className="field-label" htmlFor="package-input-cube-kind">
+          סוג הקלט של הפרמטר
+        </label>
+        <select
+          id="package-input-cube-kind"
+          className="settings-input"
+          value={inputCubeKind}
+          onChange={(event) =>
+            onChangeInputCubeKind(event.target.value === "geo" ? "geo" : "time")
+          }
+          disabled={busy}
+        >
+          <option value="time">טווח זמן (start_time / end_time)</option>
+          <option value="geo">שאילתה גאוגרפית — רשימת מצולעים (WKT)</option>
+        </select>
         <label
           className="field-label"
           htmlFor="package-input-cube-parameter"
         >
-          פרמטר טווח הזמן (cube_parameter)
+          שם הפרמטר (cube_parameter)
         </label>
         <input
           id="package-input-cube-parameter"
@@ -50,12 +71,13 @@ export default function PackageCubesFieldset({
           value={inputCubeParameter}
           onChange={(event) => onChangeInputCubeParameter(event.target.value)}
           disabled={busy}
-          placeholder="שם פרמטר טווח הזמן"
+          placeholder="שם הפרמטר"
           dir="ltr"
         />
         <small dir="auto">
-          הפרמטר מקבל את טווח הזמן (start_time / end_time) שנגזר מהשאילתה
-          בזמן הריצה.
+          {inputCubeKind === "geo"
+            ? "הפרמטר מקבל את גבולות השאילתה כרשימת מצולעים (MULTIPOLYGON WKT) בזמן הריצה."
+            : "הפרמטר מקבל את טווח הזמן (start_time / end_time) שנגזר מהשאילתה בזמן הריצה."}
         </small>
       </fieldset>
       <fieldset className="cubes-query-mode">
