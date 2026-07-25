@@ -9,6 +9,7 @@ failed package run from the console without dumping whole feature bodies.
 from typing import Any, List, Optional
 
 _WKT_PREVIEW_CHARS = 120
+_ERROR_PREVIEW_CHARS = 160
 _MAX_LOGGED_VALUES = 3
 _MAX_LOGGED_KEYS = 25
 
@@ -69,35 +70,37 @@ class FlowPackageDebug:
             tuple(round(value, 5) for value in geometry.bounds),
         )
 
-    @staticmethod
-    def exception(exc: BaseException) -> str:
-        """Describe a failed run, keeping a pydantic error's field paths.
-
-        ``str(ValidationError)`` is multi-line prose that reads like a message
-        from FLAPI once it is embedded in our own error text — that is what made
-        a ``metadata.isPartialSuccess`` type error look like the package
-        rejecting its input. Render the field path and offending value instead.
-        """
+    @classmethod
+    def exception(cls, exc: BaseException) -> str:
+        """Keep field paths while bounding large pydantic inputs."""
         errors = getattr(exc, "errors", None)
         if not callable(errors):
-            return "%s: %s" % (type(exc).__name__, exc)
+            return cls._fallback_exception(exc)
         try:
             details = errors()
         except Exception:
-            return "%s: %s" % (type(exc).__name__, exc)
-        parts = [
-            "%s=%s[got %r]" % (
-                ".".join(str(item) for item in error.get("loc", ())) or "?",
-                error.get("type", "?"),
-                error.get("input"),
-            )
-            for error in details[:_MAX_LOGGED_VALUES]
-        ]
+            return cls._fallback_exception(exc)
+        parts = [cls._error(error) for error in details[:_MAX_LOGGED_VALUES]]
         extra = len(details) - len(parts)
         return "%s: %d error(s)%s %s" % (
             type(exc).__name__, len(details),
             " (+%d more)" % extra if extra > 0 else "", "; ".join(parts),
         )
+
+    @staticmethod
+    def _error(error: dict) -> str:
+        path = ".".join(str(item) for item in error.get("loc", ())) or "?"
+        value = repr(error.get("input"))
+        if len(value) > _ERROR_PREVIEW_CHARS:
+            value = value[:_ERROR_PREVIEW_CHARS] + "…"
+        return "%s=%s[got %s]" % (path, error.get("type", "?"), value)
+
+    @staticmethod
+    def _fallback_exception(exc: BaseException) -> str:
+        message = str(exc).replace("\n", " ")
+        if len(message) > _ERROR_PREVIEW_CHARS:
+            message = message[:_ERROR_PREVIEW_CHARS] + "…"
+        return "%s: %s" % (type(exc).__name__, message)
 
     @staticmethod
     def records(records: List[dict]) -> str:
