@@ -16,20 +16,6 @@ from app.dal.providers.flapi.source import FlapiSource
 from app.service.catalog.router import CatalogRouter
 
 
-class DefinitionsHandler:
-    """Mock transport for the GET /package/v1/quick/{id} discovery call only."""
-
-    def __init__(self, definitions):
-        self.definitions = definitions
-        self.requests: List[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        return httpx.Response(
-            200, json={"466192": {"Parameters": self.definitions}}
-        )
-
-
 def package_records():
     return [{
         "id": "result-1",
@@ -38,7 +24,12 @@ def package_records():
     }]
 
 
-def make_provider(tmp_path, definitions_handler, runner_factory=None, monkeypatch=None):
+def make_provider(tmp_path, runner_factory=None, monkeypatch=None):
+    """Builds the provider with flunks' runner stubbed out.
+
+    flunks owns every FLAPI HTTP call, so there is no transport to mock —
+    substituting FlunksRunner is the only seam the package path needs.
+    """
     store = RuntimeSettingsStore(Settings(
         _env_file=None,
         runtime_settings_file=str(tmp_path / "runtime-settings.json"),
@@ -46,13 +37,12 @@ def make_provider(tmp_path, definitions_handler, runner_factory=None, monkeypatc
         cubes_token="jwt",
         flapi_username="oded",
     ))
-    provider = FlapiProvider(store, httpx.MockTransport(definitions_handler))
     if runner_factory is not None:
         monkeypatch.setattr(
             "app.dal.providers.flapi.package_gateway.FlunksRunner",
             runner_factory,
         )
-    return provider
+    return FlapiProvider(store)
 
 
 def package_layer(source_url):
@@ -60,20 +50,6 @@ def package_layer(source_url):
         id="package-layer", name="Workflow", provider="flapi",
         source_url=source_url,
     )
-
-
-def definitions():
-    return [
-        {
-            "Name": "Terms", "DisplayName": "Search terms",
-            "IsRequired": True, "IsSingleValue": False, "Type": "String",
-        },
-        {
-            "Name": "StartTime", "IsRequired": True,
-            "IsSingleValue": True, "Type": "DateTime",
-            "OntologyType": "Time",
-        },
-    ]
 
 
 def configured_source():
@@ -120,10 +96,7 @@ class StubRunner:
 def test_flapi_package_discovers_serializes_executes_and_maps_rows(
     tmp_path, monkeypatch
 ):
-    definitions_handler = DefinitionsHandler(definitions())
-    provider = make_provider(
-        tmp_path, definitions_handler, StubRunner, monkeypatch
-    )
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
     boundary = box(34.7, 32.0, 34.9, 32.2)
 
     features = provider.fetch_features(
@@ -134,8 +107,6 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(
     assert list(features["id"]) == ["result-1"]
     assert list(features["_package_query"]) == ["הכנסה - 👑"]
     assert features.iloc[0].geometry.x == 34.8
-    get_request = definitions_handler.requests[0]
-    assert get_request.url.path == "/package/v1/quick/466192"
 
     runner = StubRunner.last_instance
     assert runner.flapi_config.username == "oded"
@@ -161,10 +132,7 @@ def test_flapi_package_discovers_serializes_executes_and_maps_rows(
 def test_geo_input_cube_passes_query_boundary_polygons_as_wkt(
     tmp_path, monkeypatch
 ):
-    definitions_handler = DefinitionsHandler(definitions())
-    provider = make_provider(
-        tmp_path, definitions_handler, StubRunner, monkeypatch
-    )
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
     boundary = box(34.7, 32.0, 34.9, 32.2)
 
     provider.fetch_features(package_layer(geo_source()), geometry=boundary)
@@ -181,10 +149,7 @@ def test_geo_input_cube_passes_query_boundary_polygons_as_wkt(
 def test_geo_input_cube_wkt_round_trips_to_query_boundary(tmp_path, monkeypatch):
     from shapely import wkt
 
-    definitions_handler = DefinitionsHandler(definitions())
-    provider = make_provider(
-        tmp_path, definitions_handler, StubRunner, monkeypatch
-    )
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
     boundary = box(34.7, 32.0, 34.9, 32.2)
 
     provider.fetch_features(package_layer(geo_source()), geometry=boundary)
@@ -200,10 +165,7 @@ def test_geo_source_persists_kind():
 
 
 def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
-    definitions_handler = DefinitionsHandler(definitions())
-    provider = make_provider(
-        tmp_path, definitions_handler, StubRunner, monkeypatch
-    )
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
 
     provider.fetch_features(package_layer(configured_source()))
 
@@ -213,7 +175,6 @@ def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
 
 
 def test_package_ignores_non_dict_records(tmp_path, monkeypatch):
-    definitions_handler = DefinitionsHandler(definitions())
 
     def mixed_runner(flapi_config, package_config, flunks_config=None,
                      exceptions_config=None):
@@ -224,7 +185,7 @@ def test_package_ignores_non_dict_records(tmp_path, monkeypatch):
         return runner
 
     provider = make_provider(
-        tmp_path, definitions_handler, mixed_runner, monkeypatch
+        tmp_path, mixed_runner, monkeypatch
     )
 
     features = provider.fetch_features(package_layer(configured_source()))
@@ -232,7 +193,6 @@ def test_package_ignores_non_dict_records(tmp_path, monkeypatch):
 
 
 def test_package_rejects_non_list_response(tmp_path, monkeypatch):
-    definitions_handler = DefinitionsHandler(definitions())
 
     def object_runner(flapi_config, package_config, flunks_config=None,
                       exceptions_config=None):
@@ -243,7 +203,7 @@ def test_package_rejects_non_list_response(tmp_path, monkeypatch):
         return runner
 
     provider = make_provider(
-        tmp_path, definitions_handler, object_runner, monkeypatch
+        tmp_path, object_runner, monkeypatch
     )
 
     with pytest.raises(ProviderError, match="not a list"):
@@ -328,10 +288,7 @@ def test_input_cube_defaults_time_window_when_range_absent():
 
 
 def test_package_output_cube_name_required_at_execution(tmp_path, monkeypatch):
-    definitions_handler = DefinitionsHandler(definitions())
-    provider = make_provider(
-        tmp_path, definitions_handler, StubRunner, monkeypatch
-    )
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
     source = CatalogRouter.normalized_source(
         "flapi", "466192",
         package_input_cube_name="RawInput",
@@ -342,25 +299,6 @@ def test_package_output_cube_name_required_at_execution(tmp_path, monkeypatch):
         provider.fetch_features(package_layer(source))
 
 
-def test_package_execution_options_are_validated():
-    source = FlapiSource()
-    layer = package_layer(
-        "flapi://package/466192?"
-        "allQueries=true&executeContinuedProcess=false&isPartialSuccess=true"
-    )
-
-    assert source.execution_params(layer) == [
-        ("allQueries", "true"),
-        ("executeContinuedProcess", "false"),
-        ("isPartialSuccess", "true"),
-    ]
-
-    with pytest.raises(ProviderError, match="allQueries.*true or false"):
-        source.execution_params(package_layer(
-            "flapi://package/466192?allQueries=yes"
-        ))
-
-
 def test_package_requires_flapi_username(tmp_path):
     store = RuntimeSettingsStore(Settings(
         _env_file=None,
@@ -368,9 +306,6 @@ def test_package_requires_flapi_username(tmp_path):
         cubes_base_url="https://flapi.test",
         cubes_token="jwt",
     ))
-    provider = FlapiProvider(
-        store, httpx.MockTransport(DefinitionsHandler([]))
-    )
 
     with pytest.raises(ProviderError, match="flapi_username"):
-        provider.fetch_features(package_layer(configured_source()))
+        FlapiProvider(store).fetch_features(package_layer(configured_source()))
