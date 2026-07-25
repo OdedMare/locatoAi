@@ -107,6 +107,13 @@ class FlapiSchemaMapper:
                    for value in values if value is not None]
         return list(dict.fromkeys(present))[:self._MAX_SAMPLES]
 
+    def _temporal_field(self, fields: List[LayerField]) -> Optional[str]:
+        names = {field.name for field in fields}
+        named = next((name for name in self._TIME_FIELDS if name in names), None)
+        return named or next(
+            (field.name for field in fields if field.type == "date"), None
+        )
+
     @staticmethod
     def _point(row: dict):
         raw = row.get("geometry")

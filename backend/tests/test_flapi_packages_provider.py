@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 from shapely.geometry import box
 
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -81,7 +82,7 @@ class StubRunner:
         self.exceptions_config = exceptions_config
         self.success_chunks = 1
         self.failed_chunks = 0
-        self.result = package_records()
+        self.result = pd.DataFrame(package_records())
         StubRunner.last_instance = self
 
     def run(self):
@@ -169,22 +170,22 @@ def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
     assert gateway.failed_chunks == 0
 
 
-def test_package_ignores_non_dict_records(tmp_path, monkeypatch):
+def test_package_rejects_non_dataframe_result(tmp_path, monkeypatch):
 
-    def mixed_runner(flapi_config, package_config, flunks_config=None,
-                     exceptions_config=None):
+    def list_runner(flapi_config, package_config, flunks_config=None,
+                    exceptions_config=None):
         runner = StubRunner(
             flapi_config, package_config, flunks_config, exceptions_config
         )
-        runner.result = ["not-a-dict"] + package_records()
+        runner.result = package_records()
         return runner
 
     provider = make_provider(
-        tmp_path, mixed_runner, monkeypatch
+        tmp_path, list_runner, monkeypatch
     )
 
-    features = provider.fetch_features(package_layer(configured_source()))
-    assert list(features["id"]) == ["result-1"]
+    with pytest.raises(ProviderError, match="expected a DataFrame"):
+        provider.fetch_features(package_layer(configured_source()))
 
 
 def dataframe_runner(frame):
@@ -202,8 +203,6 @@ def dataframe_runner(frame):
 
 
 def test_package_accepts_dataframe_with_wkt_geometry(tmp_path, monkeypatch):
-    import pandas as pd
-
     frame = pd.DataFrame(package_records())
     provider = make_provider(tmp_path, dataframe_runner(frame), monkeypatch)
 
@@ -275,24 +274,6 @@ def test_package_dataframe_normalizes_nan_and_numpy_scalars(tmp_path, monkeypatc
     count_field = next(f for f in schema.fields if f.name == "count")
     assert count_field.type == "number"
     assert "nan" not in [sample.lower() for sample in count_field.samples]
-
-
-def test_package_rejects_non_list_response(tmp_path, monkeypatch):
-
-    def object_runner(flapi_config, package_config, flunks_config=None,
-                      exceptions_config=None):
-        runner = StubRunner(
-            flapi_config, package_config, flunks_config, exceptions_config
-        )
-        runner.result = {"unexpected": "shape"}
-        return runner
-
-    provider = make_provider(
-        tmp_path, object_runner, monkeypatch
-    )
-
-    with pytest.raises(ProviderError, match="not a list"):
-        provider.fetch_features(package_layer(configured_source()))
 
 
 def test_package_source_persists_cube_names():
