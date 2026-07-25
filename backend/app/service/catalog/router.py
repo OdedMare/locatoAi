@@ -226,6 +226,8 @@ class CatalogRouter:
         flapi_resource_type: str = "cube",
         package_parameters: Optional[Dict[str, Any]] = None,
         package_query: Optional[str] = None,
+        package_input_parameter: Optional[str] = None,
+        package_output_fields: Optional[List[str]] = None,
         tyche_geometry_field: Optional[str] = None,
         tyche_geo_query_field: Optional[str] = None,
         tyche_time_field: Optional[str] = None,
