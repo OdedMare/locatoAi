@@ -91,110 +91,25 @@ loading" / "MQS business metadata" sections):
 
 ## FLAPI provider — `providers/flapi/`
 
-`FlapiProvider` wraps `FlowPackageProvider` directly — FLAPI serves Flow Package
-resources only. The legacy `provider=cubes` catalog alias, cube-resource dispatch, and
-`FlapiSource.resource_type()` have been removed; every `flapi://` source is a package.
+There are exactly two production classes:
 
-Flow Package pipeline: the catalog UI persists three free-text cube names plus an input
-kind in `source_url` — `input_cube_name`, `input_cube_parameter`, `input_cube_kind`
-(`time` | `geo`, default `time`), and `output_cube_name`. `FlapiSource` reads them via
-`package_input_cube_name` / `package_input_cube_parameter` / `package_input_cube_kind` /
-`package_output_cube_name`. Only the input cube's `cube_parameter` varies per query;
-every other package parameter is fixed inside the package itself, so nothing else is
-serialized. **There is no raw-HTTP path left in this provider and no FLAPI route or API
-version appears in the code** — flunks owns the whole conversation. Parameter discovery
-(`GET /package/v1/quick/{id}`), `FlowPackageMetadata`, `FlapiSource.execution_params` /
-`package_queries` / `package_inputs`, `list_configurable_parameters`,
-`requires_geometry`, and the `httpx` transport seam are all gone; `FlapiClientFactory`
-now only validates settings for `FlApiConfig`, and `FlapiProvider(settings_store)` takes
-no transport. Because BL looks those up with `getattr`, the catalog UI's parameter form
-is simply empty and `requires_sample_polygon` is always false. →
-`FlowPackageSerializer.build_input_cube(name, parameter, kind, temporal_range, geometry,
-now)` assembles one `flunks.flow_models.PackageInputCube`: for `kind="time"` it sets
-`start_time`/`end_time` from the query `temporal_range` (falling back to a 1-hour window
-ending at `now` on the schema/sample path where no range exists); for `kind="geo"` it
-passes the whole query boundary via `values` as a single-element list holding one WKT
-`MULTIPOLYGON` containing every boundary polygon — one geographic layer is one flunks
-identifier, so a multi-polygon boundary is one chunk, not one chunk per polygon. **There
-is no empty-`values` fallback:** FLAPI rejects an empty main cube input ("Please enter
-values for the main cube input"), so a missing boundary raises `ProviderError` naming the
-fix. Because a package has no discovery call, `describe_schema` must *run* the package,
-which is why `Provider.describe_schema(layer, geometry=None)` and
-`CatalogService.get_schema(layer_id, geometry=None)` now forward the request boundary
-(the schema cache keys on it, and `CatalogService._describe` inspects the provider
-signature so implementations that ignore geometry keep their single-argument form). →
-`FlowPackageGateway.execute(layer, input_cube, output_cube_name)` builds a
-`flunks.config.FlApiConfig` from `RuntimeSettingsStore`
-(`cubes_token`/`flapi_username`) and a
-`flunks.config.FlunksPackageConfig(package_id, package_name="",
-main_input_cube, output_cube)` with
-`flunks.flow_models.PackageOutputCube(cube_name=output_cube_name)` (no `cube_fields`, no
-`static_parameters`), runs it through `flunks.FlunksRunner.run()` and reads
-`runner.success_chunks`/`failed_chunks` for diagnostics. Each record is tagged with
-`_package_query=<output_cube_name>`. `FlunksRunner.run()` returns a pandas/geopandas
-DataFrame; any other type raises `ProviderError`. **Package results are never
-row-capped**, so the `rows=` log is the only advance warning before a large frame is
-materialized.
+- `FlunksMapper` (`mapper.py`) parses `source_url`, builds the SDK's
+  `FlunksPackageConfig` and input cube, normalizes the returned DataFrame, maps WKT
+  points, and infers the layer schema.
+- `FlapiProvider` (`provider.py`) reads username/token, builds `FlApiConfig` plus the
+  required `FlunksConfig()`, runs `FlunksRunner`, logs safe identifiers, tracks chunks,
+  filters the GeoDataFrame, and caches its schema.
 
-**`package_records.py`.** `FlowPackageRecords` converts three things that
-`DataFrame.to_dict("records")` alone leaves unusable downstream:
-- **shapely geometry → WKT.** `FlapiSchemaMapper._point` only parses a `str`, so an
-  unconverted geometry object makes the layer return **zero features with no error** —
-  the one failure here that is silent rather than loud.
-- **`NaN` → `None`.** `NaN` passes every `value is not None` guard in schema inference,
-  typing a gapped numeric column as `"string"` and leaking `"nan"` into agent prompts.
-- **numpy scalars → Python natives.** `numpy.int64` fails `isinstance(value, int)` in
-  `_field_type` and is not JSON-serializable.
+The source URL stores `input_cube_name`, `input_cube_parameter`, `input_cube_kind`
+(`time` or `geo`), and `output_cube_name`. Geographic input is one WKT
+`MULTIPOLYGON`; time input uses the requested range or the previous hour. Required
+values fail before the network call. The runner result must be a DataFrame; `NaN`,
+numpy scalars, and shapely geometry cells are normalized before schema/GDF mapping.
 
-Note that pandas widens an int column containing `NaN` to `float64` at construction, so
-such a column arrives as floats regardless of this conversion.
-
-**Debug logging (`package_debug.py`).** `FlowPackageDebug` renders bounded, log-safe
-descriptions so a failed package run is diagnosable from the console alone. Grep these
-prefixes, in pipeline order: `Schema describe` (BL, includes `has_geometry`) →
-`FLAPI describe_schema` → `FLAPI fetch_features` → `FLAPI source` (parsed cube names +
-`source_url`) → `FLAPI input cube BUILD`/`READY` → `FLAPI flunks INPUT` (the final
-`FlApiConfig` and `FlunksPackageConfig`, with `token_set` but never the token) →
-`FLAPI package RUN` → `CHUNKS`/`OK`/`FAILED`.
-`fetch_features` logs `rows`/`mapped`/`after_intersect`/`returned` so rows lost to
-geometry parsing are distinguishable from rows lost to the boundary intersect. An empty
-input cube logs `values=EMPTY (FLAPI will reject this)`; WKT is truncated to 120 chars
-with the total length, keeping geometry type and leading coordinates visible. Validation
-errors include only their field paths/types and bounded input previews at normal log
-levels; the full traceback is emitted only at `DEBUG`. A failed run also reports the
-exact package ID, input cube, input parameter, and output cube sent to flunks.
-
-**`flunks_metadata_patch.py` — temporary upstream workaround.** flunks types
-`FlowResults.metadata.isPartialSuccess` as `str`, but FLAPI sends a JSON boolean, and
-pydantic v2 does not coerce `bool` -> `str`. Every successful package run therefore died
-in flunks' *own* response parsing with `Input should be a valid string
-[input_value=False]` at `flow_ops.run_package`, with `success=0 failed=0` because
-`FlunksRunner._run_chunk` raises before either counter moves. `FlunksMetadataPatch.apply()`
-widens that annotation to `Union[bool, str]` at `package_gateway` import time — there is
-no seam inside `FlunksRunner` to intercept.
-
-Two details are essential: Pydantic embeds child schemas, so `MetaData` must be rebuilt
-*before* `FlowResults`; and the widened annotation must preserve `Optional[str]` rather
-than replacing it. Reversing that rebuild order reproduces the original string error.
-Field lookup accepts both `isPartialSuccess` and the snake-case model field
-`is_partial_success`/camel-case alias used by some flunks builds.
-
-The patch is idempotent, still accepts a string, and self-disables once `str` is no
-longer among the field's admitted types. `package_gateway` **logs whether it applied**
-(`FLAPI flunks metadata patch applied=`) — a no-op is otherwise indistinguishable from
-success and resurfaces much later as a `FlowResults` `ValidationError`. Check that line
-first when `isPartialSuccess` errors return.
-**Delete the module and its import when flunks fixes the type upstream.**
-
-Endpoint routing, chunking, retries, and exception mapping for the execution call are
-owned by flunks. The gateway accepts no runner-config override from callers. A former
-positional constructor slot allowed
-`FlapiSchemaMapper` to bind as `flunks_config`, causing its `max_threads` attribute
-error. The gateway now passes a real `FlunksConfig()` exactly as the supported runner
-example does, without exposing a positional override slot.
-`flunks` is an internal library not resolvable from the public index — see
-`pyproject.toml`; the amd64 Docker image builds against a private index, so the FLAPI
-package tests cannot run in an environment without it.
+`FLAPI flunks INPUT` logs package/cube/parameter/output identifiers and a bounded WKT
+preview, but never the token. The small import-time `isPartialSuccess` compatibility
+patch remains in `provider.py`; remove it when flunks accepts booleans upstream.
+FLUNKS owns endpoint routing, chunking, and retries.
 
 ## Tyche provider — `providers/tyche/`
 
