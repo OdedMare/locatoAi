@@ -241,7 +241,7 @@ src/
 
 | Service | Backend endpoint | Use |
 |---|---|---|
-| `submitQuery` | `POST /api/query/stream` | Run the pipeline and surface each SSE trace event before the final response. |
+| `submitQuery` | `POST /api/query/stream` or `/api/query` | Stream live trace events when enabled; otherwise wait for the normal JSON response. |
 | `getLayers` | `GET /api/layers` | Read catalog metadata. |
 | `getMqsLayers` | `GET /api/layers/mqs` | Browse remote inventory without writing. |
 | `createLayer` | `POST /api/layers` | Add one catalog entry. |
