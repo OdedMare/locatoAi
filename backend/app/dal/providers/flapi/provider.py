@@ -87,8 +87,8 @@ def _fallback_error(exc: BaseException) -> str:
 def _one_error(error: dict) -> str:
     path = ".".join(str(item) for item in error.get("loc", ())) or "?"
     value = repr(error.get("input"))
-    if len(value) > 160:
-        value = value[:160] + "…"
+    if len(value) > 100:
+        value = value[:100] + "…"
     return "%s=%s[got %s]" % (path, error.get("type", "?"), value)
 
 

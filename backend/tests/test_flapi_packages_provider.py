@@ -191,8 +191,8 @@ def test_package_logs_exact_flunks_input_without_token(
         if message.startswith("FLAPI flunks INPUT")
     )
     assert "package_id='466192'" in line
-    assert "cube_name='RawInput'" in line and "output_cube='הכנסה - 👑'" in line
-    assert "cube_parameter='TimeRange'" in line
+    assert "input_cube='RawInput'" in line and "output_cube='הכנסה - 👑'" in line
+    assert "parameter='TimeRange'" in line
     assert "token_set=True" in line and "jwt" not in line
 
 
