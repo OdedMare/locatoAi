@@ -24,8 +24,6 @@ class FlowPackageProvider:
     it once and caching the result.
     """
 
-    _SAMPLE_LIMIT = 100
-
     def __init__(self, clients) -> None:
         self._source = FlapiSource()
         self._rows = FlapiSchemaMapper()
@@ -46,10 +44,9 @@ class FlowPackageProvider:
         if key not in self._schemas:
             # A package has no discovery call: describing it means running it,
             # and a geographic package rejects an empty input, so the request
-            # boundary is required rather than optional here.
-            self.fetch_features(
-                layer, geometry=geometry, limit=self._SAMPLE_LIMIT
-            )
+            # boundary is required rather than optional here. No limit: the run
+            # returns every row the package produced.
+            self.fetch_features(layer, geometry=geometry)
         return self._schemas[key]
 
     def fetch_features(
