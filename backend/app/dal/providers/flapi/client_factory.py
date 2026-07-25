@@ -1,28 +1,19 @@
-"""Create authenticated FLAPI HTTP clients."""
-
-from typing import Optional
-
-import httpx
+"""Validate the FLAPI credentials flunks needs."""
 
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 
 
 class FlapiClientFactory:
-    def __init__(
-        self,
-        settings_store: RuntimeSettingsStore,
-        transport: Optional[httpx.BaseTransport] = None,
-    ) -> None:
+    """Resolves and validates FLAPI settings for flunks.
+
+    flunks builds its own HTTP client from ``FlapiConfig``, so this holds no
+    client of its own. It reads the store on every call, which is what keeps the
+    Settings UI a live override with no restart.
+    """
+
+    def __init__(self, settings_store: RuntimeSettingsStore) -> None:
         self._store = settings_store
-        self._transport = transport
-
-    @property
-    def transport(self) -> Optional[httpx.BaseTransport]:
-        return self._transport
-
-    def set_transport(self, transport: Optional[httpx.BaseTransport]) -> None:
-        self._transport = transport
 
     def require_settings(self, require_username: bool = False):
         settings = self._store.get()
@@ -37,26 +28,3 @@ class FlapiClientFactory:
                 "FLAPI username is not configured — set flapi_username"
             )
         return settings
-
-    def create(self, require_username: bool = False) -> httpx.Client:
-        settings = self.require_settings(require_username)
-        return httpx.Client(
-            base_url=settings.cubes_base_url,
-            headers=self._headers(
-                settings.cubes_token, settings.flapi_username
-            ),
-            timeout=None,  # explicit: omitting it would apply httpx's 5s default
-            verify=settings.cubes_verify_tls,
-            transport=self._transport,
-        )
-
-    @staticmethod
-    def _headers(token: str, username: Optional[str] = None) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": token.strip(),
-        }
-        if username:
-            headers["username"] = username
-        return headers
