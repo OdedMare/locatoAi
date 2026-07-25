@@ -1,7 +1,7 @@
 """Map FLAPI Flow Package rows into application models."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import geopandas as gpd
 from shapely import wkt
@@ -19,7 +19,11 @@ class FlapiSchemaMapper:
 
     def infer_schema(self, layer_id: str, rows: List[dict]) -> LayerSchema:
         fields = [self._inferred_field(name, rows) for name in self._field_names(rows)]
-        temporal = self._temporal_field(fields)
+        names = {field.name for field in fields}
+        temporal = next((name for name in self._TIME_FIELDS if name in names), None)
+        temporal = temporal or next(
+            (field.name for field in fields if field.type == "date"), None
+        )
         return LayerSchema(
             layer_id=layer_id, geometry_type="Point", fields=fields,
             temporal_field=temporal,
@@ -86,13 +90,6 @@ class FlapiSchemaMapper:
         present = [str(value)[:self._MAX_SAMPLE_CHARS]
                    for value in values if value is not None]
         return list(dict.fromkeys(present))[:self._MAX_SAMPLES]
-
-    def _temporal_field(self, fields: List[LayerField]) -> Optional[str]:
-        names = {field.name for field in fields}
-        named = next((name for name in self._TIME_FIELDS if name in names), None)
-        return named or next(
-            (field.name for field in fields if field.type == "date"), None
-        )
 
     @staticmethod
     def _point(row: dict):
