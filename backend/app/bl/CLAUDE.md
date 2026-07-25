@@ -15,6 +15,7 @@ directly.
 ```
 app/bl/
 ├── area_summary/             deterministic fact extraction + partial failures
+├── ranking/                  declarative rule scoring of one subject layer
 ├── plan/
 │   ├── models/                one Pydantic model per plan step + discriminated union
 │   └── validators.py          semantic checks
@@ -47,6 +48,17 @@ recommendation, and encounter facts must be derivable from source features and c
 evidence. Catalog participation is explicit through the `area-summary` profile and
 one `summary:<kind>` tag. Exceptions are isolated per layer and returned as coverage
 failures instead of failing the whole summary.
+
+`ranking` mirrors that shape for ordered questions ("which houses are most vulnerable
+to earthquakes"). It ranks the features of one requested **subject** layer inside the
+polygon; every other catalog layer carrying the `ranking` profile and exactly one
+`rank:<kind>` tag (`proximity` | `density` | `attribute`) contributes a raw score in
+`[0, 1]` times its `rank:weight`. A feature's `total_score` is the sum of its weighted
+contributions and `normalized_score` divides by the successful rules' total weight.
+Like `area_summary` it does not depend on the agent, keeps per-contribution evidence,
+and isolates a failing rule as a coverage failure. FLAPI/flunks-backed layers
+participate as ordinary rule sources through the existing provider path — no
+ranking-specific FLAPI call shape exists.
 
 ## 1. Context-owned models and Protocols — the DIP seam
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-25T17:13:46.663210+00:00",
+  "generated_at": "2026-07-25T18:26:54.428823+00:00",
   "nodes": {
     "backend_app_bl_agent_generate_layer_metadata_layer_metadata_generator_rationale_1": {
       "code_fingerprint": "6accd344fd245fd4baea0a9f5d13879d70a9df1794ac8fadc70afa7024a7aa03",
@@ -12,7 +12,7 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.991374517,
+      "score": 0.990211953,
       "source_file": "backend/app/bl/agent/generate_layer_metadata/layer_metadata_generator.py",
       "status": "tentative",
       "uses": 1
@@ -20,8 +20,13 @@
     "backend_app_dal_providers_flapi_provider_flapiprovider": {
       "code_fingerprint": "3f503470aed6a5b856ef75ba0049d49417dade02f220d1e8d3e43f063fc16963",
       "label": "FlapiProvider",
-      "last": "2026-07-25T17:05:57.175121+00:00",
+      "last": "2026-07-25T17:17:45.972918+00:00",
       "provenance": [
+        {
+          "date": "2026-07-25T17:17:45.972918+00:00",
+          "outcome": "useful",
+          "q": "התאם את FLAPI package gateway לסקריפט flunks העובד שסופק, ושמור debug בטוח של הקלט"
+        },
         {
           "date": "2026-07-25T17:05:57.175121+00:00",
           "outcome": "useful",
@@ -41,17 +46,12 @@
           "date": "2026-07-25T16:28:05.190250+00:00",
           "outcome": "useful",
           "q": "now attribute max_threads; FlapiSchemaMapper has no attribute max_threads"
-        },
-        {
-          "date": "2026-07-25T16:12:05.071910+00:00",
-          "outcome": "useful",
-          "q": "טוב flunks עדיין לא עובד לי ויש שם קטעי קוד ענקים שקשה לדבג צמצם אותם רק לחלקים הרלוונטים; אני מקבל שגיאה is_partial_success should be a valid str; flunks בסוף מחזיר dataframe"
         }
       ],
-      "score": 4.997592382,
+      "score": 5.990623055,
       "source_file": "backend/app/dal/providers/flapi/provider.py",
       "status": "preferred",
-      "uses": 5
+      "uses": 6
     },
     "backend_app_dal_providers_mqs_gateway_mqsgateway_entities_page_with_meta": {
       "code_fingerprint": "e03eaf2419b4456316d320ceec2feb4f0f8a5be293d56c68a722db568ad42561",
@@ -64,7 +64,7 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.991374517,
+      "score": 0.990211953,
       "source_file": "backend/app/dal/providers/mqs/gateway.py",
       "status": "tentative",
       "uses": 1
@@ -80,7 +80,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.991675775,
+      "score": 0.990512858,
       "source_file": "backend/app/dal/providers/tyche/query_builder.py",
       "status": "tentative",
       "uses": 1
@@ -96,7 +96,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.991675775,
+      "score": 0.990512858,
       "source_file": "backend/app/dal/providers/tyche/source.py",
       "status": "tentative",
       "uses": 1
@@ -112,7 +112,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.991675775,
+      "score": 0.990512858,
       "source_file": "backend/app/service/catalog/router.py",
       "status": "tentative",
       "uses": 1
@@ -133,7 +133,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 1.993241641,
+      "score": 1.990904208,
       "source_file": "backend/app/service/query/event_sink.py",
       "status": "preferred",
       "uses": 2
@@ -149,7 +149,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.998495672,
+      "score": 0.997324757,
       "source_file": "backend/app/service/query/router.py",
       "status": "tentative",
       "uses": 1
@@ -165,7 +165,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.994745969,
+      "score": 0.993579452,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
@@ -181,7 +181,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.994745969,
+      "score": 0.993579452,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
@@ -197,7 +197,7 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.991675775,
+      "score": 0.990512858,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
@@ -213,7 +213,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.998495672,
+      "score": 0.997324757,
       "source_file": "frontend/src/components/AgentTrace/index.tsx",
       "status": "tentative",
       "uses": 1
@@ -229,7 +229,7 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.994745969,
+      "score": 0.993579452,
       "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1
@@ -245,7 +245,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.998495672,
+      "score": 0.997324757,
       "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1

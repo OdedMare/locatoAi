@@ -7,10 +7,8 @@ from app.bl.catalog.models.layer_meta import LayerMeta
 from app.common.config.settings import Settings
 from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
-from app.dal.providers.flapi.package_records import FlowPackageRecords
-from app.dal.providers.flapi.package_serializer import FlowPackageSerializer
+from app.dal.providers.flapi.mapper import FlunksMapper
 from app.dal.providers.flapi.provider import FlapiProvider
-from app.dal.providers.flapi.source import FlapiSource
 from app.service.catalog.router import CatalogRouter
 
 
@@ -37,7 +35,7 @@ def make_provider(tmp_path, runner_factory=None, monkeypatch=None):
     ))
     if runner_factory is not None:
         monkeypatch.setattr(
-            "app.dal.providers.flapi.package_gateway.FlunksRunner",
+            "app.dal.providers.flapi.provider.FlunksRunner",
             runner_factory,
         )
     return FlapiProvider(store)
@@ -162,7 +160,10 @@ def test_geo_input_cube_wkt_round_trips_to_query_boundary(tmp_path, monkeypatch)
 
 def test_geo_source_persists_kind():
     layer = package_layer(geo_source())
-    assert FlapiSource.package_input_cube_kind(layer) == "geo"
+    package = FlunksMapper().package_config(
+        layer, geometry=box(34.7, 32.0, 34.9, 32.2),
+    )
+    assert package.main_input_cube.values[0].startswith("MULTIPOLYGON")
 
 
 def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
@@ -170,9 +171,8 @@ def test_package_reports_flunks_chunk_statistics(tmp_path, monkeypatch):
 
     provider.fetch_features(package_layer(configured_source()))
 
-    gateway = provider._package._gateway
-    assert gateway.success_chunks == 1
-    assert gateway.failed_chunks == 0
+    assert provider.success_chunks == 1
+    assert provider.failed_chunks == 0
 
 
 def test_package_logs_exact_flunks_input_without_token(
@@ -181,7 +181,7 @@ def test_package_logs_exact_flunks_input_without_token(
     provider = make_provider(tmp_path, StubRunner, monkeypatch)
     messages = []
     monkeypatch.setattr(
-        provider._package._gateway._logger, "info",
+        provider._logger, "info",
         lambda message, *args: messages.append(message % args),
     )
     provider.fetch_features(package_layer(configured_source()))
@@ -264,7 +264,7 @@ def test_package_accepts_dataframe_with_wkt_geometry(tmp_path, monkeypatch):
 def test_package_dataframe_shapely_geometry_is_not_dropped(tmp_path, monkeypatch):
     """A shapely cell must not silently yield zero features.
 
-    ``FlapiSchemaMapper._point`` only parses ``str``, so an unconverted
+    ``FlunksMapper._point`` only parses ``str``, so an unconverted
     geometry object would make the layer return nothing at all — with no error.
     """
     import pandas as pd
@@ -308,7 +308,7 @@ def test_package_dataframe_normalizes_nan_and_numpy_scalars(tmp_path, monkeypatc
     ])
     provider = make_provider(tmp_path, dataframe_runner(frame), monkeypatch)
     layer = package_layer(configured_source())
-    normalized = FlowPackageRecords.normalize(frame)
+    normalized = FlunksMapper().normalize(frame)
 
     features = provider.fetch_features(layer)
 
@@ -328,18 +328,18 @@ def test_package_dataframe_normalizes_nan_and_numpy_scalars(tmp_path, monkeypatc
 def test_package_source_persists_cube_names():
     source = configured_source()
     layer = package_layer(source)
-    parsed_source = FlapiSource()
+    package = FlunksMapper().package_config(layer)
 
     assert source.startswith("flapi://package/466192?")
-    assert parsed_source.package_input_cube_name(layer) == "RawInput"
-    assert parsed_source.package_input_cube_parameter(layer) == "TimeRange"
-    assert parsed_source.package_input_cube_kind(layer) == "time"
-    assert parsed_source.package_output_cube_name(layer) == "הכנסה - 👑"
+    assert package.package_id == "466192"
+    assert package.main_input_cube.cube_name == "RawInput"
+    assert package.main_input_cube.cube_parameter == "TimeRange"
+    assert package.output_cube.cube_name == "הכנסה - 👑"
 
 
 def test_input_cube_uses_explicit_temporal_range():
-    serializer = FlowPackageSerializer()
-    input_cube = serializer.build_input_cube(
+    mapper = FlunksMapper()
+    input_cube = mapper.build_input_cube(
         "RawInput", "TimeRange",
         temporal_range=("2026-01-01T00:00:00Z", "2026-04-01T00:00:00Z"),
     )
@@ -354,10 +354,10 @@ def test_geo_input_cube_combines_polygons_into_one_multipolygon():
     from shapely import wkt as shapely_wkt
     from shapely.geometry import MultiPolygon
 
-    serializer = FlowPackageSerializer()
+    mapper = FlunksMapper()
     boundary = MultiPolygon([box(34.7, 32.0, 34.8, 32.1), box(35.0, 32.4, 35.1, 32.5)])
 
-    input_cube = serializer.build_input_cube(
+    input_cube = mapper.build_input_cube(
         "שכבה גיאוגרפית", "שכבה גיאוגרפית", kind="geo", geometry=boundary,
     )
 
@@ -373,28 +373,28 @@ def test_geo_input_cube_without_geometry_is_rejected():
     # FLAPI answers an empty main cube input with "Please enter values for the
     # main cube input", so a missing boundary must fail here — naming the layer
     # configuration at fault — rather than reaching the package as values=[].
-    serializer = FlowPackageSerializer()
+    mapper = FlunksMapper()
 
     with pytest.raises(ProviderError):
-        serializer.build_input_cube(
+        mapper.build_input_cube(
             "שכבה גיאוגרפית", "שכבה גיאוגרפית", kind="geo",
         )
 
 
 def test_input_cube_requires_names():
-    serializer = FlowPackageSerializer()
+    mapper = FlunksMapper()
     with pytest.raises(ProviderError, match="input cube name"):
-        serializer.build_input_cube(None, "TimeRange")
+        mapper.build_input_cube(None, "TimeRange")
     with pytest.raises(ProviderError, match="input cube parameter"):
-        serializer.build_input_cube("RawInput", None)
+        mapper.build_input_cube("RawInput", None)
 
 
 def test_input_cube_defaults_time_window_when_range_absent():
     from datetime import datetime, timezone
 
-    serializer = FlowPackageSerializer()
+    mapper = FlunksMapper()
     now = datetime(2026, 7, 25, 12, 0, tzinfo=timezone.utc)
-    input_cube = serializer.build_input_cube(
+    input_cube = mapper.build_input_cube(
         "RawInput", "TimeRange", now=now,
     )
 

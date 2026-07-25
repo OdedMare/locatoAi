@@ -4,8 +4,7 @@ from typing import Optional
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from app.dal.providers.flapi.flunks_metadata_patch import FlunksMetadataPatch
-from app.dal.providers.flapi.package_debug import FlowPackageDebug
+from app.dal.providers.flapi.provider import _error_detail, _patch_metadata
 
 
 def response_models():
@@ -25,7 +24,7 @@ def test_patch_rebuilds_metadata_before_flow_results():
     with pytest.raises(ValidationError):
         models.FlowResults.model_validate(payload)
 
-    assert FlunksMetadataPatch.apply(models) is True
+    assert _patch_metadata(models) is True
     result = models.FlowResults.model_validate(payload)
 
     assert result.metadata.isPartialSuccess is False
@@ -48,7 +47,7 @@ def test_patch_finds_snake_case_field_by_alias():
 
     models = SimpleNamespace(MetaData=MetaData, FlowResults=FlowResults)
 
-    assert FlunksMetadataPatch.apply(models) is True
+    assert _patch_metadata(models) is True
     result = FlowResults.model_validate(
         {"metadata": {"isPartialSuccess": False}}
     )
@@ -62,7 +61,7 @@ def test_validation_error_preview_is_bounded():
     with pytest.raises(ValidationError) as caught:
         TextResult.model_validate({"value": ["x" * 1000]})
 
-    message = FlowPackageDebug.exception(caught.value)
+    message = _error_detail(caught.value)
 
     assert "value=string_type" in message
     assert len(message) < 300
