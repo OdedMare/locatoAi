@@ -18,9 +18,38 @@ TEMPORARY: delete this module once flunks types the field as
 widens what a response is allowed to contain.
 """
 
-from typing import Union
+from typing import Any, Tuple, Union, get_args
 
 _FIELD = "isPartialSuccess"
+
+
+def _annotations(annotation: Any) -> Tuple[Any, ...]:
+    """The concrete types an annotation admits.
+
+    ``Optional[str]`` is ``Union[str, None]``, not ``str``, so an identity test
+    against ``str`` would skip the patch and leave the bug in place.
+    """
+    args = get_args(annotation)
+    return args or (annotation,)
+
+
+def _rebuild_all(flow_models: Any) -> bool:
+    """Force-rebuild every pydantic model in flunks' response module.
+
+    Parents are rebuilt as well as ``MetaData`` itself; a model that fails to
+    rebuild is skipped so one unrelated shape change cannot break the provider.
+    """
+    rebuilt = False
+    for name in dir(flow_models):
+        model = getattr(flow_models, name, None)
+        if not hasattr(model, "model_rebuild"):
+            continue
+        try:
+            model.model_rebuild(force=True)
+            rebuilt = True
+        except Exception:
+            continue
+    return rebuilt
 
 
 class FlunksMetadataPatch:
@@ -35,12 +64,17 @@ class FlunksMetadataPatch:
         provider must keep working rather than fail to import.
         """
         try:
-            from flunks.flow_models import MetaData
+            from flunks import flow_models
         except ImportError:
             return False
-        field = MetaData.model_fields.get(_FIELD)
-        if field is None or field.annotation is not str:
-            return False  # already fixed upstream, or no longer a plain str
+        field = getattr(flow_models, "MetaData", None)
+        field = field and field.model_fields.get(_FIELD)
+        if field is None or str not in _annotations(field.annotation):
+            return False  # already fixed upstream, or no longer a str field
         field.annotation = Union[bool, str]
-        MetaData.model_rebuild(force=True)
-        return True
+        # Rebuilding MetaData alone is NOT enough. Pydantic v2 inlines a child's
+        # core schema into every parent that embeds it, so `FlowResults` — the
+        # model flunks actually validates, and the one named in the error —
+        # keeps its stale `str` validator for `metadata.isPartialSuccess`.
+        # Every model referencing MetaData must be rebuilt, not just MetaData.
+        return _rebuild_all(flow_models)

@@ -17,8 +17,12 @@ from app.dal.providers.flapi.schema_mapper import FlapiSchemaMapper
 from app.dal.providers.flapi.source import FlapiSource
 
 # FLAPI returns isPartialSuccess as a JSON boolean while flunks types it as str.
-# Applied at import so it is in place before any FlunksRunner parses a response.
-FlunksMetadataPatch.apply()
+# Applied at import, before any FlunksRunner parses a response. The result is
+# logged because a no-op patch is otherwise indistinguishable from a working one
+# — and its absence only surfaces later as a FlowResults ValidationError.
+logging.getLogger(__name__).info(
+    "FLAPI flunks metadata patch applied=%s", FlunksMetadataPatch.apply()
+)
 
 
 class FlowPackageGateway:

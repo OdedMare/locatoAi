@@ -249,14 +249,16 @@ def test_geo_input_cube_combines_polygons_into_one_multipolygon():
     assert shapely_wkt.loads(input_cube.values[0]).equals(boundary)
 
 
-def test_geo_input_cube_without_geometry_is_empty():
+def test_geo_input_cube_without_geometry_is_rejected():
+    # FLAPI answers an empty main cube input with "Please enter values for the
+    # main cube input", so a missing boundary must fail here — naming the layer
+    # configuration at fault — rather than reaching the package as values=[].
     serializer = FlowPackageSerializer()
 
-    input_cube = serializer.build_input_cube(
-        "שכבה גיאוגרפית", "שכבה גיאוגרפית", kind="geo",
-    )
-
-    assert input_cube.values == []
+    with pytest.raises(ProviderError):
+        serializer.build_input_cube(
+            "שכבה גיאוגרפית", "שכבה גיאוגרפית", kind="geo",
+        )
 
 
 def test_input_cube_requires_names():

@@ -148,11 +148,27 @@ with the total length, keeping geometry type and leading coordinates visible.
 `FlowResults.metadata.isPartialSuccess` as `str`, but FLAPI sends a JSON boolean, and
 pydantic v2 does not coerce `bool` -> `str`. Every successful package run therefore died
 in flunks' *own* response parsing with `Input should be a valid string
-[input_value=False]`. `FlunksMetadataPatch.apply()` widens that annotation to
-`Union[bool, str]` and is called at `package_gateway` import time, before any runner
-parses a response — there is no seam inside `FlunksRunner` to intercept. It is
-idempotent, still accepts a string, and self-disables once the field is no longer a
-plain `str`. **Delete the module and its import when flunks fixes the type upstream.**
+[input_value=False]` at `flow_ops.run_package`, with `success=0 failed=0` because
+`FlunksRunner._run_chunk` raises before either counter moves. `FlunksMetadataPatch.apply()`
+widens that annotation to `Union[bool, str]` at `package_gateway` import time — there is
+no seam inside `FlunksRunner` to intercept.
+
+**Two traps make this patch silently no-op; both are guarded, don't undo them.**
+1. **Rebuild the parents, not just `MetaData`.** Pydantic v2 inlines a child's core
+   schema into every model embedding it, so rebuilding `MetaData` alone leaves
+   `FlowResults` — the model actually validated, and the one named in the error —
+   holding its stale `str` validator. `_rebuild_all` force-rebuilds every model in
+   `flunks.flow_models`; a model that fails to rebuild is skipped.
+2. **`Optional[str]` is not `str`.** An `is not str` identity test on the annotation
+   skips the patch whenever flunks declares the field optional. `_annotations` unwraps
+   `Union`/`Optional` via `get_args` and tests membership instead.
+
+The patch is idempotent, still accepts a string, and self-disables once `str` is no
+longer among the field's admitted types. `package_gateway` **logs whether it applied**
+(`FLAPI flunks metadata patch applied=`) — a no-op is otherwise indistinguishable from
+success and resurfaces much later as a `FlowResults` `ValidationError`. Check that line
+first when `isPartialSuccess` errors return.
+**Delete the module and its import when flunks fixes the type upstream.**
 
 Endpoint routing, chunking, retries, and exception mapping for the execution call are
 owned by flunks — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
