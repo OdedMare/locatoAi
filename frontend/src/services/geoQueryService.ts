@@ -146,21 +146,24 @@ async function httpFailure(
 export async function submitQuery(
   request: GeoQueryRequest,
   onProgress?: QueryProgressHandler,
+  streamMode = true,
 ): Promise<GeoQueryResponse> {
   const clientRequestId = crypto.randomUUID();
   console.info("Query pipeline started", { requestId: clientRequestId, request });
   try {
-    const response = await fetch("/api/query/stream", {
+    const response = await fetch(streamMode ? "/api/query/stream" : "/api/query", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "text/event-stream",
+        "Accept": streamMode ? "text/event-stream" : "application/json",
         "X-Request-ID": clientRequestId,
       },
       body: JSON.stringify(request),
     });
     const result = response.ok
-      ? await readStream(response, clientRequestId, onProgress)
+      ? streamMode
+        ? await readStream(response, clientRequestId, onProgress)
+        : await response.json() as GeoQueryResponse
       : await httpFailure(response, clientRequestId);
     const log = result.status === "error" ? console.error : console.info;
     log("Query pipeline completed", result);

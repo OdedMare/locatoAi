@@ -250,6 +250,7 @@ interface AgentTraceProps {
   /** The query text that produced `response` (for feedback logging). */
   query: string;
   liveTrace: PipelineTraceEntry[];
+  streamMode: boolean;
 }
 
 /**
@@ -258,7 +259,7 @@ interface AgentTraceProps {
  * selection quality can be judged at a glance.
  */
 export default function AgentTrace({
-  response, isSubmitting, query, liveTrace,
+  response, isSubmitting, query, liveTrace, streamMode,
 }: AgentTraceProps) {
   const [voteState, setVoteState] = useState<{
     query: string;
@@ -330,7 +331,16 @@ export default function AgentTrace({
       </header>
 
       {isSubmitting ? (
-        <PipelineTimeline trace={liveTrace} live />
+        streamMode ? (
+          <PipelineTimeline trace={liveTrace} live />
+        ) : (
+          <div className="plan-trace" aria-live="polite">
+            <p className="agent-step running agent-status-line">
+              <LoaderCircle className="pipeline-spinner" size={16} />
+              מריץ במצב רגיל — התשובה תופיע בסיום
+            </p>
+          </div>
+        )
       ) : response && (
         <PipelineTimeline
           trace={response.pipeline_trace}

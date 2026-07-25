@@ -45,6 +45,7 @@ export default function AppShell() {
     displayQuery: string;
   }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStreamMode, setIsStreamMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [isAgentStudioOpen, setIsAgentStudioOpen] = useState(false);
@@ -132,6 +133,7 @@ export default function AppShell() {
       const response = await submitQuery(
         request,
         (event) => setLiveTrace((trace) => [...trace, event]),
+        isStreamMode,
       );
       setLastResponse(response);
     } finally {
@@ -149,6 +151,8 @@ export default function AppShell() {
         hasDrawnGeometry={drawnGeometry !== null}
         onRunQuery={handleRunQuery}
         isSubmitting={isSubmitting}
+        isStreamMode={isStreamMode}
+        onToggleStreamMode={() => setIsStreamMode((enabled) => !enabled)}
         lastRequest={lastRequest}
         lastResponse={lastResponse}
         liveTrace={liveTrace}

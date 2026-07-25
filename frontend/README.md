@@ -81,8 +81,9 @@ Component-local state is used for modal forms, catalog searches, feedback voting
    - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon (the default).
    - `polygon` or `rectangle`: Leaflet Draw produces a Polygon, then `polygonToMultiPolygon` wraps it for the API.
 3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`. Before a later submission, the completed turn moves into bounded history. When the previous response asked for clarification, the new text is appended to that request as explicit clarification context.
-4. `geoQueryService.submitQuery()` posts JSON to `/api/query/stream` and parses the
-   server-sent event stream using the browser Fetch/Streams APIs.
+4. The “live updates” composer toggle chooses the transport. It defaults on:
+   `geoQueryService.submitQuery()` posts to `/api/query/stream` and parses SSE with the
+   browser Fetch/Streams APIs; turning it off uses the compatible `/api/query` JSON route.
 5. While work is running, `AgentTrace` progressively renders the real selection,
    planning, load, filter, cluster, count, and response events with per-step counts.
 6. When the response arrives:

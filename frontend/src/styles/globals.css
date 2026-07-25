@@ -2133,6 +2133,14 @@ button {
 .composer-tools {
   max-width: 680px;
   margin: 0 auto 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.composer-tools .geography-controls {
+  min-width: 0;
+  flex: 1;
 }
 
 .composer-tools .field-label,
@@ -2148,7 +2156,7 @@ button {
 
 .composer-tools .mode-option {
   width: auto;
-  min-height: 36px;
+  min-height: 44px;
   padding: 7px 12px;
   color: var(--text-muted);
   border-color: var(--border);
@@ -2170,6 +2178,39 @@ button {
 
 .composer-tools .draw-status {
   display: none;
+}
+
+.stream-mode-toggle {
+  min-height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stream-mode-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.stream-mode-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.agent-status-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .composer-row {
@@ -2552,6 +2593,14 @@ button {
 }
 
 @media (max-width: 520px) {
+  .stream-mode-toggle {
+    width: 42px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .stream-mode-label { display: none; }
+
   .model-pill {
     display: none;
   }
