@@ -24,7 +24,9 @@ full backend pipeline and repository-wide constraints.
 - Preserve RTL defaults and mark URLs, identifiers, JSON, and credentials LTR.
 - `AgentStudioPanel` edits the `area-summary` profile's numbered
   `## Workflow` section through accessible add/delete/reorder controls; the
-  generated Markdown remains the persisted source of truth.
+  generated Markdown remains the persisted source of truth. New skills can start
+  from the generic summary template, which adds an editable `## Summary target`;
+  step-level parallel execution is encoded as `[parallel]`.
 - Keep the Settings UI: environment variables are deployment defaults and saved UI
   values are live overrides. Provider TLS verification must default to enabled.
 - `LayersPanel` adds both FLAPI Cubes and Flow Packages. Packages discover typed

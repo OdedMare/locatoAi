@@ -316,6 +316,10 @@ new executable operation still requires its model, validator, executor, trace, a
 The built-in `area-summary` profile contains an ordered `## Workflow` Markdown
 section. Agent Studio renders that section as editable steps with add, delete, and
 reorder controls while retaining the complete Markdown editor as the source of truth.
+The custom-skill creation flow also offers a generic summary template with an editable
+`## Summary target`; a `[parallel]` step runs alongside the previous step and joins
+before the next sequential step. Model-facing template instructions are English and
+require the final user-facing summary to be Hebrew.
 
 **Model:** Gemma 4 31B via Ollama cloud (`gemma4:31b-cloud`), configured in the UI ⚙ panel.
 The [LLM client](app/dal/llm/openai_client.py) is OpenAI-compatible and key-optional when a
