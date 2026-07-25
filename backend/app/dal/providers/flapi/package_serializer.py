@@ -32,33 +32,38 @@ class FlowPackageSerializer:
         self._logger = logging.getLogger(__name__)
 
     def build_input_cube(
-        self,
-        input_cube_name: Optional[str],
-        input_cube_parameter: Optional[str],
-        kind: str = "time",
+        self, input_cube_name: Optional[str],
+        input_cube_parameter: Optional[str], kind: str = "time",
         temporal_range: Optional[Tuple[str, str]] = None,
-        geometry: Optional[BaseGeometry] = None,
-        now: Optional[datetime] = None,
+        geometry: Optional[BaseGeometry] = None, now: Optional[datetime] = None,
     ) -> PackageInputCube:
-        self._logger.info(
-            "FLAPI input cube BUILD kind=%s cube_name=%r parameter=%r "
-            "temporal_range=%s %s",
-            kind, input_cube_name, input_cube_parameter, temporal_range,
-            FlowPackageDebug.geometry(geometry),
+        self._log_build(
+            kind, input_cube_name, input_cube_parameter, temporal_range, geometry
         )
         self._validate_names(input_cube_name, input_cube_parameter)
-        if kind == "geo":
-            cube = self._geo_cube(
-                input_cube_name, input_cube_parameter, geometry
-            )
-        else:
-            cube = self._time_cube(
-                input_cube_name, input_cube_parameter, temporal_range, now
-            )
+        cube = self._cube(
+            kind, input_cube_name, input_cube_parameter,
+            temporal_range, geometry, now,
+        )
         self._logger.info(
             "FLAPI input cube READY %s", FlowPackageDebug.input_cube(cube)
         )
         return cube
+
+    def _log_build(self, kind, name, parameter, temporal_range, geometry):
+        self._logger.info(
+            "FLAPI input cube BUILD kind=%s cube_name=%r parameter=%r "
+            "temporal_range=%s %s",
+            kind, name, parameter, temporal_range,
+            FlowPackageDebug.geometry(geometry),
+        )
+
+    def _cube(self, kind, name, parameter, temporal_range, geometry, now):
+        if kind == "geo":
+            return self._geo_cube(name, parameter, geometry)
+        return self._time_cube(
+            name, parameter, temporal_range, now
+        )
 
     @staticmethod
     def _validate_names(name: Optional[str], parameter: Optional[str]) -> None:

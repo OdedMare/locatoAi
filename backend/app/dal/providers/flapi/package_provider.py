@@ -50,9 +50,7 @@ class FlowPackageProvider:
         return self._schemas[key]
 
     def fetch_features(
-        self,
-        layer: LayerMeta,
-        now: Optional[datetime] = None,
+        self, layer: LayerMeta, now: Optional[datetime] = None,
         geometry: Optional[BaseGeometry] = None,
         limit: Optional[int] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
