@@ -2,7 +2,7 @@
 
 Guidance for working in the LocatoAI backend. Read the root
 [`../CLAUDE.md`](../CLAUDE.md) first for the full product context, business rules
-(MQS/Cubes bounded loading, agent loop constraints, settings precedence), and gotchas
+(MQS bounded loading, agent loop constraints, settings precedence), and gotchas
 that apply repo-wide. This file is the backend-specific entry point.
 
 ## Where to actually find things
@@ -17,7 +17,7 @@ provider, adding a setting, debugging an error's HTTP status).
 | Tier | Doc | One-line summary |
 |---|---|---|
 | `app/common/` | [`app/common/CLAUDE.md`](app/common/CLAUDE.md) | Dependency-free foundation: env vs. live settings precedence, error hierarchy, CRS/meters math, logging, text normalization. |
-| `app/dal/` | [`app/dal/CLAUDE.md`](app/dal/CLAUDE.md) | Implements context-owned BL interfaces: MQS/Cubes/Tyche adapters, provider registry, LLM client, and Postgres repositories. |
+| `app/dal/` | [`app/dal/CLAUDE.md`](app/dal/CLAUDE.md) | Implements context-owned BL interfaces: MQS/FLAPI/Tyche adapters, provider registry, LLM client, and Postgres repositories. |
 | `app/bl/` | [`app/bl/CLAUDE.md`](app/bl/CLAUDE.md) | The business core: context-owned interfaces/models, the 18-step `GeoQueryPlan` + validators, executor ops, agent pipeline, query orchestrator, and catalog service. |
 | `app/service/` | [`app/service/CLAUDE.md`](app/service/CLAUDE.md) | Every HTTP endpoint, DTOs, the composition root (`main.py`), error→HTTP mapping, the `{query, boundaries}` contract, settings secret masking. |
 

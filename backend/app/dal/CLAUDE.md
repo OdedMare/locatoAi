@@ -1,6 +1,6 @@
 # `app/dal/` — Data Access Tier
 
-Read this when you're touching a GIS provider (MQS/Cubes/Tyche), the LLM client, or
+Read this when you're touching a GIS provider (MQS/FLAPI/Tyche), the LLM client, or
 Postgres access. See [`../index.md`](../index.md) for how this tier fits with `bl/`,
 `service/`, and `common/`.
 
@@ -22,7 +22,7 @@ app/dal/
 ├── feedback/feedback_repository.py persists 👍/👎 feedback
 ├── providers/
 │   ├── mqs/                    MQS (Moria Query Service) adapter
-│   ├── flapi/                  Cubes + Flow Packages (shared FLAPI adapter)
+│   ├── flapi/                  Flow Package (FLAPI/flunks) adapter
 │   ├── tyche/                  Tyche (Our Forces) adapter
 │   └── registry.py              InMemoryProviderRegistry
 └── llm/
@@ -91,64 +91,9 @@ loading" / "MQS business metadata" sections):
 
 ## FLAPI provider — `providers/flapi/`
 
-`FlapiProvider` is the registered facade for both Cube and Flow Package resources.
-The same instance is registered under the legacy `cubes` name for existing catalog
-rows. Both resources share `FlapiClientFactory` and `FlapiSchemaMapper`.
-
-Cube pipeline: `CubesSource` (parse `cubes://db/<name>` + query params) →
-`FlapiClientFactory` (authenticated httpx client) → `CubesMetadataGateway` (+
-`CubesParameterLoader`) for `/cube/v1/{cube}` and `/parameters` discovery →
-`CubesQueryBuilder` (request body construction) → `CubesGateway` (POST +
-capped-result recursive chunking) → `FlapiSchemaMapper` (response/metadata → schema/
-GDF), coordinated by `CubesProvider` (implements `Provider`).
-
-| File | Class | Role |
-|---|---|---|
-| `provider.py` | `FlapiProvider` | Cube/Package dispatcher |
-| `cube_provider.py` | `CubesProvider` | Cube orchestrator |
-| `cube_source.py` | `CubesSource` | Parses `cubes://db/<dbname>`, `query_mode`, `param_<name>=<value>` resolved-parameter map |
-| `client_factory.py` | `FlapiClientFactory` | Shared authenticated `httpx.Client` factory |
-| `cube_metadata_gateway.py` | `CubesMetadataGateway` | `GET /cube/v1/{cube}` metadata (cached per db), `POST /cube/v1/{cube}/autocomplete/{param}` (never cached) |
-| `cube_parameter_loader.py` | `CubesParameterLoader` | Hydrates name-only parameter entries via `GET /cube/v1/{cube}/parameters/{name}` |
-| `cube_query_builder.py` | `CubesQueryBuilder` | Builds request bodies (`.match`/`.not`, polygon, `Location`), chunk splitting, required-parameter validation |
-| `cube_gateway.py` | `CubesGateway` | POSTs rows, recursive capped-result recovery (spatial then temporal chunking) |
-| `schema_mapper.py` | `FlapiSchemaMapper` | Shared response/schema mapper and dedup |
-
-**`CubesProvider`** public methods: `describe_schema`,
-`list_dynamic_parameters(layer)` (params with `is_dynamic=True`),
-`list_configurable_parameters(layer, refresh=False)` (params the catalog UI must
-resolve), `requires_geometry(layer)`, `fetch_features(layer, now=None, geometry=None,
-limit=None, temporal_range=None)`, `sample_for_metadata(layer, limit=100,
-geometry=None)`, `sample_field_values`, `fetch_autocomplete_options(layer,
-parameter_name)` (live, never cached).
-
-**Where the documented Cubes rules live** (see root `CLAUDE.md` "Cubes catalog
-workflow" / "Cubes dynamic parameters" / "Cubes result cap" sections):
-- Metadata discovery + `/parameters` fallback: `CubesMetadataGateway.metadata` merges
-  `CubesParameterLoader.load`'s fallback fetch.
-- Name-only parameter hydration: `CubesParameterLoader._is_complete` / `_definition`.
-- `.match`/`.not` suffix + legacy payload: `CubesQueryBuilder.parts`, `_query_keys`,
-  `_declared_keys`, `_DEFAULT_KEYS`; mode from `CubesSource.query_mode`
-  (`auto`/`match_not`/`legacy`).
-- Temporal range → `.match` From/To; geography via the temporal param's `Location`:
-  `CubesQueryBuilder._absolute_window`, `_add_geometry`/`_location_key`.
-- Dynamic parameters (`Role=dynamic` or `:dynamic` suffix, unusable declared options
-  dropped): `FlapiSchemaMapper._metadata_parameter`.
-- `param_<name>=<value>` resolved-parameter encoding in `source_url`:
-  `CubesSource.resolved_parameters` / `PARAMETER_PREFIX="param_"`, consumed by
-  `CubesQueryBuilder.resolve_parameters`.
-- `polygon` param → `{"value": [WKT]}`; plain `date` → `no_time` shape:
-  `CubesQueryBuilder._add_geometry` / `_parameter_value`.
-- Configured `Value` injected unchanged (e.g. `environment=prod`), excluded from
-  model-facing serialization: `CubesQueryBuilder._apply_configured` +
-  `LayerParameter.configured_value` (`Field(exclude=True)`).
-- Required parameter with no value fails loudly: `CubesQueryBuilder._validate_required`
-  raises `ProviderError`.
-- `ResultsLimit` default 10,000: `FlapiSchemaMapper.results_limit`.
-- Result cap → adaptive quadtree of saturated tiles + dedup:
-  `CubesGateway._fetch` → `_spatial_chunks` (bounded `_MAX_CHUNK_DEPTH=5`) or
-  `_split_unbounded` → `_temporal_chunks`; dedup via `FlapiSchemaMapper.deduplicate`.
-- 100,000-row safety ceiling: `CubesGateway._MAX_ROWS = 100000`.
+`FlapiProvider` wraps `FlowPackageProvider` directly — FLAPI serves Flow Package
+resources only. The legacy `provider=cubes` catalog alias, cube-resource dispatch, and
+`FlapiSource.resource_type()` have been removed; every `flapi://` source is a package.
 
 Flow Package pipeline: `FlapiSource` parses persisted typed inputs and selected queries
 → `FlowPackageGateway.definitions()` fetches `/package/v1/quick/{id}` directly via
@@ -197,7 +142,7 @@ additional catalog rows carry their route and field mapping in `source_url`.
 
 `TycheProvider` caches the last 100 fetched rows per layer for schema description.
 `TycheGateway._MAX_ROWS = 100000` safety cap; repeated `pageTracker` raises
-`ProviderError`; page size 10,000 — same pagination/cap/dedup pattern as MQS/Cubes.
+`ProviderError`; page size 10,000 — same pagination/cap/dedup pattern as MQS.
 Custom layers store split request-time names as `time_from_field`/`time_to_field` and
 fixed body values as `param_<name>` in `source_url`. Both time names must be configured
 together; fixed parameters cannot replace time, geography, or paging fields.
@@ -278,10 +223,9 @@ INSERTs. Per root `CLAUDE.md`, downvotes here are meant to be mined as new cases
 
 - `app/dal/__init__.py`, `providers/__init__.py`, `llm/__init__.py` are empty — import
   concrete modules directly, no package-level re-exports.
-- `mqs/provider.py` and `flapi/cube_provider.py` keep a few module-level compatibility aliases at the bottom
-  (e.g. `mqs_layer_id`, `cubes_database_name`, `DYNAMIC_PARAM_PREFIX`) for backward
-  compatibility with older imports/tests — prefer the class methods
-  (`MqsSource.layer_id`, `CubesSource.database_name`) in new code.
+- `mqs/provider.py` keeps a few module-level compatibility aliases at the bottom (e.g.
+  `mqs_layer_id`) for backward compatibility with older imports/tests — prefer the class
+  methods (`MqsSource.layer_id`) in new code.
 - Provider files stay below ~250 lines per the root `CLAUDE.md` code-size standard; new
   provider behavior belongs in the collaborator that owns that single responsibility,
   not bolted onto the orchestrator class.

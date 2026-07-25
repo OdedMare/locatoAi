@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 LocatoAI — a Geo-AI query application: users ask geographic questions in natural language (e.g. "Find schools near train stations in Tel Aviv"), scope them to a viewport or drawn polygon/rectangle, and a live LLM agent turns them into a validated geo query plan executed against GIS providers.
 
 **Primary mission:** locate OurForce entities from the Tyche `כוחותינו` layer and determine
-what named places, objects, infrastructure, or events are nearby using matching MQS/Cubes
+what named places, objects, infrastructure, or events are nearby using matching MQS/FLAPI
 layers as spatial references. This is a priority workflow, not a global restriction:
 non-OurForce queries retain the generic subject/reference behavior, and provider roles must
 come from catalog metadata rather than hardcoded layer UUIDs.
@@ -15,7 +15,7 @@ come from catalog metadata rather than hardcoded layer UUIDs.
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus settings, layer catalog, and Agent Studio panels.
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS, Cubes, and Tyche as production GIS providers. Tyche supplies the canonical OurForce observations and supports additional catalog layers with per-layer route, geometry, geography-query, and event-time field mappings stored in `source_url`. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for every provider. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, client timezone, and SSE streaming.
+**Where we are:** the MVP works end to end with MQS, FLAPI (Flow Package via flunks), and Tyche as production GIS providers. Tyche supplies the canonical OurForce observations and supports additional catalog layers with per-layer route, geometry, geography-query, and event-time field mappings stored in `source_url`. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for every provider. Test GIS adapters live under `tests/` and are excluded from the non-root production image. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, client timezone, and SSE streaming.
 
 **MQS bounded loading:** Every query-layer load defaults to the request polygon;
 non-proximity reference layers use the exact polygon, and bounded proximity uses only its
@@ -42,54 +42,9 @@ polygon, triangle, clearance, area, perimeter, source-id, record-id, or timestam
 
 **Agent loop:** planning has up to three `sample_field` calls, two distinct `load_skill` calls, and one validation correction. Execution emits per-step counts. Zero rows permit one diagnosis/replan/re-execution. `preserves_constraints` rejects revisions that remove or widen filters, time, geography, distances, counts, targets, identity roles, or movement thresholds. Never add an unbounded loop or arbitrary SQL/HTTP tool. `llm_diet_mode` defaults on and dynamically selects compact select/build prompts, compact schemas/tool samples, and a 1,200-token completion cap; the full profile remains available in Settings. Pydantic models generate compact operation contracts; provider-neutral composition guidance lives under `backend/app/bl/agent/skills/plan-geo-queries/references/`; domain profiles, entity identity, and display labels are typed layer metadata. Custom skill bodies load on demand and may contain Agent-Studio-validated layer/field references. The `area-summary` profile stores its editable ordered workflow in the numbered `## Workflow` Markdown section; Agent Studio keeps its structured step controls synchronized with that source. Its generic summary template uses English model instructions, an editable `## Summary target`, model-facing `[parallel]` markers for independent steps, and a mandatory Hebrew final summary. The current `GeoQueryPlan` executor remains sequential.
 
-**Cubes catalog workflow:** the executor supports the legacy one-hour payload and exact
-`<field>.match`/`<field>.not` parameters declared by Cubes metadata. A temporal plan range
-is pushed to `.match` as `From`/`To`; geography is added through the available temporal
-parameter's `Location` and rechecked locally. This behavior is Cubes-only and must not
-change MQS's documented `geo_bounding_box`/`geo_polygon` requests. The Layers UI accepts
-a bare database name; the backend canonicalizes it to
-`cubes://db/<dbname>`. `CubesProvider` reads `GET /cube/v1/{cubeName}` and falls back to
-`GET /cube/v1/{cubeName}/parameters`, merges declared fields with sampled response fields,
-and gives the official cube name/description, parameter options, and entity samples to
-`LayerMetadataGenerator`. Name-only parameter entries are hydrated from
-`GET /cube/v1/{cubeName}/parameters/{parameterName}` before required flags, types,
-options, or defaults are interpreted. Suffixed parameter names are preserved exactly; a plain name
-keeps the legacy plain/`.not` pair. Never hardcode the response field list.
-Any non-empty parameter `Value` configured in Cubes metadata is included unchanged in
-the request body; this is how required fixed selectors such as `environment=prod` are
-satisfied. Configured values remain internal and must not be serialized into LLM prompts.
-
-**Cubes dynamic parameters:** dynamic parameter names are not fixed (`vehicleType`,
-`fl:dynamic`, etc.). Discover `Role=dynamic` metadata and names ending in `:dynamic`; when
-metadata omits or misclassifies a selector, the catalog lets the user add its exact name
-manually. Resolved manual parameters must still be injected even when absent from metadata.
-Dynamic selectors are backed by a child autocomplete cube. Their declared `Options` are
-unusable placeholders, and valid values must be fetched live via `POST /cube/v1/{cubeName}/autocomplete/
-{parameterName}`, which returns `[{"Value": ..., "Name": ...}]`. `LayerParameter.is_dynamic`
-marks these; `CubesProvider.fetch_autocomplete_options` calls the route on demand — never
-cached, since these cubes can change schema between calls. Resolution happens once at
-layer-add time in the catalog UI (`POST /api/layers/autocomplete-parameter`), not per query:
-metadata generation is two-phase and MUST NOT fetch cube rows until every dynamic value
-and configurable required selector has been resolved; the resolved metadata request then
-samples the normal cube route. Required static selectors use declared options or free text.
-Preserve the complete parameter name in the autocomplete route, catalog source URL, and
-final Cubes request body. The chosen `{parameter_name: value}` map is folded into
-`source_url` as `param_<name>=<value>`
-query params (parsed back out by `cubes_resolved_parameters`), the same mechanism already
-used for `query_mode`. New clients send the map as `cubes_parameters`; the legacy
-`cubes_dynamic_parameters` property remains accepted. A required dynamic parameter with
-no resolved value fails loudly at fetch time rather than guessing. A declared `polygon`
-parameter receives `{"value": [<boundary WKT>]}` and a plain `date` parameter receives
-the Cubes `no_time` shape; other cubes retain the existing temporal/`Location` behavior.
-
-**Cubes result cap:** metadata `ResultsLimit` defaults to 10,000 when absent. A bounded
-query that hits the cap uses adaptive quadtree subdivision of only saturated tiles and
-deduplicates complete observation JSON. Keep recursion bounded and preserve the 100,000
-row safety ceiling. Never silently accept a capped unbounded query as complete.
-
-**FLAPI Flow Packages:** FLAPI is the parent provider for both Cube and Package
-resources. New rows use `provider=flapi` with `flapi://cube/<name>` or
-`flapi://package/<id>`; the legacy `provider=cubes` alias stays active. Packages fetch
+**FLAPI Flow Packages:** FLAPI now serves Flow Package resources only (the Cubes
+resource type and its `provider=cubes` legacy alias have been removed). New rows use
+`provider=flapi` with `flapi://package/<id>`. Packages fetch
 typed parameter definitions from `GET /package/v1/quick/{id}`, persist configured
 values as JSON in the source URL, and execute `POST /package/v3/{id}` with
 `lastQueries=true` unless a query is selected. Preserve exact boolean/string casing,

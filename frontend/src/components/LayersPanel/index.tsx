@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, Box, CheckCircle2, Database, Layers3, LoaderCircle, Pencil,
+  AlertTriangle, CheckCircle2, Database, Layers3, LoaderCircle, Pencil,
   PlusCircle, RefreshCw, Save, Search, ShieldCheck, Trash2, WandSparkles,
   Workflow, X,
 } from "lucide-react";
@@ -10,7 +10,6 @@ import {
   activateTycheLayer,
   createLayer,
   deleteLayer,
-  fetchCubesAutocompleteOptions,
   generateLayerMetadata,
   getLayers,
   getMqsLayers,
@@ -18,14 +17,10 @@ import {
 } from "@/services/catalogService";
 import type {
   CatalogLayer,
-  CubesAutocompleteOption,
   FlapiParameterDefinition,
-  CubesQueryMode,
-  FlapiResourceType,
   RemoteMqsLayer,
 } from "@/types/catalog";
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
-import CubesParametersFieldset from "./CubesParametersFieldset";
 import PackageCubesFieldset from "./PackageCubesFieldset";
 import PackageParametersFieldset, {
   isPackageGeometryParameter,
@@ -39,7 +34,7 @@ interface LayersPanelProps {
   viewportSampleBoundary: GeoJSONMultiPolygon;
 }
 
-type LayersSection = "catalog" | "new" | "mqs" | "cube" | "flow" | "tyche";
+type LayersSection = "catalog" | "new" | "mqs" | "flow" | "tyche";
 type LayerFormSection = Exclude<LayersSection, "catalog" | "mqs">;
 type TycheTimeMode = "match" | "range";
 
@@ -47,7 +42,6 @@ const LAYERS_SECTIONS = [
   { id: "catalog" as const, label: "קטלוג שכבות", description: "חיפוש ועריכת שכבות", icon: Layers3 },
   { id: "new" as const, label: "שכבה חדשה", description: "חיבור מקור נתונים ידני", icon: PlusCircle },
   { id: "mqs" as const, label: "מאגר MQS", description: "ייבוא שכבות ממוריה", icon: Database },
-  { id: "cube" as const, label: "FLAPI Cube", description: "קובייה ופרמטרים דינמיים", icon: Box },
   { id: "flow" as const, label: "Flow Package", description: "חבילת תהליך מ־FLAPI", icon: Workflow },
   { id: "tyche" as const, label: "שכבת Tyche", description: "מקורות מיקום וכוחותינו", icon: ShieldCheck },
 ];
@@ -133,19 +127,13 @@ export default function LayersPanel({
     useState<Record<string, string>>({});
   const [displayField, setDisplayField] = useState("");
   const [profiles, setProfiles] = useState("");
-  const [flapiResourceType, setFlapiResourceType] =
-    useState<FlapiResourceType>("cube");
   const [packageQuery, setPackageQuery] = useState("");
   const [packageInputParameter, setPackageInputParameter] = useState("");
   const [packageOutputFields, setPackageOutputFields] = useState<string[]>([]);
   const [availableOutputFields, setAvailableOutputFields] = useState<string[]>([]);
-  const [cubesQueryMode, setCubesQueryMode] = useState<CubesQueryMode>("auto");
   const [dynamicParameterNames, setDynamicParameterNames] = useState<string[]>([]);
   const [parameterDefinitions, setParameterDefinitions] =
     useState<FlapiParameterDefinition[]>([]);
-  const [manualDynamicParameterNames, setManualDynamicParameterNames] = useState<string[]>([]);
-  const [dynamicParameterOptions, setDynamicParameterOptions] =
-    useState<Record<string, CubesAutocompleteOption[]>>({});
   const [dynamicParameterValues, setDynamicParameterValues] =
     useState<Record<string, string>>({});
   const [requiresSamplePolygon, setRequiresSamplePolygon] = useState(false);
@@ -153,7 +141,6 @@ export default function LayersPanel({
     useState<GeoJSONMultiPolygon | null>(null);
   const [cubesSampleBoundarySource, setCubesSampleBoundarySource] =
     useState<"drawn" | "viewport" | null>(null);
-  const [loadingDynamicParameter, setLoadingDynamicParameter] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [generatingMetadata, setGeneratingMetadata] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -176,9 +163,7 @@ export default function LayersPanel({
   const [editSaving, setEditSaving] = useState(false);
   const [deletingLayerId, setDeletingLayerId] = useState<string | null>(null);
   const providerName = provider.trim().toLowerCase();
-  const isFlowPackage = providerName === "flapi" && flapiResourceType === "package";
-  const isCubeResource = providerName === "cubes"
-    || (providerName === "flapi" && flapiResourceType === "cube");
+  const isFlowPackage = providerName === "flapi";
   const tycheFieldsConfigured = providerName !== "tyche" || Boolean(
     tycheGeometryField.trim()
     && tycheGeoQueryField.trim()
@@ -322,9 +307,6 @@ export default function LayersPanel({
         tags,
         provider: provider.trim(),
         source_url: sourceUrl.trim(),
-        flapi_resource_type: flapiResourceType,
-        cubes_query_mode: cubesQueryMode,
-        cubes_parameters: dynamicParameterValues,
         package_parameters: isFlowPackage
           ? packageParameterValues(parameterDefinitions, dynamicParameterValues)
           : {},
@@ -354,16 +336,12 @@ export default function LayersPanel({
       resetTycheConfig();
       setDisplayField("");
       setProfiles("");
-      setFlapiResourceType("cube");
       setPackageQuery("");
       setPackageInputParameter("");
       setPackageOutputFields([]);
       setAvailableOutputFields([]);
-      setCubesQueryMode("auto");
       setDynamicParameterNames([]);
       setParameterDefinitions([]);
-      setManualDynamicParameterNames([]);
-      setDynamicParameterOptions({});
       setDynamicParameterValues({});
       setRequiresSamplePolygon(false);
       setCubesSampleBoundary(null);
@@ -396,37 +374,6 @@ export default function LayersPanel({
     }
   };
 
-  const loadDynamicParameterOptions = async (
-    cubeSource: string,
-    parameterNames: string[],
-  ) => {
-    let optionsError: string | null = null;
-    for (const parameterName of parameterNames) {
-      setLoadingDynamicParameter(parameterName);
-      try {
-        const result = await fetchCubesAutocompleteOptions({
-          source_url: cubeSource,
-          parameter_name: parameterName,
-        });
-        setDynamicParameterOptions((current) => ({
-          ...current,
-          [parameterName]: result.options,
-        }));
-      } catch (err) {
-        console.error(`Cubes ${parameterName} autocomplete fetch failed`, err);
-        optionsError = layerErrorMessage(
-          err,
-          `טעינת אפשרויות ${parameterName} נכשלה.`,
-        );
-      } finally {
-        setLoadingDynamicParameter(null);
-      }
-    }
-    if (optionsError) {
-      setFormMessage(`${optionsError} — אפשר לנסות לטעון שוב.`);
-    }
-  };
-
   const handleGenerateMetadata = async (
     selected?: RemoteMqsLayer,
     selectedDynamicValues: Record<string, string> = dynamicParameterValues,
@@ -447,9 +394,6 @@ export default function LayersPanel({
       name: selected?.name ?? name,
       provider: selected?.provider ?? provider,
       source_url: selected?.source_url ?? sourceUrl,
-      flapi_resource_type: flapiResourceType,
-      cubes_query_mode: cubesQueryMode,
-      cubes_parameters: selectedDynamicValues,
       package_parameters: packageParameters,
       package_query: isFlowPackage ? packageQuery.trim() || null : null,
       package_input_parameter: isFlowPackage
