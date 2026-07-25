@@ -38,7 +38,8 @@ class TycheProvider:
         self._gateway = TycheGateway(settings_store, self._mapper, transport)
         self._samples: Dict[str, List[dict]] = {}
 
-    def describe_schema(self, layer: LayerMeta) -> LayerSchema:
+    def describe_schema(self, layer: LayerMeta, geometry=None) -> LayerSchema:
+        # geometry is unused: Tyche describes a layer from cached sample rows.
         source = TycheSource.parse(layer.source_url)
         rows = self._samples.get(layer.id)
         if rows is None and not source.is_our_forces:

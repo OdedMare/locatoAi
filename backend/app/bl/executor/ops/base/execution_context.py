@@ -44,7 +44,11 @@ class ExecutionContext:
             return self.feature_cache[cache_key]
         options = self._provider_options(geometry, provider_range, provider_filters)
         gdf = provider.fetch_features(layer, **options)
-        gdf.attrs["temporal_field"] = self.catalog.get_schema(layer_id).temporal_field
+        # Same boundary as the load: reuses the cached schema instead of asking
+        # a run-to-describe provider (FLAPI packages) to execute a second time.
+        gdf.attrs["temporal_field"] = self.catalog.get_schema(
+            layer_id, geometry=self.user_geometry
+        ).temporal_field
         self.feature_cache[cache_key] = gdf
         return gdf
 

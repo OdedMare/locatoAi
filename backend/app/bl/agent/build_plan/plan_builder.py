@@ -37,10 +37,12 @@ class PlanBuilder:
 
     def build(
         self, query: str, layers: List[LayerMeta],
-        has_boundaries: bool, now: datetime,
+        has_boundaries: bool, now: datetime, geometry=None,
     ) -> PlanBuildResult:
         diet = self._diet_mode()
-        system = self._system_prompt(layers, has_boundaries, now, diet)
+        system = self._system_prompt(
+            layers, has_boundaries, now, diet, geometry
+        )
         selected_ids = {layer.id for layer in layers}
         return self._loop.run(
             query, system, selected_ids, has_boundaries, diet
@@ -48,16 +50,20 @@ class PlanBuilder:
 
     def replan_after_empty(
         self, query: str, layers: List[LayerMeta], previous: GeoQueryPlan,
-        has_boundaries: bool, now: datetime,
+        has_boundaries: bool, now: datetime, geometry=None,
     ) -> PlanBuildResult:
         diagnostic = self._empty_diagnostic(query, previous)
-        result = self.build(diagnostic, layers, has_boundaries, now)
+        result = self.build(
+            diagnostic, layers, has_boundaries, now, geometry
+        )
         if result.plan is not None and not preserves_constraints(previous, result.plan):
             result.plan = None
             result.clarify = "לא נמצאו תוצאות, ותוכנית התיקון שינתה מגבלה מהבקשה."
         return result
 
-    def _system_prompt(self, layers, has_boundaries, now, diet) -> str:
+    def _system_prompt(
+        self, layers, has_boundaries, now, diet, geometry=None
+    ) -> str:
         name = "build_plan_diet.md" if diet else "build_plan.md"
         template = self._prompt(name)
         return (
@@ -67,7 +73,10 @@ class PlanBuilder:
                 "{geo_skills}",
                 self._skills.render(diet=diet, profile_ids=self._profile_ids(layers)),
             )
-            .replace("{layers}", self._formatter.format(layers, diet))
+            .replace(
+                "{layers}",
+                self._formatter.format(layers, diet, geometry=geometry),
+            )
         )
 
     def _prompt(self, name: str) -> str:

@@ -13,8 +13,8 @@ class FlapiProvider:
         # package tests substitute the flunks runner instead of a transport.
         self._package = FlowPackageProvider(FlapiClientFactory(settings_store))
 
-    def describe_schema(self, layer):
-        return self._package.describe_schema(layer)
+    def describe_schema(self, layer, geometry=None):
+        return self._package.describe_schema(layer, geometry=geometry)
 
     def fetch_features(self, layer, **kwargs):
         return self._package.fetch_features(layer, **kwargs)

@@ -125,9 +125,20 @@ list when no geometry — the sample path only). →
 `static_parameters`), runs it through `flunks.FlunksRunner.run()` — which returns a
 plain `list[dict]` of result records — and reads `runner.success_chunks`/`failed_chunks`
 for diagnostics. Each record is tagged with `_package_query=<output_cube_name>`;
-non-dict records are skipped, a non-list response raises `ProviderError`. Endpoint
-routing, chunking, retries, and exception mapping for the execution call are owned by
-flunks — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
+non-dict records are skipped, a non-list response raises `ProviderError`.
+
+**`flunks_metadata_patch.py` — temporary upstream workaround.** flunks types
+`FlowResults.metadata.isPartialSuccess` as `str`, but FLAPI sends a JSON boolean, and
+pydantic v2 does not coerce `bool` -> `str`. Every successful package run therefore died
+in flunks' *own* response parsing with `Input should be a valid string
+[input_value=False]`. `FlunksMetadataPatch.apply()` widens that annotation to
+`Union[bool, str]` and is called at `package_gateway` import time, before any runner
+parses a response — there is no seam inside `FlunksRunner` to intercept. It is
+idempotent, still accepts a string, and self-disables once the field is no longer a
+plain `str`. **Delete the module and its import when flunks fixes the type upstream.**
+
+Endpoint routing, chunking, retries, and exception mapping for the execution call are
+owned by flunks — `FlunksConfig`/`FlunksExceptionsConfig` defaults are used unless
 `FlowPackageGateway` is constructed with overrides. `flunks` is an internal library not
 resolvable from the public index — see `pyproject.toml`; the amd64 Docker image builds
 against a private index, so the FLAPI package tests cannot run in an environment without

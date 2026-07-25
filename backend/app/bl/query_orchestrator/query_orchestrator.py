@@ -101,7 +101,8 @@ class QueryOrchestrator:
         build = self._run_stage(
             "plan_building",
             lambda: self._builder.build(
-                query, selection.layers, boundaries is not None, now
+                query, selection.layers, boundaries is not None, now,
+                geometry=boundaries,
             ),
             event_sink,
         )
@@ -162,7 +163,8 @@ class QueryOrchestrator:
         return self._run_stage(
             "zero_result_diagnosis",
             lambda: self._builder.replan_after_empty(
-                query, selection.layers, build.plan, boundaries is not None, now
+                query, selection.layers, build.plan, boundaries is not None,
+                now, geometry=boundaries,
             ),
             event_sink,
         )

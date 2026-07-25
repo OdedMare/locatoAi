@@ -1,7 +1,7 @@
 
 
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.bl.catalog.models.layer_meta import LayerMeta
 from app.bl.catalog.models.layer_schema import LayerSchema
@@ -21,8 +21,10 @@ class CatalogService:
         self._repository = repository
         self._providers = providers
         self._schema_ttl = schema_ttl_seconds
-        # {layer_id: (schema, fetched_at_monotonic)}
-        self._schema_cache: Dict[str, Tuple[LayerSchema, float]] = {}
+        # {(layer_id, boundary_wkb_or_None): (schema, fetched_at_monotonic)}
+        self._schema_cache: Dict[
+            Tuple[str, Optional[bytes]], Tuple[LayerSchema, float]
+        ] = {}
 
     def list_layers(self) -> List[LayerMeta]:
         return self._repository.list_layers()
@@ -63,7 +65,9 @@ class CatalogService:
         deleted = self._repository.delete_layer(layer_id)
         if deleted is None:
             raise LayerNotFoundError(layer_id)
-        self._schema_cache.pop(layer_id, None)
+        # Keys are (layer_id, boundary): drop every boundary variant.
+        for key in [key for key in self._schema_cache if key[0] == layer_id]:
+            self._schema_cache.pop(key, None)
         return deleted
 
     def sample_field(self, layer_id: str, field: str, limit: int = 20) -> List[str]:
@@ -71,18 +75,29 @@ class CatalogService:
         provider = self._providers.get(layer.provider)
         return provider.sample_field_values(layer, field, limit=limit)
 
-    def get_schema(self, layer_id: str) -> LayerSchema:
-        cached = self._schema_cache.get(layer_id)
+    def get_schema(self, layer_id: str, geometry=None) -> LayerSchema:
+        """geometry is the request boundary, forwarded to the provider.
+
+        Providers that can only describe a layer by running the query need it
+        (see `Provider.describe_schema`). The cache key includes it so a
+        schema learned under one boundary is never served for another.
+        """
+        key = self._schema_key(layer_id, geometry)
+        cached = self._schema_cache.get(key)
         if self._is_fresh(cached):
             return cached[0]
         layer = self.get_layer(layer_id)
         provider = self._providers.get(layer.provider)
         try:
-            schema = provider.describe_schema(layer)
+            schema = provider.describe_schema(layer, geometry=geometry)
         except Exception as exc:
             return self._stale_or_error(cached, layer, layer_id, exc)
-        self._schema_cache[layer_id] = (schema, time.monotonic())
+        self._schema_cache[key] = (schema, time.monotonic())
         return schema
+
+    @staticmethod
+    def _schema_key(layer_id: str, geometry) -> Tuple[str, Optional[bytes]]:
+        return layer_id, None if geometry is None else geometry.wkb
 
     def _is_fresh(self, cached) -> bool:
         return (

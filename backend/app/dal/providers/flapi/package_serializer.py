@@ -54,11 +54,14 @@ class FlowPackageSerializer:
         )
 
     def _multipolygons(self, geometry: Optional[BaseGeometry]) -> List[str]:
-        # No geometry only happens on the schema/sample path (every real query
-        # carries boundaries): run the package with no polygons instead of
-        # failing schema discovery.
+        # FLAPI rejects an empty main cube input ("Please enter values for the
+        # main cube input"), so there is no useful no-geometry fallback here —
+        # say which layer configuration is at fault instead.
         if geometry is None or geometry.is_empty:
-            return []
+            raise ProviderError(
+                "Flow Package geographic input requires a query boundary — "
+                "draw a polygon or use the viewport"
+            )
         parts = getattr(geometry, "geoms", None)
         polygons = list(parts) if parts is not None else [geometry]
         # One geographic layer is one identifier: every boundary polygon goes

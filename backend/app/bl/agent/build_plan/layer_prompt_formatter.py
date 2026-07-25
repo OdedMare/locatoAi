@@ -11,10 +11,12 @@ class LayerPromptFormatter:
         self._catalog = catalog
         self._logger = logging.getLogger(__name__)
 
-    def format(self, layers, diet: bool = False) -> str:
+    def format(self, layers, diet: bool = False, geometry=None) -> str:
         lines = []
         for layer in layers:
-            schema = self._catalog.get_schema(layer.id)
+            # The request boundary: providers that can only describe a layer by
+            # running the query need it (e.g. a FLAPI geographic package).
+            schema = self._catalog.get_schema(layer.id, geometry=geometry)
             self._log_schema(layer.id, schema)
             lines.append(self._layer_line(layer, schema, diet))
             if schema.parameters:

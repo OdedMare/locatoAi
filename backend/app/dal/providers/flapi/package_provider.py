@@ -31,10 +31,17 @@ class FlowPackageProvider:
         self._serializer = FlowPackageSerializer()
         self._schemas: Dict[Tuple[str, str], LayerSchema] = {}
 
-    def describe_schema(self, layer: LayerMeta) -> LayerSchema:
+    def describe_schema(
+        self, layer: LayerMeta, geometry: Optional[BaseGeometry] = None
+    ) -> LayerSchema:
         key = self._schema_key(layer)
         if key not in self._schemas:
-            self.fetch_features(layer, limit=self._SAMPLE_LIMIT)
+            # A package has no discovery call: describing it means running it,
+            # and a geographic package rejects an empty input, so the request
+            # boundary is required rather than optional here.
+            self.fetch_features(
+                layer, geometry=geometry, limit=self._SAMPLE_LIMIT
+            )
         return self._schemas[key]
 
     def fetch_features(

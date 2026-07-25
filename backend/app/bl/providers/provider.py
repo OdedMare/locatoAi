@@ -19,7 +19,16 @@ class Provider(Protocol):
 
     capabilities: FrozenSet[str]
 
-    def describe_schema(self, layer: LayerMeta) -> LayerSchema: ...
+    def describe_schema(
+        self, layer: LayerMeta, geometry: Optional[BaseGeometry] = None
+    ) -> LayerSchema:
+        """geometry, when given, is the request's WGS84 boundary.
+
+        Most providers describe a layer from metadata alone and ignore it.
+        Providers that can only learn a schema by running the query (FLAPI
+        Flow Packages expose no discovery call, and a geographic package
+        REJECTS an empty input) need the real boundary to describe at all."""
+        ...
 
     def fetch_features(
         self,

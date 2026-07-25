@@ -45,7 +45,8 @@ class MqsProvider:
         )
         self._schema = MqsSchemaBuilder(self._mapper, self._source)
 
-    def describe_schema(self, layer: LayerMeta) -> LayerSchema:
+    def describe_schema(self, layer: LayerMeta, geometry=None) -> LayerSchema:
+        # geometry is unused: MQS describes a layer from sampled entities.
         layer_id = self._source.layer_id(layer)
         with self._gateway.client() as client:
             entities = self._stream.enriched(client, layer_id, limit=20)
