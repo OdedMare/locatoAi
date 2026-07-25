@@ -7,18 +7,16 @@ from app.common.errors.plan_validation_error import PlanValidationError
 from app.common.errors.provider_error import ProviderError
 from app.service.errors.handler import ErrorHandler
 
+_STATUSES = {
+    LayerNotFoundError: 404,
+    PlanValidationError: 422,
+    ProviderError: 502,
+    ExecutionError: 400,
+    AgentError: 503,
+}
 
-class ErrorHandlerRegistry:
-    _STATUSES = {
-        LayerNotFoundError: 404,
-        PlanValidationError: 422,
-        ProviderError: 502,
-        ExecutionError: 400,
-        AgentError: 503,
-    }
 
-    @classmethod
-    def register(cls, app) -> None:
-        for error_type, status_code in cls._STATUSES.items():
-            app.add_exception_handler(error_type, ErrorHandler(status_code))
-        app.add_exception_handler(Exception, ErrorHandler(500))
+def register_error_handlers(app) -> None:
+    for error_type, status_code in _STATUSES.items():
+        app.add_exception_handler(error_type, ErrorHandler(status_code))
+    app.add_exception_handler(Exception, ErrorHandler(500))

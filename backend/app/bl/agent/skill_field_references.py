@@ -13,9 +13,6 @@ class SkillFieldReferences:
     def render(self, content: str) -> str:
         return self._PATTERN.sub(self._resolve, content)
 
-    def validate(self, content: str) -> None:
-        self.render(content)
-
     @classmethod
     def references(cls, content: str):
         return [

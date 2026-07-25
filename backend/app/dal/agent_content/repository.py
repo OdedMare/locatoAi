@@ -64,9 +64,6 @@ class AgentContentRepository:
     def prompt(self, content_id: str) -> str:
         return self._find(self.list_prompts(), content_id)["content"]
 
-    def skill_contents(self) -> List[str]:
-        return self.operation_skill_contents()
-
     def operation_skill_contents(self) -> List[str]:
         return [item["content"] for item in self.list_operation_skills()]
 

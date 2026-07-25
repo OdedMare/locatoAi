@@ -2,10 +2,10 @@
 
 from fastapi import FastAPI
 
-from app.application_state_wiring import ApplicationStateWiring
+from app.application_state_wiring import wire
 from app.common.config.settings_provider import get_settings
-from app.service.errors.registry import ErrorHandlerRegistry
-from app.service.health.router import HealthRouter
+from app.service.errors.registry import register_error_handlers
+from app.service.health.router import status
 from app.service.agent.router import router as agent_router
 from app.service.agent_config.router import router as agent_config_router
 from app.service.area_summary.router import router as area_summary_router
@@ -24,19 +24,16 @@ _ROUTERS = (
 )
 
 
-class ApplicationFactory:
-    @staticmethod
-    def create() -> FastAPI:
-        application = FastAPI(title="AiLocator", version="0.1.0")
-        ApplicationStateWiring.wire(application, get_settings())
-        ErrorHandlerRegistry.register(application)
-        for router in _ROUTERS:
-            application.include_router(router)
-        application.add_api_route("/health", HealthRouter.status, methods=["GET"])
-        return application
+def create_app() -> FastAPI:
+    application = FastAPI(title="AiLocator", version="0.1.0")
+    wire(application, get_settings())
+    register_error_handlers(application)
+    for router in _ROUTERS:
+        application.include_router(router)
+    application.add_api_route("/health", status, methods=["GET"])
+    return application
 
 
-create_app = ApplicationFactory.create
-_wire_state = ApplicationStateWiring.wire
-_register_error_handlers = ErrorHandlerRegistry.register
+_wire_state = wire
+_register_error_handlers = register_error_handlers
 app = create_app()

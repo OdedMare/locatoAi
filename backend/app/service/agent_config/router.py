@@ -57,7 +57,7 @@ class AgentConfigRouter:
     @staticmethod
     def _validate_references(kind: str, content: str, request: Request) -> None:
         if kind == "skill" and "@field[" in content:
-            SkillFieldReferences(request.app.state.catalog).validate(content)
+            SkillFieldReferences(request.app.state.catalog).render(content)
 
 
 router.add_api_route(
