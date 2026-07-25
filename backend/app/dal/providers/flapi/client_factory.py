@@ -24,7 +24,7 @@ class FlapiClientFactory:
     def set_transport(self, transport: Optional[httpx.BaseTransport]) -> None:
         self._transport = transport
 
-    def create(self, require_username: bool = False) -> httpx.Client:
+    def require_settings(self, require_username: bool = False):
         settings = self._store.get()
         if not settings.cubes_base_url:
             raise ProviderError("FLAPI base URL is not configured — set cubes_base_url")
@@ -36,6 +36,10 @@ class FlapiClientFactory:
             raise ProviderError(
                 "FLAPI username is not configured — set flapi_username"
             )
+        return settings
+
+    def create(self, require_username: bool = False) -> httpx.Client:
+        settings = self.require_settings(require_username)
         return httpx.Client(
             base_url=settings.cubes_base_url,
             headers=self._headers(

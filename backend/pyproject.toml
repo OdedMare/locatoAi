@@ -21,6 +21,7 @@ dependencies = [
     "openai>=1.40,<2",
     "typing-extensions>=4.8",
     "rapidfuzz>=3.9,<4",
+    "flunks",  # internal FLAPI Flow Package execution runtime; not on the public index
 ]
 
 [project.optional-dependencies]

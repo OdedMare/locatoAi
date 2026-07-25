@@ -71,11 +71,16 @@ class FlowPackageProvider:
         attribute_filters: Optional[List[Tuple[str, str]]] = None,
     ) -> gpd.GeoDataFrame:
         definitions = self._parameter_definitions(layer)
-        body = self._serializer.build(
-            definitions, self._source.package_inputs(layer),
-            geometry, temporal_range,
+        configured = self._source.package_inputs(layer)
+        input_cube = self._serializer.build_input_cube(
+            definitions, configured, temporal_range,
         )
-        rows = self._gateway.execute(layer, body)
+        static_parameters = self._serializer.build_static_parameters(
+            definitions, configured, geometry, temporal_range,
+            skip=input_cube.cube_name,
+        )
+        queries = self._source.package_queries(layer)
+        rows = self._gateway.execute(layer, input_cube, static_parameters, queries)
         schema = self._schema(layer, rows, definitions)
         self._schemas[self._schema_key(layer)] = schema
         features = self._rows.to_gdf(rows)

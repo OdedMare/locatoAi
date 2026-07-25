@@ -1,9 +1,10 @@
-"""Serialize and validate Flow Package inputs."""
+"""Build flunks execution inputs from Flow Package parameter definitions."""
 
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from flunks import PackageInputCube
 from shapely import wkt
 from shapely.geometry.base import BaseGeometry
 
@@ -20,19 +21,45 @@ class FlowPackageSerializer:
     def __init__(self, metadata: FlowPackageMetadata) -> None:
         self._metadata = metadata
 
-    def build(
+    def build_input_cube(
+        self,
+        definitions: List[dict],
+        configured: Dict[str, Any],
+        temporal_range: Optional[Tuple[str, str]] = None,
+    ) -> PackageInputCube:
+        item, name = self._time_definition(definitions), None
+        if item is not None and temporal_range is not None:
+            return PackageInputCube(
+                cube_name=name or str(self._metadata.value(item, "Name", "name")),
+                cube_parameter=str(self._metadata.value(item, "Name", "name")),
+                start_time=self._parse_iso(temporal_range[0]),
+                end_time=self._parse_iso(temporal_range[1]),
+            )
+        item = self._identifier_definition(definitions, configured)
+        values = self._multi(configured.get(str(self._metadata.value(
+            item, "Name", "name"
+        )))) if item is not None else []
+        return PackageInputCube(
+            cube_name=str(self._metadata.value(item, "Name", "name"))
+            if item is not None else "package_input",
+            values=[str(self._metadata.value(entry, "Value", "value") or entry)
+                    if isinstance(entry, dict) else str(entry) for entry in values],
+        )
+
+    def build_static_parameters(
         self,
         definitions: List[dict],
         configured: Dict[str, Any],
         geometry: Optional[BaseGeometry] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
-    ) -> dict:
+        skip: Optional[str] = None,
+    ) -> Dict[str, Any]:
         body = {}
         for item in definitions:
             name = str(self._metadata.value(item, "Name", "name"))
-            value = self._value(
-                item, configured, geometry, temporal_range
-            )
+            if name == skip:
+                continue
+            value = self._value(item, configured, geometry, temporal_range)
             if value is not None:
                 body[name] = self._serialize(item, value)
             elif self._metadata.bool_value(
@@ -42,6 +69,25 @@ class FlowPackageSerializer:
                     f"Flow Package parameter '{name}' is required"
                 )
         return body
+
+    def _time_definition(self, definitions: List[dict]) -> Optional[dict]:
+        return next(
+            (item for item in definitions if self._metadata.is_time(item)), None
+        )
+
+    def _identifier_definition(
+        self, definitions: List[dict], configured: Dict[str, Any]
+    ) -> Optional[dict]:
+        return next(
+            (item for item in definitions
+             if not self._metadata.is_geometry(item)
+             and not self._metadata.is_time(item)
+             and not self._metadata.bool_value(
+                 item, True, "IsSingleValue", "isSingleValue"
+             )
+             and str(self._metadata.value(item, "Name", "name")) in configured),
+            None,
+        )
 
     def _value(self, item, configured, geometry, temporal_range):
         name = str(self._metadata.value(item, "Name", "name"))
@@ -124,6 +170,15 @@ class FlowPackageSerializer:
             raise ProviderError(
                 f"Flow Package time {field} must include a timezone"
             )
+
+    @staticmethod
+    def _parse_iso(value: str) -> datetime:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ProviderError(
+                "Flow Package temporal range must be ISO 8601"
+            ) from exc
 
     def _multi(self, raw: Any, numeric: bool = False) -> List[dict]:
         values = raw if isinstance(raw, list) else [
