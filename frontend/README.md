@@ -1,36 +1,310 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LocatoAI Frontend
 
-## Getting Started
+The frontend is a Hebrew RTL, map-centered client for the LocatoAI geographic query service. It is built with Next.js 16 App Router, React 18, TypeScript, Leaflet, React Leaflet, and Leaflet Draw. It owns query composition and presentation; geographic planning and execution remain in the backend.
 
-First, run the development server:
+See the [root README](../README.md) for the whole system and [backend README](../backend/README.md) for the API and execution pipeline.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Responsibilities
+
+The frontend:
+
+- Collects a Hebrew or English natural-language query.
+- Lets the user scope it to the current viewport or to a drawn polygon/rectangle.
+- Normalizes UI geometry into the backend's GeoJSON `MultiPolygon` contract.
+- Calls the backend through same-origin `/api/*` routes.
+- Presents selected layers, model reasoning, tool calls, plans, timing, and token use.
+- Renders spatial results in a table and on an interactive map.
+- Renders scalar count results without expecting GeoJSON.
+- Keeps up to eight completed turns in memory and carries direct clarification replies forward as context.
+- Copies map-center coordinates in four formats and exports complete request/response debug bundles.
+- Provides searchable layer catalog and remote MQS browsing workflows.
+- Provides Agent Studio for live prompt and planner-skill creation/editing, including
+  schema-backed layer/field insertion for custom skills.
+- Provides live-editable LLM, MQS, Cubes, PostgreSQL, and table settings.
+- Persists light/dark theme preference in browser local storage.
+- Sends thumbs-up/down feedback to backend PostgreSQL persistence.
+- Logs failed query, settings, layer, metadata, and coordinate-copy operations to the browser console.
+
+It does not select layers, construct plans, validate plans, execute spatial operations, connect to PostgreSQL, or call MQS directly.
+
+## Runtime architecture
+
+```text
+src/app/layout.tsx
+  └─ global RTL document + global CSS
+     src/app/page.tsx
+       └─ AppShell (client-side state owner)
+          ├─ QueryPanel
+          │  ├─ navigation / dialogs / theme actions
+          │  ├─ GeoQueryInput
+          │  ├─ GeographyControls
+          │  ├─ AgentTrace → feedbackService
+          │  ├─ ResultsPanel
+          │  └─ RequestPreview
+          ├─ SettingsPanel → settingsService
+          ├─ LayersPanel → catalogService
+          ├─ AgentStudioPanel → agentConfigService
+          └─ MapWorkspace
+             └─ dynamic LeafletMap (SSR disabled)
+                ├─ MapLayers + LayerPicker
+                ├─ ViewReporter
+                ├─ MapGeoms
+                └─ MapResults
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`AppShell` is the state boundary. There is no global application store: props and callbacks make data flow explicit and keep the current single-page workflow easy to trace.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Application state
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`AppShell` owns:
 
-## Learn More
+| State | Purpose |
+|---|---|
+| `queryText` | Current composer text. |
+| `geographyMode` | `viewport`, `polygon`, or `rectangle`. |
+| `drawnGeometry` | Last drawn GeoJSON Polygon. Cleared when mode changes. |
+| `mapView` | Live map center, zoom, and bounding box. |
+| `lastRequest` | Exact query DTO sent to the backend and shown in debug UI. |
+| `lastResponse` | Backend response used by trace, results, and map. |
+| `lastDisplayQuery` | User-visible text for the active turn; may differ from the contextual backend query. |
+| `history` | Up to eight completed in-memory request/response turns rendered in the conversation. |
+| `isSubmitting` | Prevents duplicate submissions and drives loading UI. |
+| Dialog flags | Settings, layer-browser, and Agent Studio visibility. |
+| `isDarkMode` | Theme state synchronized with `data-theme` and local storage. |
 
-To learn more about Next.js, take a look at the following resources:
+Component-local state is used for modal forms, catalog searches, feedback voting, map base-layer choice, and drawing internals.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Query lifecycle
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. `GeoQueryInput` edits `queryText`; Cmd/Ctrl+Enter or the send button triggers submission.
+2. `GeographyControls` chooses scope:
+   - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon (the default).
+   - `polygon` or `rectangle`: Leaflet Draw produces a Polygon, then `polygonToMultiPolygon` wraps it for the API.
+3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`. Before a later submission, the completed turn moves into bounded history. When the previous response asked for clarification, the new text is appended to that request as explicit clarification context.
+4. `geoQueryService.submitQuery()` posts to `/api/query` and waits for the JSON response.
+5. While work is running, `AgentTrace` shows a loading state.
+6. When the response arrives:
+   - `AgentTrace` resolves plan layer IDs to selected layer names and displays the structured pipeline timeline, selection reasoning, sampled fields, the plan, timing, and token use.
+   - `ResultsPanel` shows a clarification, error, scalar count, or feature-property table.
+   - `MapResults` renders feature geometry and fits the map to its bounds.
+   - `RequestPreview` displays the exact request and full response diagnostics and can copy the combined debug payload.
+7. Voting calls `feedbackService`; failure is intentionally non-blocking for the main query experience.
 
-## Deploy on Vercel
+Network failures and non-2xx query responses are normalized by `geoQueryService` into
+`status: "error"`, giving components one stable response shape. Backend failures retain
+their `request_id` and all pipeline events collected before the exception, so `AgentTrace`
+shows the failed stage/step, parameters, and error details instead of an empty timeline.
+The browser creates the request ID before sending. Plain proxy/non-JSON errors synthesize
+a `transport` failure event with `UnstructuredHttpError`, HTTP status, and bounded raw
+response, so error diagnostics never contain undefined IDs/types/traces. The same request
+lifecycle is also written to the browser console.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Map architecture
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Leaflet reads `window` during import, so `MapWorkspace` loads `LeafletMap` with `ssr: false`.
+
+- `ViewReporter` listens for `moveend` and reports `[minLng, minLat, maxLng, maxLat]` to `AppShell`.
+- `MapGeoms` imperatively activates the correct Leaflet Draw tool when geography mode changes. Only one drawn boundary is retained.
+- `MapResults` uses an imperative `L.geoJSON` layer because React Leaflet's GeoJSON component does not reliably update when data changes. It styles points and shapes, labels result popups with the provider-declared `display_field`, and removes the old result layer during effect cleanup.
+- `MapLayers` renders the selected base tile layer.
+- `LayerPicker` switches between Esri World Imagery and OpenStreetMap.
+- `MapWorkspace` overlays a live status HUD and a top-center coordinate console that does not overlap the layer picker. The current map center can be copied as latitude/longitude, longitude/latitude, DMS, or WKT.
+
+Coordinates in frontend GeoJSON are always `[longitude, latitude]`; Leaflet component centers use `[latitude, longitude]`, so conversion is explicit at the map boundary.
+
+## Component guide
+
+### `AppShell`
+
+The page controller and sole owner of shared state. It builds backend requests, submits queries, coordinates dialogs, resets a new query, and chooses which response features reach the map.
+
+### `QueryPanel`
+
+The chat-style left workspace. It composes navigation, the spatial-intelligence welcome state, bounded conversation history, the query composer, geography controls, agent trace, results, and request preview. It intentionally has no quick-question presets.
+
+### `AgentTrace`
+
+The explainability surface. It displays a safe operational timeline (selection, planning, execution, optional zero-result diagnosis/replan, and response), selected layers, reasoning, plan steps, tool calls, timings, token usage, and feedback. This is operational metadata, not private chain-of-thought.
+
+### `ResultsPanel`
+
+Handles every response state. Feature results become a dynamic property table capped at 20 visible rows. When `distance_to_target_m` exists, rows are sorted nearest-first and distance is formatted in meters. A terminal count uses `scalar_result`; its matching features remain available to the map and response.
+
+### `LayersPanel`
+
+Loads and searches catalog metadata. It supports manual layer creation, inline editing
+of names/descriptions/tags plus typed entity/display/profile metadata, and browsing
+remote MQS inventory before copying a remote layer into the creation form. Provider and
+source identity remain read-only during edits. Selecting a remote layer automatically
+asks the backend to sample up to 10 random entities and generate a description and tags;
+the suggestions populate normal editable fields and are not saved until the user submits
+the form. The Tyche activation button probes the configured Our Forces API before
+idempotently adding or refreshing `provider=tyche` / `tyche://ourforces`. A separate
+Tyche creation flow accepts a route plus response geometry, request geography, and
+event-time field names for other coordinate layers. Catalog writes go through backend
+endpoints; this component never talks to PostgreSQL or providers itself.
+
+“Add Cube from FLAPI” presets `provider=flapi` with resource type `cube`. The user
+supplies a display name and a cube/database name; the backend normalizes it, executes
+the known request, dynamically
+discovers cube fields and parameters, samples entities, and returns editable AI-generated
+description/tags before save.
+
+If metadata generation reports dynamic (autocomplete-backed) parameters or ordinary
+required selectors, a Cubes parameter section appears with one control per parameter.
+Static selectors use declared options or free text; dynamic values still come from the
+child autocomplete cube rather than static metadata.
+Names are arbitrary (`vehicleType`, `fl:dynamic`, etc.). The form also accepts an exact
+parameter name manually when metadata does not report it. Each parameter calls
+`POST /api/layers/autocomplete-parameter` to populate its dropdown. Once every dynamic
+parameter has a selected value, metadata generation runs again automatically and fetches
+Cube rows with the exact selected request keys; no second button click is required.
+Options are fetched live
+(never cached, since these cubes can change schema between calls) and become a dropdown
+once loaded. The full option list is loaded up front; when it holds more than a dozen
+values a local search field filters it by option name or value, and rendering is capped
+at 200 visible options with a "showing X of Y" hint so very large autocomplete cubes
+stay responsive. The "הוספת שכבה" button stays disabled until every dynamic parameter has a
+chosen value; the choices are sent as `cubes_parameters` and the backend folds
+them into `source_url` alongside `cubes_query_mode`.
+Discovery is two-phase: the first metadata request reads parameter definitions only and
+does not call the cube row route while dynamic values are unresolved. After values are
+chosen, running metadata generation again sends those values, samples the normal
+`POST /cube/v1/<dbname>` route, and produces the editable description/tags.
+
+“Add Flow Package” uses the same FLAPI credentials with resource type `package`. The
+user supplies a package ID and may select a final query/cube name. Metadata generation
+first loads the package parameter definitions without executing the workflow. The form
+then renders required and optional typed inputs; booleans retain FLAPI string casing,
+numbers remain numeric, multi-value text accepts comma-separated values, time accepts
+the documented JSON objects, and geometry accepts WKT or the selected map boundary.
+After required inputs are present, metadata generation executes the package's final
+queries and uses their returned Cube rows for the editable catalog description/tags.
+
+### `SettingsPanel`
+
+Loads runtime settings, populates editable LLM/MQS/FLAPI/database/table fields, probes available models using unsaved form values, and persists a partial update. Empty API key, FLAPI token, and database password fields mean “keep the saved secret.” FLAPI also exposes its optional `username` request header. The response includes a live catalog connection status.
+
+MQS and Cubes TLS verification is enabled by default and independently editable. Environment variables provide deployment defaults; saved UI values remain live overrides.
+
+### `AgentStudioPanel`
+
+Lists every live model-facing prompt and geo operation skill in one editor. Existing
+content can be changed and additional planner instruction skills can be created. Saves
+are persisted by the backend and affect the next agent request without a restart.
+The editor protects unsaved drafts. Custom skill descriptions are indexed in every plan
+prompt, but their bodies load only when requested by the planner. A skill can compose
+existing typed operations; a genuinely new executable tool still needs backend work.
+
+### `RequestPreview`
+
+A developer-oriented transparency panel showing the exact structured request, status,
+timings, plan, selected layers, tool calls, token usage, and pipeline trace. One button
+copies the complete request/response debug bundle.
+
+## Source layout
+
+```text
+src/
+├── app/
+│   ├── layout.tsx              # metadata, Hebrew language, RTL direction, CSS
+│   └── page.tsx                # renders AppShell
+├── components/
+│   ├── AppShell/               # shared state and orchestration
+│   ├── QueryPanel/             # chat/navigation composition
+│   ├── GeoQueryInput/          # controlled text input
+│   ├── GeographyControls/      # query-boundary mode
+│   ├── AgentTrace/             # agent observability and votes
+│   ├── ResultsPanel/           # feature/scalar result rendering
+│   ├── RequestPreview/         # raw request/status debug view
+│   ├── LayersPanel/            # local catalog + remote MQS browser
+│   ├── SettingsPanel/          # live backend configuration
+│   └── MapWorkspace/           # dynamic Leaflet integration
+├── services/
+│   ├── geoQueryService.ts      # POST /api/query
+│   ├── catalogService.ts       # catalog CRUD, remote browse, synchronization
+│   ├── settingsService.ts      # settings and model probing
+│   └── feedbackService.ts      # POST /api/feedback
+├── types/
+│   ├── geo-query.ts            # request/response/plan/map contracts + geometry helpers
+│   ├── catalog.ts              # catalog API mirrors
+│   └── settings.ts             # settings API mirrors
+└── styles/globals.css          # layout, responsive behavior, RTL, themes
+```
+
+## API boundary
+
+`next.config.ts` rewrites `/api/:path*` to `${BACKEND_URL}/api/:path*`. The browser therefore uses same-origin URLs and does not need backend CORS configuration.
+
+| Service | Backend endpoint | Use |
+|---|---|---|
+| `submitQuery` | `POST /api/query` | Run the query and return the final response with its pipeline trace. |
+| `getLayers` | `GET /api/layers` | Read catalog metadata. |
+| `getMqsLayers` | `GET /api/layers/mqs` | Browse remote inventory without writing. |
+| `createLayer` | `POST /api/layers` | Add one catalog entry. |
+| `updateLayer` | `PUT /api/layers/{id}` | Edit catalog name, description, and tags. |
+| `generateLayerMetadata` | `POST /api/layers/generate-metadata` | Generate editable metadata from a random entity sample. |
+| `activateTycheLayer` | `POST /api/layers/activate-tyche` | Probe and activate the Tyche Our Forces layer. |
+| `syncMqsLayers` | `POST /api/layers/sync-mqs` | Bulk upsert remote inventory. |
+| `getSettings` | `GET /api/settings` | Load settings and catalog status. |
+| `updateSettings` | `PUT /api/settings` | Save validated runtime overrides. |
+| `getModels` | `POST /api/models` | Probe a saved or unsaved LLM endpoint. |
+| `submitFeedback` | `POST /api/feedback` | Persist a thumbs verdict. |
+
+If Tyche activation returns HTTP 404, the UI reports a backend version mismatch: an
+upstream Tyche 404 is normalized by FastAPI to a provider error (HTTP 502), while a raw
+404 means the configured `BACKEND_URL` does not expose the activation route.
+
+The TypeScript interfaces intentionally mirror Pydantic DTOs. When an API contract changes, update both sides in the same change.
+
+Moving layers declare stable identity and observation-time fields in their schema.
+Agent traces describe `latest_per_entity` deduplication and `movement_direction`
+trajectory detection, including movement without a requested compass direction.
+
+## Styling and directionality
+
+The document root is `lang="he" dir="rtl"`. Inputs and technical values selectively use `dir="ltr"` or `dir="auto"`. Global CSS contains desktop layout, responsive breakpoints, modal styling, map controls, and theme overrides driven by `:root[data-theme="dark"]`.
+
+Theme initialization considers `localStorage["locato-theme"]`, then the operating-system preference. The preference is stored whenever it changes.
+
+## Running
+
+Requirements: a supported Node.js runtime, npm, and the FastAPI backend.
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. To target a different backend:
+
+```bash
+BACKEND_URL=http://127.0.0.1:9000 npm run dev
+```
+
+Production checks and runtime:
+
+```bash
+npm run lint
+npm run build
+npm run start
+```
+
+Remote map tiles require browser network access to Esri and OpenStreetMap tile hosts.
+
+## Adding or changing frontend behavior
+
+- Keep backend DTO mirrors in `src/types`; avoid untyped response access in components.
+- Put HTTP calls and response error normalization in `src/services`.
+- Put state shared by the query and map workspaces in `AppShell`.
+- Keep browser-only libraries behind client components and, when they touch globals at import time, dynamic imports with SSR disabled.
+- When adding a backend plan operation, update `GeoPlanStep` and `AgentTrace.describeStep` so users can inspect it.
+- Preserve `[lng, lat]` in GeoJSON and convert only at Leaflet APIs that expect `[lat, lng]`.
+- Preserve Hebrew RTL defaults while marking identifiers, URLs, and numeric technical values with the appropriate direction.
+
+## Current limitations
+
+- Up to eight completed turns are kept in browser memory only; history is neither persisted nor stored as a server-side conversation.
+- Only clarification follow-ups receive prior textual context. Ordinary later turns remain independent backend queries.
+- There is no dedicated frontend test suite yet; lint, TypeScript checking, and production build are the current automated frontend gates.
+- The result table shows at most 20 rows, while the map may display the full returned collection.

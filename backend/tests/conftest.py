@@ -1,14 +1,15 @@
 from datetime import datetime, timezone
+from itertools import count
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pytest
 
 from app.bl.catalog.catalog_service import CatalogService
-from app.bl.executor.engine import PlanExecutor
-from app.bl.ports import LayerMeta
-from app.dal.providers.arcgis_mock import MockArcgisProvider
-from app.dal.providers.registry import ProviderRegistryImpl
+from app.bl.executor.engine.plan_executor import PlanExecutor
+from app.bl.catalog.models.layer_meta import LayerMeta
+from tests.mock_gis_provider import MockGisProvider
+from app.dal.providers.registry import InMemoryProviderRegistry
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -51,11 +52,38 @@ class FakeLayersRepository:
     def get_layer(self, layer_id: str) -> Optional[LayerMeta]:
         return self._layers.get(layer_id)
 
+    _ids = count(1)
+
+    def add_layer(self, layer: LayerMeta) -> LayerMeta:
+        created = layer.model_copy(update={"id": f"gen-{next(self._ids)}"})
+        self._layers[created.id] = created
+        return created
+
+    def update_layer_metadata(self, layer: LayerMeta) -> LayerMeta:
+        self._layers[layer.id] = layer
+        return layer
+
+    def delete_layer(self, layer_id: str) -> Optional[LayerMeta]:
+        return self._layers.pop(layer_id, None)
+
+    def upsert_layer(self, layer: LayerMeta) -> Tuple[LayerMeta, bool]:
+        for existing in self._layers.values():
+            if (
+                existing.provider == layer.provider
+                and existing.source_url == layer.source_url
+            ):
+                updated = existing.model_copy(
+                    update={"name": layer.name, "description": layer.description}
+                )  # tags preserved, like the Postgres repository
+                self._layers[existing.id] = updated
+                return updated, False
+        return self.add_layer(layer), True
+
 
 @pytest.fixture
-def providers() -> ProviderRegistryImpl:
-    registry = ProviderRegistryImpl()
-    registry.register("arcgis", MockArcgisProvider(DATA_DIR))
+def providers() -> InMemoryProviderRegistry:
+    registry = InMemoryProviderRegistry()
+    registry.register("arcgis", MockGisProvider(DATA_DIR))
     return registry
 
 

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "prompts_generate_layer_metadata_md", "label": "generate_layer_metadata.md (call-3 system prompt)", "file_type": "document", "source_file": "backend/app/bl/agent/prompts/generate_layer_metadata.md", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

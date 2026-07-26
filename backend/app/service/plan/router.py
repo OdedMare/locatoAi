@@ -1,0 +1,49 @@
+"""POST /api/execute-plan — debug endpoint: run a hand-written plan.
+
+Plan-in → GeoJSON-out with no AI. It stays useful forever as the way to
+test the executor in isolation.
+"""
+
+from fastapi import APIRouter, Depends, Request
+
+from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
+from app.service.dependencies import get_orchestrator
+from app.service.plan.execute_plan_request import ExecutePlanRequest
+from app.service.query.response import QueryResponse
+
+router = APIRouter()
+
+
+def execute_plan(
+    body: ExecutePlanRequest,
+    request: Request,
+    orchestrator: QueryOrchestrator = Depends(get_orchestrator),
+) -> QueryResponse:
+    boundaries = body.boundaries.to_shapely()
+    outcome = orchestrator.execute_plan(body.plan, boundaries)
+    _log(request, body, boundaries, outcome)
+    return QueryResponse.from_outcome(outcome)
+
+
+def _log(request, body, boundaries, outcome) -> None:
+    result_count = (
+        len(outcome.features)
+        if outcome.features is not None
+        else outcome.scalar_result or 0
+    )
+    request.app.state.request_log.info(
+        "execute_plan",
+        plan_output=body.plan.output,
+        has_boundaries=boundaries is not None,
+        status=outcome.status,
+        result_count=result_count,
+        timing_ms=outcome.timing_ms,
+    )
+
+
+router.add_api_route(
+    "/api/execute-plan",
+    execute_plan,
+    methods=["POST"],
+    response_model=QueryResponse,
+)

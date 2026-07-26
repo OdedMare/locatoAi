@@ -8,20 +8,56 @@ export interface CatalogStatus {
 
 export interface AppSettings {
   llm_model: string;
+  llm_diet_mode: boolean;
   llm_base_url: string | null;
   openai_api_key_set: boolean;
   /** Masked hint like "…abcd" — the real key is never sent back. */
   openai_api_key_hint: string | null;
+  mqs_base_url: string | null;
+  mqs_user_id: string | null;
+  mqs_verify_tls: boolean;
+  cubes_base_url: string | null;
+  cubes_token_set: boolean;
+  flapi_username: string | null;
+  cubes_verify_tls: boolean;
+  tyche_base_url: string | null;
+  tyche_username: string | null;
+  tyche_token_set: boolean;
+  tyche_verify_tls: boolean;
   database_url: string;
+  database_user: string;
+  database_password_set: boolean;
+  database_host: string;
+  database_port: number | null;
+  database_name: string;
   layers_table: string;
+  feedback_table: string;
   catalog: CatalogStatus;
 }
 
 /** Partial update; empty/omitted api key keeps the existing one. */
 export interface SettingsUpdate {
   llm_model?: string;
+  llm_diet_mode?: boolean;
   llm_base_url?: string | null;
   openai_api_key?: string;
+  mqs_base_url?: string | null;
+  mqs_user_id?: string | null;
+  mqs_verify_tls?: boolean;
+  cubes_base_url?: string | null;
+  cubes_token?: string;
+  flapi_username?: string | null;
+  cubes_verify_tls?: boolean;
+  tyche_base_url?: string | null;
+  tyche_username?: string | null;
+  tyche_token?: string;
+  tyche_verify_tls?: boolean;
   database_url?: string;
+  database_user?: string;
+  database_password?: string;
+  database_host?: string;
+  database_port?: number | null;
+  database_name?: string;
   layers_table?: string;
+  feedback_table?: string;
 }

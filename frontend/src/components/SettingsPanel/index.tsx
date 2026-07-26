@@ -1,11 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSettings, updateSettings } from "@/services/settingsService";
+import {
+  Bot, CheckCircle2, Database, Network, RefreshCw, Save, ServerCog, Settings2,
+  ShieldCheck, X,
+} from "lucide-react";
+import { getModels, getSettings, updateSettings } from "@/services/settingsService";
 import type { AppSettings } from "@/types/settings";
 
 interface SettingsPanelProps {
   onClose: () => void;
+}
+
+type SettingsSection = "agent" | "flapi" | "tyche" | "mqs" | "database";
+
+const SETTINGS_SECTIONS = [
+  { id: "agent" as const, label: "סוכן ומודל", description: "מודל, כתובת ומפתח API", icon: Bot },
+  { id: "flapi" as const, label: "שרת FLAPI", description: "קוביות וחבילות תהליך", icon: ServerCog },
+  { id: "tyche" as const, label: "שרת Tyche", description: "שכבות מיקום וכוחותינו", icon: ShieldCheck },
+  { id: "mqs" as const, label: "שרת MQS", description: "שכבות מוריה", icon: Network },
+  { id: "database" as const, label: "מסד הנתונים", description: "קטלוג שכבות ומשוב", icon: Database },
+];
+
+async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
+  return getModels({
+    llm_base_url: baseUrl.trim() || undefined,
+    openai_api_key: apiKey.trim() || undefined,
+  });
 }
 
 /**
@@ -14,25 +35,80 @@ interface SettingsPanelProps {
  * apply immediately — the catalog status line confirms the DB connection.
  */
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
+  const [activeSection, setActiveSection] = useState<SettingsSection>("agent");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState(""); // empty = keep existing
   const [model, setModel] = useState("");
+  const [dietMode, setDietMode] = useState(true);
   const [baseUrl, setBaseUrl] = useState("");
+  const [mqsBaseUrl, setMqsBaseUrl] = useState("");
+  const [mqsUserId, setMqsUserId] = useState("");
+  const [mqsVerifyTls, setMqsVerifyTls] = useState(true);
+  const [cubesBaseUrl, setCubesBaseUrl] = useState("");
+  const [cubesToken, setCubesToken] = useState("");
+  const [flapiUsername, setFlapiUsername] = useState("");
+  const [cubesVerifyTls, setCubesVerifyTls] = useState(true);
+  const [tycheBaseUrl, setTycheBaseUrl] = useState("");
+  const [tycheUsername, setTycheUsername] = useState("");
+  const [tycheToken, setTycheToken] = useState("");
+  const [tycheVerifyTls, setTycheVerifyTls] = useState(true);
   const [databaseUrl, setDatabaseUrl] = useState("");
+  const [databaseUser, setDatabaseUser] = useState("");
+  const [databasePassword, setDatabasePassword] = useState("");
+  const [databaseHost, setDatabaseHost] = useState("");
+  const [databasePort, setDatabasePort] = useState("");
+  const [databaseName, setDatabaseName] = useState("");
   const [layersTable, setLayersTable] = useState("");
+  const [feedbackTable, setFeedbackTable] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const loadModels = async () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      // Send what's typed in the form — tests the values BEFORE saving.
+      setAvailableModels(await fetchModels(baseUrl, apiKey));
+    } catch (err) {
+      console.error("Model loading failed", err);
+      setModelsError(err instanceof Error ? err.message : "טעינת המודלים נכשלה");
+    } finally {
+      setModelsLoading(false);
+    }
+  };
 
   useEffect(() => {
     getSettings()
       .then((s) => {
         setSettings(s);
-        setModel(s.llm_model);
+        setModel(s.llm_model ?? "");
+        setDietMode(s.llm_diet_mode);
         setBaseUrl(s.llm_base_url ?? "");
-        setDatabaseUrl(s.database_url);
-        setLayersTable(s.layers_table);
+        setMqsBaseUrl(s.mqs_base_url ?? "");
+        setMqsUserId(s.mqs_user_id ?? "");
+        setMqsVerifyTls(s.mqs_verify_tls);
+        setCubesBaseUrl(s.cubes_base_url ?? "");
+        setFlapiUsername(s.flapi_username ?? "");
+        setCubesVerifyTls(s.cubes_verify_tls);
+        setTycheBaseUrl(s.tyche_base_url ?? "");
+        setTycheUsername(s.tyche_username ?? "");
+        setTycheVerifyTls(s.tyche_verify_tls);
+        setDatabaseUrl(s.database_url ?? "");
+        setDatabaseUser(s.database_user ?? "");
+        setDatabaseHost(s.database_host ?? "");
+        setDatabasePort(s.database_port?.toString() ?? "");
+        setDatabaseName(s.database_name ?? "");
+        setLayersTable(s.layers_table ?? "");
+        setFeedbackTable(s.feedback_table ?? "");
+        void fetchModels(s.llm_base_url ?? "", "").then(setAvailableModels);
       })
-      .catch(() => setMessage("Could not load settings — is the backend running?"));
+      .catch((err) => {
+        console.error("Settings loading failed", err);
+        setMessage(err instanceof Error ? err.message : "לא ניתן לטעון את ההגדרות");
+      });
   }, []);
 
   const handleSave = async () => {
@@ -41,16 +117,38 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     try {
       const saved = await updateSettings({
         llm_model: model,
-        llm_base_url: baseUrl.trim() === "" ? null : baseUrl.trim(),
+        llm_diet_mode: dietMode,
+        llm_base_url: (baseUrl ?? "").trim() === "" ? null : (baseUrl ?? "").trim(),
         openai_api_key: apiKey, // backend ignores empty
+        mqs_base_url: (mqsBaseUrl ?? "").trim() === "" ? null : (mqsBaseUrl ?? "").trim(),
+        mqs_user_id: (mqsUserId ?? "").trim() === "" ? null : (mqsUserId ?? "").trim(),
+        mqs_verify_tls: mqsVerifyTls,
+        cubes_base_url: (cubesBaseUrl ?? "").trim() === "" ? null : (cubesBaseUrl ?? "").trim(),
+        cubes_token: cubesToken, // backend ignores empty
+        flapi_username: (flapiUsername ?? "").trim() === "" ? null : flapiUsername.trim(),
+        cubes_verify_tls: cubesVerifyTls,
+        tyche_base_url: (tycheBaseUrl ?? "").trim() === "" ? null : (tycheBaseUrl ?? "").trim(),
+        tyche_username: (tycheUsername ?? "").trim() === "" ? null : (tycheUsername ?? "").trim(),
+        tyche_token: tycheToken, // backend ignores empty
+        tyche_verify_tls: tycheVerifyTls,
         database_url: databaseUrl,
+        database_user: (databaseUser ?? "").trim(),
+        database_password: databasePassword, // backend ignores empty
+        database_host: (databaseHost ?? "").trim(),
+        database_port: (databasePort ?? "").trim() ? Number(databasePort) : null,
+        database_name: (databaseName ?? "").trim(),
         layers_table: layersTable,
+        feedback_table: feedbackTable,
       });
       setSettings(saved);
       setApiKey("");
-      setMessage("Saved ✓");
+      setCubesToken("");
+      setTycheToken("");
+      setDatabasePassword("");
+      setMessage("ההגדרות נשמרו בהצלחה");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Save failed");
+      console.error("Settings save failed", err);
+      setMessage(err instanceof Error ? err.message : "השמירה נכשלה");
     } finally {
       setSaving(false);
     }
@@ -59,90 +157,384 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div
-        className="settings-card"
+        className="settings-card settings-workspace-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Settings"
+        aria-modal="true"
+        aria-labelledby="settings-title"
       >
-        <header className="settings-header">
-          <h2>Settings</h2>
-          <button type="button" className="settings-close" onClick={onClose}>
-            ✕
+        <header className="settings-header settings-workspace-header">
+          <div className="settings-title">
+            <span className="settings-title-icon"><Settings2 size={20} /></span>
+            <div>
+              <h2 id="settings-title">הגדרות המערכת</h2>
+              <p>ניהול מודל הבינה, מקורות המידע והחיבור למסד הנתונים</p>
+            </div>
+          </div>
+          <button type="button" className="settings-close" onClick={onClose} aria-label="סגירת הגדרות">
+            <X size={20} />
           </button>
         </header>
 
+        <div className="settings-workspace-layout">
+          <nav className="settings-nav" aria-label="קטגוריות הגדרות">
+            <p className="settings-nav-label">קטגוריות</p>
+            {SETTINGS_SECTIONS.map(({ id, label, description, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={activeSection === id ? "active" : ""}
+                onClick={() => setActiveSection(id)}
+                aria-current={activeSection === id ? "page" : undefined}
+              >
+                <Icon size={18} />
+                <span>
+                  <strong>{label}</strong>
+                  <small>{description}</small>
+                </span>
+              </button>
+            ))}
+            {settings && (
+              <div className={`settings-connection ${settings.catalog.ok ? "ok" : "bad"}`}>
+                {settings.catalog.ok ? <CheckCircle2 size={17} /> : <Database size={17} />}
+                <span>
+                  <strong>{settings.catalog.ok ? "הקטלוג מחובר" : "הקטלוג לא מחובר"}</strong>
+                  <small>
+                    {settings.catalog.ok
+                      ? `${settings.catalog.layer_count ?? 0} שכבות זמינות`
+                      : "בדקו את פרטי החיבור"}
+                  </small>
+                </span>
+              </div>
+            )}
+          </nav>
+
+          <div className="settings-content">
+        {activeSection === "agent" && (
         <section className="settings-section">
-          <h3>AI model</h3>
+          <h3>מודל בינה מלאכותית</h3>
           <label className="field-label" htmlFor="set-api-key">
-            OpenAI API key
+            מפתח API{" "}
+            <span className="optional">(לא נדרש לשרתים מקומיים כמו Ollama)</span>
             {settings?.openai_api_key_set && (
-              <span className="key-hint"> (saved {settings.openai_api_key_hint})</span>
+              <span className="key-hint"> (נשמר {settings.openai_api_key_hint})</span>
             )}
           </label>
           <input
             id="set-api-key"
+            dir="ltr"
             type="password"
             className="settings-input"
-            placeholder={settings?.openai_api_key_set ? "Leave empty to keep current key" : "sk-…"}
+            placeholder={settings?.openai_api_key_set ? "השאירו ריק כדי לשמור את המפתח הנוכחי" : "sk-… (אופציונלי)"}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <label className="field-label" htmlFor="set-model">Model</label>
+          <div className="model-field-header">
+            <label className="field-label" htmlFor="set-model">מודל</label>
+            <button type="button" className="models-refresh" onClick={loadModels} disabled={modelsLoading}>
+              <RefreshCw className={modelsLoading ? "submit-spinner" : ""} size={14} />
+              {modelsLoading ? "טוען…" : "רענון מודלים"}
+            </button>
+          </div>
           <input
             id="set-model"
+            dir="ltr"
             className="settings-input"
-            placeholder="gpt-3.5-turbo"
+            list="available-models"
+            placeholder="gemma4:31b-cloud"
             value={model}
             onChange={(e) => setModel(e.target.value)}
           />
+          <datalist id="available-models">
+            {availableModels.map((modelId) => <option key={modelId} value={modelId} />)}
+          </datalist>
+          {availableModels.length > 0 && (
+            <p className="models-status">נמצאו {availableModels.length} מודלים זמינים</p>
+          )}
+          {modelsError && <p className="models-status error" role="alert" dir="auto">{modelsError}</p>}
           <label className="field-label" htmlFor="set-base-url">
-            Base URL <span className="optional">(optional — for OpenAI-compatible servers)</span>
+            כתובת בסיס{" "}
+            <span className="optional">(שרת תואם OpenAI; ריק = OpenAI)</span>
           </label>
           <input
             id="set-base-url"
+            dir="ltr"
             className="settings-input"
-            placeholder="https://api.openai.com/v1"
+            placeholder="http://pghost:11434/v1"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
           />
+          <label className="field-label">
+            <input
+              type="checkbox"
+              checked={dietMode}
+              onChange={(e) => setDietMode(e.target.checked)}
+            />
+            מצב חסכוני בטוקנים
+            <span className="optional"> (הנחיות קצרות ופלט מוגבל)</span>
+          </label>
         </section>
+        )}
 
+        {activeSection === "flapi" && (
         <section className="settings-section">
-          <h3>Layer catalog (Postgres)</h3>
-          <label className="field-label" htmlFor="set-db-url">Database URL</label>
+          <h3>שרת FLAPI</h3>
+          <label className="field-label" htmlFor="set-cubes-url">
+            כתובת בסיס FLAPI{" "}
+            <span className="optional">(ללא ‎/cube או ‎/package; ריק = ספק לא פעיל)</span>
+          </label>
+          <input
+            id="set-cubes-url"
+            dir="ltr"
+            className="settings-input"
+            placeholder="https://cubes.example/api"
+            value={cubesBaseUrl}
+            onChange={(e) => setCubesBaseUrl(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-cubes-token">
+            אסימון הרשאה
+            {settings?.cubes_token_set && <span className="key-hint"> (נשמר)</span>}
+          </label>
+          <input
+            id="set-cubes-token"
+            dir="ltr"
+            type="password"
+            className="settings-input"
+            placeholder={settings?.cubes_token_set ? "השאירו ריק כדי לשמור" : "Authorization token"}
+            value={cubesToken}
+            onChange={(e) => setCubesToken(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-flapi-username">
+            כותרת שם משתמש
+          </label>
+          <input
+            id="set-flapi-username"
+            dir="ltr"
+            className="settings-input"
+            placeholder="network username"
+            value={flapiUsername}
+            onChange={(e) => setFlapiUsername(e.target.value)}
+          />
+          <label className="field-label">
+            <input type="checkbox" checked={cubesVerifyTls}
+              onChange={(e) => setCubesVerifyTls(e.target.checked)} />
+            אימות תעודת TLS
+          </label>
+          <p className="models-status" dir="auto">
+            FLAPI: flapi://cube/&lt;name&gt; או flapi://package/&lt;id&gt;
+          </p>
+        </section>
+        )}
+
+        {activeSection === "tyche" && (
+        <section className="settings-section">
+          <h3>שרת Tyche</h3>
+          <label className="field-label" htmlFor="set-tyche-url">
+            כתובת בסיס Tyche{" "}
+            <span className="optional">(ללא ‎/coordinate/v1/ourforces; ריק = ספק לא פעיל)</span>
+          </label>
+          <input
+            id="set-tyche-url"
+            dir="ltr"
+            className="settings-input"
+            placeholder="https://tyche.example/api"
+            value={tycheBaseUrl}
+            onChange={(e) => setTycheBaseUrl(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-tyche-username">
+            כותרת שם משתמש
+          </label>
+          <input
+            id="set-tyche-username"
+            dir="ltr"
+            className="settings-input"
+            placeholder="network username"
+            value={tycheUsername}
+            onChange={(e) => setTycheUsername(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-tyche-token">
+            אסימון הרשאה
+            {settings?.tyche_token_set && <span className="key-hint"> (נשמר)</span>}
+          </label>
+          <input
+            id="set-tyche-token"
+            dir="ltr"
+            type="password"
+            className="settings-input"
+            placeholder={settings?.tyche_token_set ? "השאירו ריק כדי לשמור" : "Bearer …"}
+            value={tycheToken}
+            onChange={(e) => setTycheToken(e.target.value)}
+          />
+          <label className="field-label">
+            <input type="checkbox" checked={tycheVerifyTls}
+              onChange={(e) => setTycheVerifyTls(e.target.checked)} />
+            אימות תעודת TLS
+          </label>
+          <p className="models-status" dir="auto">
+            שכבת קטלוג: provider=tyche, source_url=tyche://ourforces
+          </p>
+        </section>
+        )}
+
+        {activeSection === "mqs" && (
+        <section className="settings-section">
+          <h3>שרת MQS (מוריה)</h3>
+          <label className="field-label" htmlFor="set-mqs-url">
+            כתובת בסיס MQS{" "}
+            <span className="optional">(ריק = ספק MQS לא פעיל)</span>
+          </label>
+          <input
+            id="set-mqs-url"
+            dir="ltr"
+            className="settings-input"
+            placeholder="https://mqs.example/api"
+            value={mqsBaseUrl}
+            onChange={(e) => setMqsBaseUrl(e.target.value)}
+          />
+          <label className="field-label" htmlFor="set-mqs-user-id">
+            מזהה משתמש (User_ID){" "}
+            <span className="optional">
+              (נדרש ברוב התקנות MQS ונשלח בכל בקשה; ריק = ללא)
+            </span>
+          </label>
+          <input
+            id="set-mqs-user-id"
+            dir="ltr"
+            className="settings-input"
+            placeholder="tt/T"
+            value={mqsUserId}
+            onChange={(e) => setMqsUserId(e.target.value)}
+          />
+          <label className="field-label">
+            <input type="checkbox" checked={mqsVerifyTls}
+              onChange={(e) => setMqsVerifyTls(e.target.checked)} />
+            אימות תעודת TLS
+          </label>
+        </section>
+        )}
+
+        {activeSection === "database" && (
+        <section className="settings-section">
+          <h3>קטלוג שכבות (PostgreSQL)</h3>
+          <label className="field-label" htmlFor="set-db-url">
+            כתובת חיבור מלאה <span className="optional">(ברירת מחדל לשדות הריקים)</span>
+          </label>
           <input
             id="set-db-url"
+            dir="ltr"
             className="settings-input"
             placeholder="postgresql://localhost:5432/gis"
             value={databaseUrl}
             onChange={(e) => setDatabaseUrl(e.target.value)}
           />
-          <label className="field-label" htmlFor="set-table">Layers table</label>
+          <div className="settings-input-row">
+            <div>
+              <label className="field-label" htmlFor="set-db-host">שרת</label>
+              <input
+                id="set-db-host"
+                dir="ltr"
+                className="settings-input"
+                placeholder="localhost"
+                value={databaseHost}
+                onChange={(e) => setDatabaseHost(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="set-db-port">פורט</label>
+              <input
+                id="set-db-port"
+                dir="ltr"
+                type="number"
+                min="1"
+                max="65535"
+                className="settings-input"
+                placeholder="5432"
+                value={databasePort}
+                onChange={(e) => setDatabasePort(e.target.value)}
+              />
+            </div>
+          </div>
+          <label className="field-label" htmlFor="set-db-name">שם מסד הנתונים</label>
+          <input
+            id="set-db-name"
+            dir="ltr"
+            className="settings-input"
+            placeholder="gis"
+            value={databaseName}
+            onChange={(e) => setDatabaseName(e.target.value)}
+          />
+          <div className="settings-input-row">
+            <div>
+              <label className="field-label" htmlFor="set-db-user">שם משתמש</label>
+              <input
+                id="set-db-user"
+                dir="ltr"
+                className="settings-input"
+                autoComplete="username"
+                placeholder="postgres"
+                value={databaseUser}
+                onChange={(e) => setDatabaseUser(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="set-db-password">
+                סיסמה
+                {settings?.database_password_set && (
+                  <span className="key-hint"> (נשמרה)</span>
+                )}
+              </label>
+              <input
+                id="set-db-password"
+                dir="ltr"
+                type="password"
+                className="settings-input"
+                autoComplete="current-password"
+                placeholder={settings?.database_password_set ? "השאירו ריק כדי לשמור" : "סיסמה"}
+                value={databasePassword}
+                onChange={(e) => setDatabasePassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <label className="field-label" htmlFor="set-table">טבלת שכבות</label>
           <input
             id="set-table"
+            dir="ltr"
             className="settings-input"
             placeholder="public.layers"
             value={layersTable}
             onChange={(e) => setLayersTable(e.target.value)}
           />
+          <label className="field-label" htmlFor="set-feedback-table">טבלת משוב</label>
+          <input
+            id="set-feedback-table"
+            dir="ltr"
+            className="settings-input"
+            placeholder="public.feedback"
+            value={feedbackTable}
+            onChange={(e) => setFeedbackTable(e.target.value)}
+          />
           {settings && (
             <p className={`catalog-status ${settings.catalog.ok ? "ok" : "bad"}`}>
               {settings.catalog.ok
-                ? `✓ Connected — ${settings.catalog.layer_count} layers found`
-                : `✗ ${settings.catalog.error}`}
+                ? `מחובר — נמצאו ${settings.catalog.layer_count} שכבות`
+                : settings.catalog.error}
             </p>
           )}
         </section>
+        )}
+          </div>
+        </div>
 
         <footer className="settings-footer">
-          {message && <span className="settings-message">{message}</span>}
+          {message && <span className="settings-message" role="status">{message}</span>}
           <button
             type="button"
             className="run-query-button settings-save"
             onClick={handleSave}
             disabled={saving || settings === null}
           >
-            {saving ? "Saving…" : "Save settings"}
+            <Save size={17} />
+            {saving ? "שומר…" : "שמירת שינויים"}
           </button>
         </footer>
       </div>

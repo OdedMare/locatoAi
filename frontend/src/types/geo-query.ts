@@ -2,11 +2,11 @@
  * Core types for the Geo-AI query request pipeline.
  *
  * GeoQueryRequest/GeoQueryResponse mirror the backend contract exactly
- * (backend/app/service/dto.py). Do not change one side without the other.
+ * (backend/app/service/query/). Do not change one side without the other.
  */
 
 /** How the user scopes the query geographically (UI concept only). */
-export type GeographyMode = "none" | "viewport" | "polygon" | "rectangle";
+export type GeographyMode = "viewport" | "polygon" | "rectangle";
 
 /** Minimal GeoJSON Polygon (RFC 7946). Coordinates are [lng, lat]. */
 export interface GeoJSONPolygon {
@@ -27,18 +27,150 @@ export type BBox = [number, number, number, number];
 /** The request sent to POST /api/query — exactly {query, boundaries}. */
 export interface GeoQueryRequest {
   query: string;
-  boundaries: GeoJSONMultiPolygon | null;
+  boundaries: GeoJSONMultiPolygon;
 }
 
-/** Backend response (backend/app/service/dto.py QueryResponse). */
+/** Agent trace: one layer the model selected for the query. */
+export interface SelectedLayer {
+  id: string;
+  name: string;
+  tags: string[];
+  description: string;
+  entity_field?: string | null;
+  display_field?: string | null;
+  profiles: string[];
+}
+
+/** One step of a Geo Query Plan (discriminated by `op` on the backend). */
+export interface GeoPlanStep {
+  id: string;
+  op:
+    | "load"
+    | "within_geometry"
+    | "attribute_filter"
+    | "near"
+    | "nearest_n"
+    | "near_all"
+    | "between"
+    | "crosses"
+    | "touches"
+    | "contains"
+    | "directional"
+    | "temporal_filter"
+    | "cluster"
+    | "latest_per_entity"
+    | "movement_direction"
+    | "trajectory_relation"
+    | "origin_movement"
+    | "count";
+  input?: string;
+  layer?: string;
+  target_layer?: string;
+  target_field?: string;
+  target_operator?: "eq" | "contains";
+  target_value?: string | number;
+  first_target_layer?: string;
+  second_target_layer?: string;
+  corridor_width_m?: number;
+  first_target_field?: string;
+  first_target_operator?: "eq" | "contains";
+  first_target_value?: string | number;
+  second_target_field?: string;
+  second_target_operator?: "eq" | "contains";
+  second_target_value?: string | number;
+  field?: string;
+  operator?: string;
+  value?: string | number;
+  distance_m?: number;
+  targets?: {
+    layer: string;
+    field?: string;
+    operator?: "eq" | "contains";
+    value?: string | number;
+  }[];
+  direction?: "any" | "north" | "south" | "east" | "west";
+  count?: number;
+  from?: string;
+  to?: string;
+  min_group_size?: number;
+  max_distance_m?: number;
+  entity_field?: string;
+  time_field?: string;
+  min_distance_m?: number;
+  relation?: "together" | "same_destination" | "same_time" | "same_place_different_times";
+  time_tolerance_minutes?: number;
+  max_gap_minutes?: number;
+  min_duration_minutes?: number;
+  min_time_separation_minutes?: number;
+  min_movement_distance_m?: number;
+  pattern?: "departed" | "round_trip";
+  start_at?: string;
+  end_at?: string;
+  min_departure_distance_m?: number;
+  max_return_distance_m?: number;
+}
+
+/** The plan the agent built (mirrors backend GeoQueryPlan). */
+export interface GeoQueryPlanDto {
+  explanation: string;
+  steps: GeoPlanStep[];
+  output: string;
+  context_layers: string[];
+}
+
+/** Backend response (backend/app/service/query/response.py QueryResponse). */
 export interface GeoQueryResponse {
   status: "ok" | "clarify" | "error";
+  /** Correlates UI diagnostics with backend console/JSONL events. */
+  request_id?: string | null;
   clarify: string | null;
-  /** The Geo Query Plan the agent built (Day 2+). */
-  plan: unknown | null;
+  /** The Geo Query Plan the agent built and executed. */
+  plan: GeoQueryPlanDto | null;
   /** GeoJSON FeatureCollection of results. */
   features: GeoJSON.FeatureCollection | null;
+  /** Set when the plan ends in a `count` step; `features` is then null. */
+  scalar_result: number | null;
+  /** Preferred feature property for map labels. */
+  display_field: string | null;
   timing_ms: Record<string, number> | null;
+  token_usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  } | null;
+  /** Which catalog layers the agent chose (its "thinking", for review). */
+  selected_layers: SelectedLayer[];
+  /** The model's short Hebrew reasoning for the choice. */
+  reasoning: string;
+  /** Bounded sample_field and load_skill rounds used while planning. */
+  tool_calls: { layer_id?: string; field?: string; skill_id?: string }[];
+  /** Operational pipeline trace (not private model chain-of-thought). */
+  pipeline_trace: PipelineTraceEntry[];
+}
+
+export interface PipelineTraceEntry {
+  stage: "transport" | "layer_selection" | "plan_building" | "plan_validation" | "execution" | "execute_step" | "zero_result_diagnosis" | "re_execution" | "response";
+  status: "started" | "completed" | "clarify" | "failed" | "error";
+  duration_ms?: number;
+  explanation?: string | null;
+  attempts?: number;
+  tool_calls?: { layer_id?: string; field?: string; skill_id?: string }[];
+  selected_layer_ids?: string[];
+  selected_layer_names?: string[];
+  requested_layer_ids?: string[];
+  dropped_layer_ids?: string[];
+  clarify?: string | null;
+  diagnostics?: Record<string, unknown>[];
+  step_id?: string;
+  operation?: GeoPlanStep["op"];
+  input_count?: number | null;
+  output_count?: number;
+  parameters?: Record<string, unknown>;
+  feature_count?: number;
+  scalar_result?: number | null;
+  geometry_returned?: boolean;
+  error_type?: string;
+  error?: string;
 }
 
 /** Live map view state reported by the map component (UI-internal). */

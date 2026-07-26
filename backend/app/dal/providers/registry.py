@@ -5,11 +5,11 @@ OCP: registering a new provider is one `register` call in main.py.
 
 from typing import Dict
 
-from app.bl.ports import Provider
-from app.common.errors import ProviderError
+from app.bl.providers.provider import Provider
+from app.common.errors.provider_error import ProviderError
 
 
-class ProviderRegistryImpl:
+class InMemoryProviderRegistry:
     def __init__(self) -> None:
         self._providers: Dict[str, Provider] = {}
 
@@ -21,3 +21,6 @@ class ProviderRegistryImpl:
         if provider is None:
             raise ProviderError(f"No provider registered for '{provider_name}'")
         return provider
+
+    def has(self, provider_name: str) -> bool:
+        return provider_name in self._providers

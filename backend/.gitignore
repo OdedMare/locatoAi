@@ -4,3 +4,4 @@ __pycache__/
 logs/
 .env
 runtime-settings.json
+.pytest_cache/
