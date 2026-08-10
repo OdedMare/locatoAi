@@ -1,4 +1,6 @@
+import json
 from unittest.mock import Mock
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -93,6 +95,32 @@ def test_create_layer_persists_declared_entity_role_as_metadata():
     assert repository.list_layers()[0].persisted_tags() == [
         "entity_field:trackId", "movement",
     ]
+
+
+def test_create_flow_package_persists_additional_input_cubes():
+    repository = FakeLayersRepository([])
+    response = TestClient(make_app(repository)).post(
+        "/api/layers",
+        json={
+            "name": "Flow", "provider": "flapi", "source_url": "123456",
+            "package_input_cube_name": "GeoInput",
+            "package_input_cube_parameter": "Boundary",
+            "package_input_cube_kind": "geo",
+            "package_output_cube_name": "Output",
+            "package_additional_input_cubes": [{
+                "cube_name": "Environment", "cube_parameter": "Selector",
+                "kind": "values", "values": ["prod"],
+            }],
+        },
+    )
+
+    assert response.status_code == 201
+    source = repository.list_layers()[0].source_url
+    cubes = json.loads(parse_qs(urlsplit(source).query)["additional_input_cubes"][0])
+    assert cubes == [{
+        "cube_name": "Environment", "cube_parameter": "Selector",
+        "kind": "values", "values": ["prod"],
+    }]
 
 
 def test_legacy_semantic_tags_are_typed_and_hidden_from_business_tags():

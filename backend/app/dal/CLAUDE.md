@@ -72,11 +72,13 @@ There are exactly two production classes:
 - `runner_config.py` applies the live package timeout, FLUNKS TLS-field compatibility,
   and abandoned-worker accounting.
 
-The source URL stores `input_cube_name`, `input_cube_parameter`, `input_cube_kind`
-(`time` or `geo`), and `output_cube_name`. Geographic input is one WKT
-`MULTIPOLYGON`; time input uses the requested range or the previous hour. Required
-values fail before the network call. The runner result must be a DataFrame; `NaN`,
-numpy scalars, and shapely geometry cells are normalized before schema/GDF mapping.
+The source URL stores `input_cube_name`, `input_cube_parameter`, `input_cube_kind`,
+`additional_input_cubes`, and `output_cube_name`. The Layers UI creates a geographic
+main input as one WKT `MULTIPOLYGON`; optional additional cubes use either the requested
+time range or configured fixed values. Older catalog rows with a time-based main input
+remain supported. Required values fail before the network call. The runner result must
+be a DataFrame; `NaN`, numpy scalars, and shapely geometry cells are normalized before
+schema/GDF mapping.
 
 `FLAPI flunks INPUT` logs package/cube/parameter/output identifiers and a bounded WKT
 preview, but never the token. The small import-time `isPartialSuccess` compatibility

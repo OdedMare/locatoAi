@@ -17,6 +17,9 @@ from app.dal.providers.flapi.runner_config import (
     build_flapi_config,
     run_bounded,
 )
+from app.service.catalog.package_additional_input_cube_request import (
+    PackageAdditionalInputCubeRequest,
+)
 from app.service.catalog.router import normalized_source
 
 
@@ -73,6 +76,26 @@ def geo_source():
         package_input_cube_name="RawInput",
         package_input_cube_parameter="GeoQuery",
         package_input_cube_kind="geo",
+        package_output_cube_name="FinalCube",
+    )
+
+
+def mixed_input_source():
+    return normalized_source(
+        "flapi", "466192",
+        package_input_cube_name="GeoInput",
+        package_input_cube_parameter="Boundary",
+        package_input_cube_kind="geo",
+        package_additional_input_cubes=[
+            PackageAdditionalInputCubeRequest(
+                cube_name="EventWindow", cube_parameter="TimeRange",
+                kind="time",
+            ),
+            PackageAdditionalInputCubeRequest(
+                cube_name="Environment", cube_parameter="Selector",
+                kind="values", values=["prod", "active"],
+            ),
+        ],
         package_output_cube_name="FinalCube",
     )
 
@@ -164,6 +187,29 @@ def test_geo_input_cube_wkt_round_trips_to_query_boundary(tmp_path, monkeypatch)
     input_cube = StubRunner.last_instance.package_config.main_input_cube
     parsed = wkt.loads(input_cube.values[0])
     assert parsed.equals(boundary)
+
+
+def test_additional_input_cubes_support_query_time_and_fixed_values(
+    tmp_path, monkeypatch,
+):
+    provider = make_provider(tmp_path, StubRunner, monkeypatch)
+    provider.fetch_features(
+        package_layer(mixed_input_source()),
+        geometry=box(34.7, 32.0, 34.9, 32.2),
+        temporal_range=("2026-07-18T00:00:00Z", "2026-07-18T03:00:00Z"),
+    )
+
+    package = StubRunner.last_instance.package_config
+    assert package.main_input_cube.values[0].startswith("MULTIPOLYGON")
+    assert len(package.additional_input_cubes) == 2
+    time_cube, values_cube = package.additional_input_cubes
+    assert time_cube.cube_name == "EventWindow"
+    assert time_cube.cube_parameter == "TimeRange"
+    assert time_cube.start_time.isoformat() == "2026-07-18T00:00:00+00:00"
+    assert time_cube.end_time.isoformat() == "2026-07-18T03:00:00+00:00"
+    assert values_cube.cube_name == "Environment"
+    assert values_cube.cube_parameter == "Selector"
+    assert values_cube.values == ["prod", "active"]
 
 
 def test_geo_source_persists_kind():

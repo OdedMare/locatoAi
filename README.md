@@ -232,15 +232,14 @@ text. New clients send `cubes_parameters`; `cubes_dynamic_parameters` remains ac
 ### Flow Packages
 
 Flow Packages are FLAPI workflows composed of Cubes. Catalog entries use
-`provider="flapi"` and `source_url="flapi://package/<packageId>"`. Before execution,
-the provider fetches definitions from `GET /package/v1/quick/<packageId>`, validates
-required parameters, and serializes text, multi-value, number, boolean, WKT geometry,
-relative-time, and absolute-time values according to their metadata. Execution uses
-`POST /package/v3/<packageId>` and defaults to `lastQueries=true`; an optional query
-name is persisted when only one package result is wanted. Every returned query is
-processed independently, tagged with `_package_query`, and converted by the same
-dynamic schema/WKT dataframe mapper used for Cubes. Partial-success trace IDs, failed
-queries, and result-limit warnings are logged.
+`provider="flapi"` and `source_url="flapi://package/<packageId>"`. The Layers UI
+configures one main geographic input cube whose parameter receives the complete query
+boundary as one WKT `MULTIPOLYGON`. Its + control can add optional input cubes that
+receive either the query time range or configured fixed values. These definitions and
+the output cube name are persisted on the catalog source URL and mapped directly to
+`FlunksPackageConfig.additional_input_cubes`. Execution stays inside the `flunks`
+library; LocatoAI bounds each run, retries once, normalizes its DataFrame, and tags
+mapped rows with `_package_query`.
 
 ### LLM provider
 
