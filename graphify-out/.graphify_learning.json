@@ -1,6 +1,22 @@
 {
-  "generated_at": "2026-07-25T18:26:54.428823+00:00",
+  "generated_at": "2026-08-10T09:03:33.769824+00:00",
   "nodes": {
+    "backend_app_application_state_wiring_applicationstatewiring": {
+      "code_fingerprint": "53e1aa4e013b289511e7fe040e0b920b8c16cc21dc6f5ef4a7ff2a5e15a304cf",
+      "label": "ApplicationStateWiring",
+      "last": "2026-07-25T19:06:11.060068+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T19:06:11.060068+00:00",
+          "outcome": "useful",
+          "q": "תשתמש ב ponytail:ponytail על כל הבקנד אני רוצה לצמצם קוד מיותר ועטיפות מיותר"
+        }
+      ],
+      "score": 0.697669775,
+      "source_file": "backend/app/application_state_wiring.py",
+      "status": "tentative",
+      "uses": 1
+    },
     "backend_app_bl_agent_generate_layer_metadata_layer_metadata_generator_rationale_1": {
       "code_fingerprint": "6accd344fd245fd4baea0a9f5d13879d70a9df1794ac8fadc70afa7024a7aa03",
       "label": "Generate editable catalog metadata from a bounded provider sample.",
@@ -12,16 +28,38 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.990211953,
+      "score": 0.690405716,
       "source_file": "backend/app/bl/agent/generate_layer_metadata/layer_metadata_generator.py",
       "status": "tentative",
       "uses": 1
     },
-    "backend_app_dal_providers_flapi_provider_flapiprovider": {
-      "code_fingerprint": "3f503470aed6a5b856ef75ba0049d49417dade02f220d1e8d3e43f063fc16963",
-      "label": "FlapiProvider",
-      "last": "2026-07-25T17:17:45.972918+00:00",
+    "backend_app_common_utils_geo_utils_geoutils": {
+      "code_fingerprint": "3b44759b332ba7962f6c590df94b58b93bbeb572c7808f50edcfbb6235648400",
+      "label": "GeoUtils",
+      "last": "2026-07-25T19:06:11.060068+00:00",
       "provenance": [
+        {
+          "date": "2026-07-25T19:06:11.060068+00:00",
+          "outcome": "useful",
+          "q": "תשתמש ב ponytail:ponytail על כל הבקנד אני רוצה לצמצם קוד מיותר ועטיפות מיותר"
+        }
+      ],
+      "score": 0.697669775,
+      "source_file": "backend/app/common/utils/geo_utils.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_flapi_provider_flapiprovider": {
+      "code_fingerprint": "a76c2045aba537079edd66a0b192722a949955859cd54ec2181ec085bf797d5e",
+      "label": "FlapiProvider",
+      "last": "2026-08-10T08:51:09.799978+00:00",
+      "neg": 1,
+      "provenance": [
+        {
+          "date": "2026-07-25T18:45:38.443622+00:00",
+          "outcome": "useful",
+          "q": "תעשה את אותו דבר לשאר הפרובידורים"
+        },
         {
           "date": "2026-07-25T17:17:45.972918+00:00",
           "outcome": "useful",
@@ -41,20 +79,16 @@
           "date": "2026-07-25T16:50:59.447216+00:00",
           "outcome": "useful",
           "q": "יש לי עדיין את הבעיה של temporal_field in FlapiSchemaMapper"
-        },
-        {
-          "date": "2026-07-25T16:28:05.190250+00:00",
-          "outcome": "useful",
-          "q": "now attribute max_threads; FlapiSchemaMapper has no attribute max_threads"
         }
       ],
-      "score": 5.990623055,
+      "score": 3.874482315,
       "source_file": "backend/app/dal/providers/flapi/provider.py",
-      "status": "preferred",
-      "uses": 6
+      "status": "contested",
+      "uses": 7,
+      "verdict": "useful"
     },
     "backend_app_dal_providers_mqs_gateway_mqsgateway_entities_page_with_meta": {
-      "code_fingerprint": "e03eaf2419b4456316d320ceec2feb4f0f8a5be293d56c68a722db568ad42561",
+      "code_fingerprint": "",
       "label": ".entities_page_with_meta()",
       "last": "2026-07-25T08:13:52.056465+00:00",
       "provenance": [
@@ -64,13 +98,61 @@
           "q": "fix the mqs thing"
         }
       ],
-      "score": 0.990211953,
+      "score": 0.690405716,
       "source_file": "backend/app/dal/providers/mqs/gateway.py",
       "status": "tentative",
       "uses": 1
     },
+    "backend_app_dal_providers_mqs_provider_mqsprovider": {
+      "code_fingerprint": "9b9da070352d9047a9194df6e1a8d860c8989edaff976151c1659587e66ff83c",
+      "label": "MqsProvider",
+      "last": "2026-07-25T18:45:38.443622+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T18:45:38.443622+00:00",
+          "outcome": "useful",
+          "q": "תעשה את אותו דבר לשאר הפרובידורים"
+        }
+      ],
+      "score": 0.697439844,
+      "source_file": "backend/app/dal/providers/mqs/provider.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_registry_rationale_1": {
+      "code_fingerprint": "7ba60d4d5d1ba88f63e818f96c295935fe35de6a1bd67e073b685648f285fece",
+      "label": "Provider registry: catalog `provider` name → adapter instance.  OCP: registering",
+      "last": "2026-07-25T19:06:11.060068+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T19:06:11.060068+00:00",
+          "outcome": "useful",
+          "q": "תשתמש ב ponytail:ponytail על כל הבקנד אני רוצה לצמצם קוד מיותר ועטיפות מיותר"
+        }
+      ],
+      "score": 0.697669775,
+      "source_file": "backend/app/dal/providers/registry.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "backend_app_dal_providers_tyche_provider_tycheprovider": {
+      "code_fingerprint": "ded9717aa938ed5625138bfb970144698e9f5bb70a66e43d172e45a61e06bf50",
+      "label": "TycheProvider",
+      "last": "2026-07-25T18:45:38.443622+00:00",
+      "provenance": [
+        {
+          "date": "2026-07-25T18:45:38.443622+00:00",
+          "outcome": "useful",
+          "q": "תעשה את אותו דבר לשאר הפרובידורים"
+        }
+      ],
+      "score": 0.697439844,
+      "source_file": "backend/app/dal/providers/tyche/provider.py",
+      "status": "tentative",
+      "uses": 1
+    },
     "backend_app_dal_providers_tyche_query_builder_tychequerybuilder": {
-      "code_fingerprint": "b0ff5dabbd9d7dd52531fcab2cd7859360a4ac140f816d64568d2c62a2df802d",
+      "code_fingerprint": "",
       "label": "TycheQueryBuilder",
       "last": "2026-07-25T08:32:48.228715+00:00",
       "provenance": [
@@ -80,13 +162,13 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.990512858,
+      "score": 0.690615516,
       "source_file": "backend/app/dal/providers/tyche/query_builder.py",
       "status": "tentative",
       "uses": 1
     },
     "backend_app_dal_providers_tyche_source_tychesource": {
-      "code_fingerprint": "5c1cf69556c1e762ba026707526467ad040196ad3a19fb35231aee44cc7226b6",
+      "code_fingerprint": "",
       "label": "TycheSource",
       "last": "2026-07-25T08:32:48.228715+00:00",
       "provenance": [
@@ -96,26 +178,31 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.990512858,
+      "score": 0.690615516,
       "source_file": "backend/app/dal/providers/tyche/source.py",
       "status": "tentative",
       "uses": 1
     },
     "backend_app_service_catalog_router_catalogrouter": {
-      "code_fingerprint": "65e9969ba3fe91b1a3cb97735804862af650d9b378a31860a23c1f338d356b85",
+      "code_fingerprint": "10004a0b101f83b8072d428a54a55a9fe29a1124ba77e2fe8a581f1b75e7b6f7",
       "label": "CatalogRouter",
-      "last": "2026-07-25T08:32:48.228715+00:00",
+      "last": "2026-07-25T19:06:11.060068+00:00",
       "provenance": [
+        {
+          "date": "2026-07-25T19:06:11.060068+00:00",
+          "outcome": "useful",
+          "q": "תשתמש ב ponytail:ponytail על כל הבקנד אני רוצה לצמצם קוד מיותר ועטיפות מיותר"
+        },
         {
           "date": "2026-07-25T08:32:48.228715+00:00",
           "outcome": "useful",
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.990512858,
+      "score": 1.388285291,
       "source_file": "backend/app/service/catalog/router.py",
-      "status": "tentative",
-      "uses": 1
+      "status": "preferred",
+      "uses": 2
     },
     "backend_app_service_query_event_sink_queryeventsink": {
       "code_fingerprint": "656ab0cc8c9f4ea0e1063bbd18ff827926e0f7895a38144d39712dc6b6d56346",
@@ -133,13 +220,13 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 1.990904208,
+      "score": 1.388118616,
       "source_file": "backend/app/service/query/event_sink.py",
       "status": "preferred",
       "uses": 2
     },
     "backend_app_service_query_router_queryrouter": {
-      "code_fingerprint": "5b204a0583d3cdae7d2613e012480f3e063b1a75a47fe55b267eec54b2ba43d0",
+      "code_fingerprint": "be62a291504e45b7ad4ea07104298b94da136da5ed70f2ce8a304d286ef4043f",
       "label": "QueryRouter",
       "last": "2026-07-25T15:39:57.043190+00:00",
       "provenance": [
@@ -149,13 +236,13 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.997324757,
+      "score": 0.695364978,
       "source_file": "backend/app/service/query/router.py",
       "status": "tentative",
       "uses": 1
     },
     "frontend_readme_agenttrace": {
-      "code_fingerprint": "cebec7dceb798428e2cfbdfbfb354a619f3bda686f939abab969368fce75a7c5",
+      "code_fingerprint": "1cdb395d37a9fa94da2f3d5db0a547371efc9d2e77c69b2730b908fae679a1ab",
       "label": "AgentTrace",
       "last": "2026-07-25T11:45:27.600906+00:00",
       "provenance": [
@@ -165,13 +252,13 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.993579452,
+      "score": 0.692753638,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
     },
     "frontend_readme_appshell": {
-      "code_fingerprint": "cebec7dceb798428e2cfbdfbfb354a619f3bda686f939abab969368fce75a7c5",
+      "code_fingerprint": "1cdb395d37a9fa94da2f3d5db0a547371efc9d2e77c69b2730b908fae679a1ab",
       "label": "AppShell",
       "last": "2026-07-25T11:45:27.600906+00:00",
       "provenance": [
@@ -181,13 +268,13 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.993579452,
+      "score": 0.692753638,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
     },
     "frontend_readme_layerspanel": {
-      "code_fingerprint": "cebec7dceb798428e2cfbdfbfb354a619f3bda686f939abab969368fce75a7c5",
+      "code_fingerprint": "1cdb395d37a9fa94da2f3d5db0a547371efc9d2e77c69b2730b908fae679a1ab",
       "label": "LayersPanel",
       "last": "2026-07-25T08:32:48.228715+00:00",
       "provenance": [
@@ -197,13 +284,13 @@
           "q": "in tyche theres sometimes that theres requierd params to fetch and cases of timeFrom timeTo so i need to config them in the ui make sure we suitable to this"
         }
       ],
-      "score": 0.990512858,
+      "score": 0.690615516,
       "source_file": "frontend/README.md",
       "status": "tentative",
       "uses": 1
     },
     "frontend_src_components_agenttrace_index_agenttrace": {
-      "code_fingerprint": "2e87c98e3483d4bcc0dc2a5401539d318e719c435b25642498298085e53948c4",
+      "code_fingerprint": "29db5a770c1b6dfd31c1355a1faaaa78d4f29fb428fc2e05229b63e89c533aab",
       "label": "AgentTrace()",
       "last": "2026-07-25T15:39:57.043190+00:00",
       "provenance": [
@@ -213,13 +300,13 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.997324757,
+      "score": 0.695364978,
       "source_file": "frontend/src/components/AgentTrace/index.tsx",
       "status": "tentative",
       "uses": 1
     },
     "frontend_src_services_geoqueryservice": {
-      "code_fingerprint": "425ad42fdbe8255ce8e10c862aa16406f1e3c8e52bce337278aeb98fc59b0ab9",
+      "code_fingerprint": "8341a6a75fdc1cbe2b7c7e930343cf88c1c7fed9f7be45a3dbff385407f8939c",
       "label": "geoQueryService.ts",
       "last": "2026-07-25T11:45:27.600906+00:00",
       "provenance": [
@@ -229,13 +316,13 @@
           "q": "i want to create real time plan in the ui; make stream mode and enable this mode at the ui"
         }
       ],
-      "score": 0.993579452,
+      "score": 0.692753638,
       "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1
     },
     "frontend_src_services_geoqueryservice_submitquery": {
-      "code_fingerprint": "425ad42fdbe8255ce8e10c862aa16406f1e3c8e52bce337278aeb98fc59b0ab9",
+      "code_fingerprint": "8341a6a75fdc1cbe2b7c7e930343cf88c1c7fed9f7be45a3dbff385407f8939c",
       "label": "submitQuery()",
       "last": "2026-07-25T15:39:57.043190+00:00",
       "provenance": [
@@ -245,7 +332,7 @@
           "q": "remove any streaming its just stuck my system "
         }
       ],
-      "score": 0.997324757,
+      "score": 0.695364978,
       "source_file": "frontend/src/services/geoQueryService.ts",
       "status": "tentative",
       "uses": 1
