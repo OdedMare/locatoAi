@@ -14,6 +14,7 @@ import type {
   GeographyMode,
   GeoQueryRequest,
   GeoQueryResponse,
+  PipelineTraceEntry,
 } from "@/types/geo-query";
 
 interface QueryPanelProps {
@@ -24,6 +25,9 @@ interface QueryPanelProps {
   hasDrawnGeometry: boolean;
   onRunQuery: () => void;
   isSubmitting: boolean;
+  liveTrace: PipelineTraceEntry[];
+  activeRunId: string | null;
+  pollError: string | null;
   lastRequest: GeoQueryRequest | null;
   lastResponse: GeoQueryResponse | null;
   lastDisplayQuery: string;
@@ -49,6 +53,9 @@ export default function QueryPanel({
   hasDrawnGeometry,
   onRunQuery,
   isSubmitting,
+  liveTrace,
+  activeRunId,
+  pollError,
   lastRequest,
   lastResponse,
   lastDisplayQuery,
@@ -207,6 +214,9 @@ export default function QueryPanel({
                     response={lastResponse}
                     isSubmitting={isSubmitting}
                     query={lastRequest?.query ?? ""}
+                    liveTrace={liveTrace}
+                    activeRunId={activeRunId}
+                    pollError={pollError}
                   />
                   {!isSubmitting && lastResponse && <ResultsPanel response={lastResponse} />}
                   {lastRequest && <RequestPreview request={lastRequest} response={lastResponse} />}

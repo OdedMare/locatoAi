@@ -70,14 +70,16 @@ locatoAi/
 1. The user enters a question in `GeoQueryInput`.
 2. `AppShell` combines the text with one of three geography modes: current viewport, polygon, or rectangle.
 3. Polygon and viewport shapes are normalized to GeoJSON `MultiPolygon`, producing exactly `{query, boundaries}`.
-4. `geoQueryService` posts the request to `/api/query/stream`. Next.js rewrites it
-   to FastAPI, which sends real layer-selection, planning, and execution events over SSE.
-5. FastAPI validates the transport DTO and converts a boundary to a Shapely geometry.
+4. `geoQueryService` posts the request to `/api/query-runs`. Next.js rewrites it
+   to FastAPI, which returns a queued run immediately; the UI polls that run every 1.5s.
+5. FastAPI validates the transport DTO, converts the boundary to Shapely, and executes
+   the query in the bounded `QueryRunManager` worker pool. Synchronous integrations can
+   continue using `POST /api/query` for one final response.
 6. `LayerSelector` reads layer metadata from the PostgreSQL catalog, sanitizes it, and asks the configured model to return known layer IDs or a short Hebrew clarification.
 7. `PlanBuilder` obtains provider schemas and sample values for the selected layers. The model may request up to three additional `sample_field` rounds.
 8. The model returns a `GeoQueryPlan`. Shape and semantic errors are fed back for one bounded correction.
 9. The executor records per-step counts. Zero rows permit one tool-assisted diagnosis and replan; code rejects any revision that removes or widens an original user constraint before re-execution.
-10. The backend streams every operation and its row counts, then returns GeoJSON
+10. Each poll exposes the operations recorded so far; the completed run returns GeoJSON
     features or a `scalar_result`, plus the plan, selected layers, reasoning, timing,
     token usage, tool calls, and the complete structured pipeline trace.
 11. The frontend updates the timeline in real time—including loading, filtering, and

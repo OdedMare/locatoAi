@@ -27,6 +27,9 @@ _ROUTERS = (
 def create_app() -> FastAPI:
     application = FastAPI(title="AiLocator", version="0.1.0")
     wire(application, get_settings())
+    application.add_event_handler(
+        "shutdown", application.state.query_runs.shutdown,
+    )
     register_error_handlers(application)
     for router in _ROUTERS:
         application.include_router(router)

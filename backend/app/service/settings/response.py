@@ -18,6 +18,7 @@ class SettingsResponse(BaseModel):
     cubes_token_set: bool
     flapi_username: Optional[str]
     cubes_verify_tls: bool
+    package_timeout_seconds: int
     tyche_base_url: Optional[str]
     tyche_username: Optional[str]
     tyche_token_set: bool

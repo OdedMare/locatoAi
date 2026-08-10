@@ -1,4 +1,5 @@
 import type { GeoQueryResponse } from "@/types/geo-query";
+import { request } from "@/services/api";
 
 /** Store a 👍/👎 verdict on an agent selection in PostgreSQL. */
 export async function submitFeedback(
@@ -7,9 +8,8 @@ export async function submitFeedback(
   verdict: "up" | "down"
 ): Promise<boolean> {
   try {
-    const res = await fetch("/api/feedback", {
+    await request<unknown>("/api/feedback", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query,
         verdict,
@@ -18,7 +18,7 @@ export async function submitFeedback(
         clarify: response.clarify,
       }),
     });
-    return res.ok;
+    return true;
   } catch {
     return false;
   }

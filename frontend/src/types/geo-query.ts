@@ -148,6 +148,18 @@ export interface GeoQueryResponse {
   pipeline_trace: PipelineTraceEntry[];
 }
 
+/** Asynchronous wrapper returned by POST/GET /api/query-runs. */
+export interface GeoQueryRun {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  created_at: string;
+  updated_at: string;
+  pipeline_trace: PipelineTraceEntry[];
+  response: GeoQueryResponse | null;
+  error_type: string | null;
+  error: string | null;
+}
+
 export interface PipelineTraceEntry {
   stage: "transport" | "layer_selection" | "plan_building" | "plan_validation" | "execution" | "execute_step" | "zero_result_diagnosis" | "re_execution" | "response";
   status: "started" | "completed" | "clarify" | "failed" | "error";

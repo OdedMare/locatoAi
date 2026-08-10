@@ -1,12 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import QueryPanel from "@/components/QueryPanel";
 import MapWorkspace from "@/components/MapWorkspace";
 import SettingsPanel from "@/components/SettingsPanel";
 import LayersPanel from "@/components/LayersPanel";
 import AgentStudioPanel from "@/components/AgentStudioPanel";
-import { submitQuery } from "@/services/geoQueryService";
+import { failedResponse, startQueryRun } from "@/services/geoQueryService";
+import { QueryDebugLog } from "@/services/queryDebugLog";
+import {
+  isActive,
+  useQueryRunPolling,
+} from "@/components/AppShell/useQueryRunPolling";
 import {
   bboxToMultiPolygon,
   polygonToMultiPolygon,
@@ -15,6 +20,7 @@ import {
   type GeoJSONPolygon,
   type GeoQueryRequest,
   type GeoQueryResponse,
+  type GeoQueryRun,
   type MapViewState,
 } from "@/types/geo-query";
 
@@ -30,6 +36,7 @@ const INITIAL_VIEW: MapViewState = {
  * app: the query panel on the left and the map workspace on the right.
  */
 export default function AppShell() {
+  const requestGeneration = useRef(0);
   const [queryText, setQueryText] = useState("");
   const [geographyMode, setGeographyMode] = useState<GeographyMode>("viewport");
   const [drawnGeometry, setDrawnGeometry] = useState<GeoJSONPolygon | null>(null);
@@ -42,7 +49,9 @@ export default function AppShell() {
     response: GeoQueryResponse;
     displayQuery: string;
   }>>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeRun, setActiveRun] = useState<GeoQueryRun | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [pollError, setPollError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [isAgentStudioOpen, setIsAgentStudioOpen] = useState(false);
@@ -53,6 +62,11 @@ export default function AppShell() {
     ? polygonToMultiPolygon(drawnGeometry)
     : null;
   const viewportSampleBoundary = bboxToMultiPolygon(mapView.bbox);
+  const isSubmitting = isStarting || isActive(activeRun);
+
+  useQueryRunPolling(
+    activeRun, setActiveRun, setLastResponse, setPollError,
+  );
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -84,6 +98,7 @@ export default function AppShell() {
   );
 
   const handleNewChat = useCallback(() => {
+    requestGeneration.current += 1;
     setQueryText("");
     setGeographyMode("viewport");
     setDrawnGeometry(null);
@@ -91,6 +106,8 @@ export default function AppShell() {
     setLastResponse(null);
     setLastDisplayQuery("");
     setHistory([]);
+    setActiveRun(null);
+    setPollError(null);
   }, []);
 
   /** Build the backend request — exactly {query, boundaries}. */
@@ -122,13 +139,22 @@ export default function AppShell() {
     setLastDisplayQuery(displayQuery);
     setLastRequest(request);
     setLastResponse(null);
+    setActiveRun(null);
+    setPollError(null);
     setQueryText("");
-    setIsSubmitting(true);
+    setIsStarting(true);
+    const generation = ++requestGeneration.current;
     try {
-      const response = await submitQuery(request);
-      setLastResponse(response);
+      const run = await startQueryRun(request);
+      if (generation !== requestGeneration.current) return;
+      setActiveRun(run);
+      if (!isActive(run)) {
+        const response = run.response ?? failedResponse(run);
+        QueryDebugLog.completed(response);
+        setLastResponse(response);
+      }
     } finally {
-      setIsSubmitting(false);
+      setIsStarting(false);
     }
   };
 
@@ -142,6 +168,9 @@ export default function AppShell() {
         hasDrawnGeometry={drawnGeometry !== null}
         onRunQuery={handleRunQuery}
         isSubmitting={isSubmitting}
+        liveTrace={activeRun?.pipeline_trace ?? []}
+        activeRunId={activeRun?.id ?? null}
+        pollError={pollError}
         lastRequest={lastRequest}
         lastResponse={lastResponse}
         lastDisplayQuery={lastDisplayQuery}

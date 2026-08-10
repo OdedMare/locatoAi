@@ -17,6 +17,7 @@ class SettingsUpdate(BaseModel):
     cubes_token: Optional[str] = None  # empty/omitted = keep current
     flapi_username: Optional[str] = None
     cubes_verify_tls: Optional[bool] = None
+    package_timeout_seconds: Optional[int] = Field(default=None, ge=1, le=3600)
     tyche_base_url: Optional[str] = None
     tyche_username: Optional[str] = None
     tyche_token: Optional[str] = None  # empty/omitted = keep current

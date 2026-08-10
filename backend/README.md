@@ -40,7 +40,7 @@ app/
 ├── application_state_wiring.py # composition root: builds the dependency graph onto app.state
 │
 ├── service/                 # ── HTTP tier: one package per API context ──
-│   ├── query/               # POST /api/query + request/response DTOs and event sink
+│   ├── query/               # synchronous query + async run/poll DTOs and routes
 │   ├── area_summary/        # POST /api/area-summary request + router
 │   ├── plan/                # POST /api/execute-plan + request DTO
 │   ├── agent/               # POST /api/select-layers + DTOs
@@ -58,6 +58,7 @@ app/
 │   ├── area_summary/        # deterministic facts, evidence, time, partial failures
 │   ├── query_orchestrator/
 │   │   └── query_orchestrator.py # the select → plan → validate → execute flow + retry policy
+│   ├── query_runs/          # bounded background pool + 10-minute run retention
 │   ├── agent/
 │   │   ├── llm_client.py    # BL-owned LLM protocol
 │   │   ├── select_layers/   # call 1: catalog → prompt → layer ids
@@ -103,8 +104,10 @@ The service tier exposes these routes:
 
 | Method and path | Stage / purpose |
 |---|---|
-| `GET /health` | Process health check; outside the `/api` proxy family. |
+| `GET /health` | Process health plus FLUNKS workers abandoned after timeout. |
 | `POST /api/query` | Full natural-language select → plan → validate → execute pipeline. |
+| `POST /api/query-runs` | Queue the same `{query, boundaries}` request and return HTTP 202. |
+| `GET /api/query-runs/{id}` | Poll queued/running status, live trace, and final response. |
 | `POST /api/area-summary` | Derive evidence-backed count, presence, recommendation, and encounter facts from configured catalog layers. |
 | `POST /api/execute-plan` | Validate and execute a supplied plan without either LLM call. |
 | `POST /api/select-layers` | Run only agent call one for debugging/evaluation. |
@@ -208,9 +211,11 @@ prompt input (sanitized + truncated) · clarify is a first-class response, alway
 `service/query/request.py` accepts a non-empty query and a required GeoJSON
 `MultiPolygon`. The router converts the boundary to Shapely and passes domain
 values into `QueryOrchestrator`. DTOs contain translation, not planning rules.
-The UI and integrations use `POST /api/query`, which returns one final JSON
-`QueryResponse`. The event sink records operational stages for logging and the
-response's `pipeline_trace`.
+Synchronous integrations may use `POST /api/query`, which returns one final JSON
+`QueryResponse`. The UI uses `POST /api/query-runs` and polls
+`GET /api/query-runs/{id}`; the request body remains exactly `{query, boundaries}`.
+`QueryRunManager` executes at most four queries concurrently, retains terminal runs for
+ten minutes, and exposes the event sink's growing `pipeline_trace` before completion.
 
 ### Stage 1: layer selection
 
@@ -403,9 +408,13 @@ reintroduce one-use source, gateway, builder, stream, schema, or client-factory 
 
 - **`flapi`** — [`FlapiProvider`](app/dal/providers/flapi/provider.py) runs
   `FlunksRunner`; [`FlunksMapper`](app/dal/providers/flapi/mapper.py) parses its source,
-  input cube, DataFrame output, geometry, and schema. FLUNKS owns HTTP, chunking, and
-  retries. Catalog rows use `flapi://package/<packageId>` plus input cube, parameter,
-  kind, and output cube options.
+  input cube, DataFrame output, geometry, and schema. FLUNKS owns HTTP and chunking;
+  LocatoAI bounds every attempt (120 seconds by default), retries once, limits concurrent
+  calls, and records timed-out workers in `/health`. TLS is passed through whichever
+  compatibility field the installed FLUNKS version exposes. Duplicate DataFrame columns
+  fail loudly, and dates, numpy scalars, missing values, and geometry are JSON-safe before
+  schema mapping. Catalog rows use `flapi://package/<packageId>` plus input cube,
+  parameter, kind, and output cube options.
 
 - **`tyche`** — [`TycheProvider`](app/dal/providers/tyche/provider.py) owns HTTP and
   pagination; [`TycheMapper`](app/dal/providers/tyche/mapper.py) owns source, request,
@@ -504,7 +513,8 @@ annotations that pydantic/FastAPI evaluate — use `typing.Optional/Union/List/D
 
 ## Tests
 
-`tests/` runs without Postgres or an LLM: fakes implement the context-owned BL protocols
+`tests/` runs without Postgres, an LLM, or the internal FLUNKS wheel: test-only module
+stubs are installed during collection, and fakes implement the context-owned BL protocols
 (this is DIP paying rent). Mock data lives in `data/*.geojson`; accident timestamps are
 generated relative to `now`, which tests freeze (`frozen_now` fixture). Golden plans:
 `tests/fixtures/plans/`.

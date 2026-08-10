@@ -12,6 +12,8 @@ The frontend:
 - Lets the user scope it to the current viewport or to a drawn polygon/rectangle.
 - Normalizes UI geometry into the backend's GeoJSON `MultiPolygon` contract.
 - Calls the backend through same-origin `/api/*` routes.
+- Polls long-running queries without holding one browser request open and renders live
+  pipeline events while the backend works.
 - Presents selected layers, model reasoning, tool calls, plans, timing, and token use.
 - Renders spatial results in a table and on an interactive map.
 - Renders scalar count results without expecting GeoJSON.
@@ -68,7 +70,7 @@ src/app/layout.tsx
 | `lastResponse` | Backend response used by trace, results, and map. |
 | `lastDisplayQuery` | User-visible text for the active turn; may differ from the contextual backend query. |
 | `history` | Up to eight completed in-memory request/response turns rendered in the conversation. |
-| `isSubmitting` | Prevents duplicate submissions and drives loading UI. |
+| `activeRun` / `isStarting` | Prevent duplicate submissions and drive live polling/loading UI. |
 | Dialog flags | Settings, layer-browser, and Agent Studio visibility. |
 | `isDarkMode` | Theme state synchronized with `data-theme` and local storage. |
 
@@ -81,8 +83,9 @@ Component-local state is used for modal forms, catalog searches, feedback voting
    - `viewport`: converts the current Leaflet bounding box to a rectangular MultiPolygon (the default).
    - `polygon` or `rectangle`: Leaflet Draw produces a Polygon, then `polygonToMultiPolygon` wraps it for the API.
 3. `AppShell.buildRequest()` creates exactly `{query, boundaries}` and stores it as `lastRequest`. Before a later submission, the completed turn moves into bounded history. When the previous response asked for clarification, the new text is appended to that request as explicit clarification context.
-4. `geoQueryService.submitQuery()` posts to `/api/query` and waits for the JSON response.
-5. While work is running, `AgentTrace` shows a loading state.
+4. `geoQueryService.startQueryRun()` posts to `/api/query-runs`; the backend returns 202.
+5. `useQueryRunPolling` uses one cleanup-safe `setTimeout` every 1.5 seconds. It updates
+   `AgentTrace` with live events, retries transient poll errors, and warns after 180 seconds.
 6. When the response arrives:
    - `AgentTrace` resolves plan layer IDs to selected layer names and displays the structured pipeline timeline, selection reasoning, sampled fields, the plan, timing, and token use.
    - `ResultsPanel` shows a clarification, error, scalar count, or feature-property table.
@@ -90,7 +93,7 @@ Component-local state is used for modal forms, catalog searches, feedback voting
    - `RequestPreview` displays the exact request and full response diagnostics and can copy the combined debug payload.
 7. Voting calls `feedbackService`; failure is intentionally non-blocking for the main query experience.
 
-Network failures and non-2xx query responses are normalized by `geoQueryService` into
+Network failures and terminal run failures are normalized by `geoQueryService` into
 `status: "error"`, giving components one stable response shape. Backend failures retain
 their `request_id` and all pipeline events collected before the exception, so `AgentTrace`
 shows the failed stage/step, parameters, and error details instead of an empty timeline.
@@ -211,6 +214,7 @@ src/
 │   └── page.tsx                # renders AppShell
 ├── components/
 │   ├── AppShell/               # shared state and orchestration
+│   │   └── useQueryRunPolling.ts # 1.5s async-run polling with cleanup/retry
 │   ├── QueryPanel/             # chat/navigation composition
 │   ├── GeoQueryInput/          # controlled text input
 │   ├── GeographyControls/      # query-boundary mode
@@ -221,7 +225,8 @@ src/
 │   ├── SettingsPanel/          # live backend configuration
 │   └── MapWorkspace/           # dynamic Leaflet integration
 ├── services/
-│   ├── geoQueryService.ts      # POST /api/query
+│   ├── api.ts                  # traced JSON client, error parsing, secret redaction
+│   ├── geoQueryService.ts      # POST/GET /api/query-runs
 │   ├── catalogService.ts       # catalog CRUD, remote browse, synchronization
 │   ├── settingsService.ts      # settings and model probing
 │   └── feedbackService.ts      # POST /api/feedback
@@ -238,7 +243,8 @@ src/
 
 | Service | Backend endpoint | Use |
 |---|---|---|
-| `submitQuery` | `POST /api/query` | Run the query and return the final response with its pipeline trace. |
+| `startQueryRun` | `POST /api/query-runs` | Queue the query using the exact `{query, boundaries}` body. |
+| `getQueryRun` | `GET /api/query-runs/{id}` | Poll status, live trace, and final response. |
 | `getLayers` | `GET /api/layers` | Read catalog metadata. |
 | `getMqsLayers` | `GET /api/layers/mqs` | Browse remote inventory without writing. |
 | `createLayer` | `POST /api/layers` | Add one catalog entry. |

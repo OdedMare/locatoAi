@@ -35,6 +35,7 @@ class RuntimeSettingsStore:
             cubes_token=env.cubes_token,
             flapi_username=env.flapi_username,
             cubes_verify_tls=env.cubes_verify_tls,
+            package_timeout_seconds=env.package_timeout_seconds,
             tyche_base_url=env.tyche_base_url,
             tyche_username=env.tyche_username,
             tyche_token=env.tyche_token,

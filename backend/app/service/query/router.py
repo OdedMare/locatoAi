@@ -3,13 +3,14 @@
 import re
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
 from app.service.dependencies import get_orchestrator
 from app.service.query.event_sink import QueryEventSink
 from app.service.query.request import QueryRequest
 from app.service.query.response import QueryResponse
+from app.service.query.run_response import QueryRunResponse
 
 router = APIRouter()
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -30,6 +31,26 @@ def run_query(
         logger,
     )
     return _complete(request, body.query, request_id, logger, outcome)
+
+
+def start_query_run(
+    body: QueryRequest, request: Request, response: Response,
+) -> QueryRunResponse:
+    request_id = _request_id(request)
+    run = request.app.state.query_runs.submit(
+        request_id, body.query, body.boundaries.to_shapely(),
+    )
+    request.state.request_id = run.id
+    response.status_code = 202
+    response.headers["X-Request-ID"] = run.id
+    return QueryRunResponse.from_run(run)
+
+
+def get_query_run(run_id: str, request: Request) -> QueryRunResponse:
+    run = request.app.state.query_runs.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Query run was not found")
+    return QueryRunResponse.from_run(run)
 
 
 def _start(request: Request, query: str, boundaries):
@@ -101,4 +122,12 @@ def _result_count(outcome) -> int:
 
 router.add_api_route(
     "/api/query", run_query, methods=["POST"], response_model=QueryResponse
+)
+router.add_api_route(
+    "/api/query-runs", start_query_run, methods=["POST"],
+    response_model=QueryRunResponse, status_code=202,
+)
+router.add_api_route(
+    "/api/query-runs/{run_id}", get_query_run, methods=["GET"],
+    response_model=QueryRunResponse,
 )

@@ -73,7 +73,20 @@ class FlunksMapper:
                 "flunks returned %s; expected a DataFrame"
                 % type(result).__name__
             )
+        self._reject_duplicate_columns(result)
         return [self._record(row) for row in result.to_dict("records")]
+
+    @staticmethod
+    def _reject_duplicate_columns(result: Any) -> None:
+        columns = [str(column) for column in result.columns]
+        duplicates = sorted({
+            column for column in columns if columns.count(column) > 1
+        })
+        if duplicates:
+            raise ProviderError(
+                "flunks returned duplicate columns: %s"
+                % ", ".join(duplicates)
+            )
 
     @staticmethod
     def _options(layer: LayerMeta) -> Dict[str, str]:
@@ -151,13 +164,18 @@ class FlunksMapper:
 
     @staticmethod
     def _value(value: Any) -> Any:
-        if value is None or (
-            pd.api.types.is_scalar(value) and bool(pd.isna(value))
-        ):
+        if value is None:
             return None
-        if hasattr(value, "geom_type") and hasattr(value, "wkt"):
+        try:
+            if pd.api.types.is_scalar(value) and bool(pd.isna(value)):
+                return None
+        except (TypeError, ValueError):
+            pass
+        if hasattr(value, "wkt"):
             return value.wkt
-        if hasattr(value, "dtype") and hasattr(value, "item"):
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        if hasattr(value, "item"):
             return value.item()
         return value
 

@@ -7,6 +7,7 @@ from app.bl.area_summary.area_summary_service import AreaSummaryService
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor
 from app.bl.query_orchestrator.query_orchestrator import QueryOrchestrator
+from app.bl.query_runs.query_run_manager import QueryRunManager
 from app.bl.ranking.ranking_service import RankingService
 from app.common.logging.configurator import configure_logging
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
@@ -98,3 +99,4 @@ def _assign(
     app.state.area_summary = area_summary
     app.state.ranking = ranking
     app.state.request_log = configure_logging(settings.request_log_path)
+    app.state.query_runs = QueryRunManager(orchestrator, app.state.request_log)

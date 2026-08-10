@@ -75,6 +75,9 @@ class Settings(BaseSettings):
 
     cubes_verify_tls: bool = True
 
+    package_timeout_seconds: int = Field(default=120, ge=1, le=3600)
+    """Maximum wait for each FLUNKS Flow Package attempt."""
+
     tyche_base_url: Optional[str] = None
     """Base URL hosting POST /coordinate/v1/ourforces."""
 

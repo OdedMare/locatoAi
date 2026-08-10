@@ -1,12 +1,17 @@
 """FLAPI provider: configure, run, and report one flunks package."""
 
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union, get_args
 
 import flunks.flow_models as flunks_models
 import geopandas as gpd
 from flunks import FlunksRunner
-from flunks.config import FlApiConfig, FlunksConfig
+from flunks.config import FlunksConfig
+try:
+    from flunks.config import FlapiConfig
+except ImportError:  # Compatibility with older internal FLUNKS wheels.
+    from flunks.config import FlApiConfig as FlapiConfig
 from shapely.geometry.base import BaseGeometry
 
 from app.bl.catalog.models.layer_meta import LayerMeta
@@ -14,7 +19,13 @@ from app.bl.catalog.models.layer_schema import LayerSchema
 from app.bl.providers.provider import TEMPORAL_PUSHDOWN
 from app.common.errors.provider_error import ProviderError
 from app.dal.providers.flapi.mapper import FlunksMapper
+from app.dal.providers.flapi.runner_config import (
+    build_flapi_config,
+    resolve_timeout,
+    run_bounded,
+)
 
+_ATTEMPTS = 2
 _PARTIAL_FIELDS = ("isPartialSuccess", "is_partial_success")
 _logger = logging.getLogger(__name__)
 
@@ -166,9 +177,7 @@ class FlapiProvider:
 
     def _runner(self, package):
         settings = self._settings()
-        config = FlApiConfig(
-            username=settings.flapi_username, token=settings.cubes_token,
-        )
+        config = build_flapi_config(FlapiConfig, settings)
         self._logger.info(
             "FLAPI flunks INPUT username=%r token_set=%s %s",
             config.username, bool(config.token), _package_summary(package),
@@ -179,20 +188,45 @@ class FlapiProvider:
         )
 
     def _run(self, layer: LayerMeta, package):
+        timeout = resolve_timeout(self._store.get())
+        for attempt in range(_ATTEMPTS):
+            try:
+                return self._attempt(package, timeout, attempt)
+            except Exception as exc:
+                self._log_attempt(layer, package, attempt, exc)
+                if attempt == _ATTEMPTS - 1:
+                    raise self._failure(package, exc) from exc
+        raise AssertionError("unreachable: final FLAPI attempt returns or raises")
+
+    def _attempt(self, package, timeout: int, attempt: int):
         runner = self._runner(package)
+        started = time.time()
+        self._logger.info(
+            "FLAPI package RUN id=%s attempt=%d/%d timeout=%ss",
+            package.package_id, attempt + 1, _ATTEMPTS, timeout,
+        )
         try:
-            return runner.run()
-        except Exception as exc:
-            detail = _error_detail(exc)
-            self._logger.error(
-                "FLAPI package FAILED layer=%s %s -> %s",
-                layer.id, _package_summary(package), detail,
-            )
-            raise ProviderError(
-                "FLAPI %s failed: %s" % (_package_summary(package), detail)
-            ) from exc
+            return run_bounded(runner, timeout, str(package.package_id))
         finally:
             self._remember_chunks(runner, package.package_id)
+            self._logger.info(
+                "FLAPI package ATTEMPT END id=%s elapsed=%.2fs",
+                package.package_id, time.time() - started,
+            )
+
+    def _log_attempt(self, layer, package, attempt, exc) -> None:
+        self._logger.warning(
+            "FLAPI attempt %d/%d failed layer=%s %s -> %s",
+            attempt + 1, _ATTEMPTS, layer.id,
+            _package_summary(package), _error_detail(exc),
+        )
+
+    @staticmethod
+    def _failure(package, exc) -> ProviderError:
+        return ProviderError(
+            "FLAPI %s failed: %s"
+            % (_package_summary(package), _error_detail(exc))
+        )
 
     def _settings(self):
         settings = self._store.get()

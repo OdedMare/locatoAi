@@ -1,3 +1,4 @@
+import { ApiError, request } from "@/services/api";
 import type {
   CatalogLayer,
   CreateLayerRequest,
@@ -10,116 +11,78 @@ import type {
   UpdateLayerRequest,
 } from "@/types/catalog";
 
-/** Fetch the layer catalog (metadata only — what users can ask about). */
-export async function getLayers(): Promise<LayersResponse> {
-  const res = await fetch("/api/layers");
-  if (!res.ok) throw new Error(`טעינת השכבות נכשלה (${res.status})`);
-  return res.json();
+export function getLayers(): Promise<LayersResponse> {
+  return request<LayersResponse>("/api/layers");
 }
 
-export async function getLayerFields(
-  layerId: string
-): Promise<LayerFieldsResponse> {
-  const res = await fetch(
+export function getLayerFields(layerId: string): Promise<LayerFieldsResponse> {
+  return request<LayerFieldsResponse>(
     `/api/layers/${encodeURIComponent(layerId)}/fields`,
-    { cache: "no-store" }
+    { cache: "no-store" },
   );
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `טעינת שדות השכבה נכשלה (${res.status})`);
-  }
-  return res.json();
 }
 
-/** Browse the remote MQS inventory without adding it to the catalog. */
-export async function getMqsLayers(): Promise<RemoteMqsLayersResponse> {
-  const res = await fetch("/api/layers/mqs");
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `טעינת שכבות MQS נכשלה (${res.status})`);
-  }
-  return res.json();
+export function getMqsLayers(): Promise<RemoteMqsLayersResponse> {
+  return request<RemoteMqsLayersResponse>("/api/layers/mqs");
 }
 
-export async function createLayer(layer: CreateLayerRequest): Promise<CatalogLayer> {
-  const res = await fetch("/api/layers", {
+export function createLayer(layer: CreateLayerRequest): Promise<CatalogLayer> {
+  return request<CatalogLayer>("/api/layers", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(layer),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `הוספת השכבה נכשלה (${res.status})`);
-  }
-  return res.json();
 }
 
-/** Edit catalog discovery metadata without changing provider/source identity. */
-export async function updateLayer(
-  layerId: string, update: UpdateLayerRequest
+export function updateLayer(
+  layerId: string, update: UpdateLayerRequest,
 ): Promise<CatalogLayer> {
-  const res = await fetch(`/api/layers/${encodeURIComponent(layerId)}`, {
+  return request<CatalogLayer>(`/api/layers/${encodeURIComponent(layerId)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(update),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `עדכון השכבה נכשל (${res.status})`);
-  }
-  return res.json();
 }
 
 export async function deleteLayer(layerId: string): Promise<void> {
-  const res = await fetch(`/api/layers/${encodeURIComponent(layerId)}`, {
+  await request<unknown>(`/api/layers/${encodeURIComponent(layerId)}`, {
     method: "DELETE",
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `מחיקת השכבה נכשלה (${res.status})`);
-  }
 }
 
-/** Probe Tyche and idempotently add/refresh the Our Forces catalog layer. */
 export async function activateTycheLayer(): Promise<CatalogLayer> {
-  const res = await fetch("/api/layers/activate-tyche", { method: "POST" });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    if (res.status === 404) {
+  try {
+    return await request<CatalogLayer>("/api/layers/activate-tyche", {
+      method: "POST",
+    });
+  } catch (reason) {
+    if (reason instanceof ApiError && reason.status === 404) {
       throw new Error(
-        "נתיב הפעלת Tyche לא קיים בשרת הפעיל — יש לבנות ולהפעיל מחדש את ה-backend"
+        "נתיב הפעלת Tyche לא קיים בשרת הפעיל — יש לבנות ולהפעיל מחדש את ה-backend",
       );
     }
-    throw new Error(body?.detail ?? `הפעלת שכבת Tyche נכשלה (${res.status})`);
+    throw reason;
   }
-  return res.json();
 }
 
-/** Sample up to 10 entities and ask the LLM for editable metadata suggestions. */
-export async function generateLayerMetadata(
-  layer: GenerateLayerMetadataRequest
+export function generateLayerMetadata(
+  layer: GenerateLayerMetadataRequest,
 ): Promise<GeneratedLayerMetadataResponse> {
-  const res = await fetch("/api/layers/generate-metadata", {
+  return request<GeneratedLayerMetadataResponse>("/api/layers/generate-metadata", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(layer),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `יצירת התיאור והתגיות נכשלה (${res.status})`);
-  }
-  return res.json();
 }
 
-/** Pull the MQS layer inventory into the catalog (upsert by source URL). */
 export async function syncMqsLayers(): Promise<MqsSyncResponse> {
-  const res = await fetch("/api/layers/sync-mqs", { method: "POST" });
-  if (!res.ok) {
-    if (res.status === 502) {
-      throw new Error("שרת MQS אינו מוגדר או אינו זמין — בדקו את כתובת ה-MQS בהגדרות");
+  try {
+    return await request<MqsSyncResponse>("/api/layers/sync-mqs", {
+      method: "POST",
+    });
+  } catch (reason) {
+    if (reason instanceof ApiError && reason.status === 502) {
+      throw new Error(
+        "שרת MQS אינו מוגדר או אינו זמין — בדקו את כתובת ה-MQS בהגדרות",
+      );
     }
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `סנכרון שכבות MQS נכשל (${res.status})`);
+    throw reason;
   }
-  return res.json();
 }

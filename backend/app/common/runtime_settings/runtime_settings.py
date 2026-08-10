@@ -15,6 +15,7 @@ class RuntimeSettings:
     cubes_token: str
     flapi_username: Optional[str]
     cubes_verify_tls: bool
+    package_timeout_seconds: int
     tyche_base_url: Optional[str]
     tyche_username: Optional[str]
     tyche_token: str

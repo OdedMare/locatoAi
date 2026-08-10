@@ -1,9 +1,42 @@
 from datetime import datetime, timezone
 from itertools import count
 from pathlib import Path
+import sys
+from types import ModuleType
 from typing import List, Optional, Tuple
 
 import pytest
+
+
+class _FlunksModel:
+    def __init__(self, **values):
+        values.setdefault("values", [])
+        values.setdefault("start_time", None)
+        values.setdefault("end_time", None)
+        self.__dict__.update(values)
+
+
+def _install_flunks_stubs() -> None:
+    root = ModuleType("flunks")
+    config = ModuleType("flunks.config")
+    models = ModuleType("flunks.flow_models")
+    root.FlunksRunner = _FlunksModel
+    config.FlApiConfig = _FlunksModel
+    config.FlapiConfig = _FlunksModel
+    config.FlunksConfig = _FlunksModel
+    config.FlunksPackageConfig = _FlunksModel
+    models.PackageInputCube = _FlunksModel
+    models.PackageOutputCube = _FlunksModel
+    sys.modules.update({
+        "flunks": root, "flunks.config": config,
+        "flunks.flow_models": models,
+    })
+
+
+try:
+    import flunks  # noqa: F401
+except ImportError:
+    _install_flunks_stubs()
 
 from app.bl.catalog.catalog_service import CatalogService
 from app.bl.executor.engine.plan_executor import PlanExecutor

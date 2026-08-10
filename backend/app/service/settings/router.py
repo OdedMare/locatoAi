@@ -60,6 +60,7 @@ def _provider_values(settings: RuntimeSettings) -> dict:
         "cubes_token_set": bool(settings.cubes_token),
         "flapi_username": settings.flapi_username,
         "cubes_verify_tls": settings.cubes_verify_tls,
+        "package_timeout_seconds": settings.package_timeout_seconds,
         "tyche_base_url": settings.tyche_base_url,
         "tyche_username": settings.tyche_username,
         "tyche_token_set": bool(settings.tyche_token),

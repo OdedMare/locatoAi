@@ -20,6 +20,7 @@ export interface AppSettings {
   cubes_token_set: boolean;
   flapi_username: string | null;
   cubes_verify_tls: boolean;
+  package_timeout_seconds: number;
   tyche_base_url: string | null;
   tyche_username: string | null;
   tyche_token_set: boolean;
@@ -48,6 +49,7 @@ export interface SettingsUpdate {
   cubes_token?: string;
   flapi_username?: string | null;
   cubes_verify_tls?: boolean;
+  package_timeout_seconds?: number;
   tyche_base_url?: string | null;
   tyche_username?: string | null;
   tyche_token?: string;

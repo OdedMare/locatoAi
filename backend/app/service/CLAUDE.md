@@ -16,6 +16,8 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 |---|---|---|---|---|
 | GET | `/health` | — | `dict` | Liveness check (`health/router.py`, wired in `main.py`) |
 | POST | `/api/query` | `QueryRequest` | `QueryResponse` | Full NL pipeline: select layers → build plan → execute |
+| POST | `/api/query-runs` | `QueryRequest` | `QueryRunResponse` | Queue the NL pipeline; returns 202 |
+| GET | `/api/query-runs/{run_id}` | — | `QueryRunResponse` | Poll live trace and terminal response |
 | POST | `/api/area-summary` | `AreaSummaryRequest` | `AreaSummaryResult` | Deterministic evidence-backed facts for one polygon |
 | POST | `/api/execute-plan` | `ExecutePlanRequest` | `QueryResponse` | Debug: validate + execute a hand-written plan, no LLM calls |
 | POST | `/api/select-layers` | `SelectLayersRequest` | `SelectLayersResponse` | Debug: agent call 1 only |
@@ -38,7 +40,8 @@ logic — real logic belongs in `bl/`. (Two routers currently deviate from this;
 - **`query/router.py`** — `orchestrator.run_query(query, boundaries, event_sink=...)`.
   Validates/generates `X-Request-ID`, seeds `request.state.pipeline_trace`, wires a
   `QueryEventSink` so the orchestrator records trace events in logs and the final
-  JSON response. On
+  JSON response. The async routes delegate the same contract to
+  `app.state.query_runs`, preserving the synchronous route for integrations. On
   exception: logs then **re-raises** — HTTP mapping happens in the global
   `register_error_handlers`, not here. Builds `QueryResponse.from_outcome(outcome)`.
 - **`area_summary/router.py`** — validates the polygon translation and delegates to
@@ -88,7 +91,8 @@ inconsistency worth knowing about rather than "fixing" incidentally.
 3. **`_assign`** — sets on `app.state`: `settings_store`, `repository`
    (`PostgresLayersRepository`), `feedback_repository`, `mqs_provider`,
    `flapi_provider`, `tyche_provider`, `catalog`, `layer_selector`, `llm_client`,
-   `layer_metadata_generator`, `orchestrator`, `area_summary`, `request_log`.
+   `layer_metadata_generator`, `orchestrator`, `area_summary`, `request_log`, and the
+   bounded `query_runs` manager.
 
 (`request.state.request_id` / `request.state.pipeline_trace` are separate, per-request,
 set by `query/router.py` — not part of the composition root.)

@@ -66,9 +66,11 @@ There are exactly two production classes:
 - `FlunksMapper` (`mapper.py`) parses `source_url`, builds the SDK's
   `FlunksPackageConfig` and input cube, normalizes the returned DataFrame, maps WKT
   points, and infers the layer schema.
-- `FlapiProvider` (`provider.py`) reads username/token, builds `FlApiConfig` plus the
-  required `FlunksConfig()`, runs `FlunksRunner`, logs safe identifiers, tracks chunks,
-  filters the GeoDataFrame, and caches its schema.
+- `FlapiProvider` (`provider.py`) reads username/token, builds `FlapiConfig` plus the
+  required `FlunksConfig()`, runs `FlunksRunner` with one retry, logs safe identifiers,
+  tracks chunks, filters the GeoDataFrame, and caches its schema.
+- `runner_config.py` applies the live package timeout, FLUNKS TLS-field compatibility,
+  and abandoned-worker accounting.
 
 The source URL stores `input_cube_name`, `input_cube_parameter`, `input_cube_kind`
 (`time` or `geo`), and `output_cube_name`. Geographic input is one WKT
@@ -79,7 +81,7 @@ numpy scalars, and shapely geometry cells are normalized before schema/GDF mappi
 `FLAPI flunks INPUT` logs package/cube/parameter/output identifiers and a bounded WKT
 preview, but never the token. The small import-time `isPartialSuccess` compatibility
 patch remains in `provider.py`; remove it when flunks accepts booleans upstream.
-FLUNKS owns endpoint routing, chunking, and retries.
+FLUNKS owns endpoint routing and chunking; LocatoAI owns retry and wait bounds.
 
 ## Tyche provider — `providers/tyche/`
 

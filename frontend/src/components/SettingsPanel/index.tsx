@@ -48,6 +48,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [cubesToken, setCubesToken] = useState("");
   const [flapiUsername, setFlapiUsername] = useState("");
   const [cubesVerifyTls, setCubesVerifyTls] = useState(true);
+  const [packageTimeoutSeconds, setPackageTimeoutSeconds] = useState("120");
   const [tycheBaseUrl, setTycheBaseUrl] = useState("");
   const [tycheUsername, setTycheUsername] = useState("");
   const [tycheToken, setTycheToken] = useState("");
@@ -93,6 +94,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         setCubesBaseUrl(s.cubes_base_url ?? "");
         setFlapiUsername(s.flapi_username ?? "");
         setCubesVerifyTls(s.cubes_verify_tls);
+        setPackageTimeoutSeconds(String(s.package_timeout_seconds));
         setTycheBaseUrl(s.tyche_base_url ?? "");
         setTycheUsername(s.tyche_username ?? "");
         setTycheVerifyTls(s.tyche_verify_tls);
@@ -127,6 +129,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         cubes_token: cubesToken, // backend ignores empty
         flapi_username: (flapiUsername ?? "").trim() === "" ? null : flapiUsername.trim(),
         cubes_verify_tls: cubesVerifyTls,
+        package_timeout_seconds: Number(packageTimeoutSeconds),
         tyche_base_url: (tycheBaseUrl ?? "").trim() === "" ? null : (tycheBaseUrl ?? "").trim(),
         tyche_username: (tycheUsername ?? "").trim() === "" ? null : (tycheUsername ?? "").trim(),
         tyche_token: tycheToken, // backend ignores empty
@@ -320,6 +323,19 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={(e) => setCubesVerifyTls(e.target.checked)} />
             אימות תעודת TLS
           </label>
+          <label className="field-label" htmlFor="set-package-timeout">
+            זמן מרבי לניסיון חבילת FLAPI (שניות)
+          </label>
+          <input
+            id="set-package-timeout"
+            dir="ltr"
+            type="number"
+            min="1"
+            max="3600"
+            className="settings-input"
+            value={packageTimeoutSeconds}
+            onChange={(e) => setPackageTimeoutSeconds(e.target.value)}
+          />
           <p className="models-status" dir="auto">
             FLAPI: flapi://cube/&lt;name&gt; או flapi://package/&lt;id&gt;
           </p>

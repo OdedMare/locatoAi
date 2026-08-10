@@ -15,7 +15,7 @@ come from catalog metadata rather than hardcoded layer UUIDs.
 - `frontend/` — Next.js 16 (App Router) + TypeScript + Leaflet UI, plus settings, layer catalog, and Agent Studio panels.
 - `backend/` — FastAPI + GeoPandas plan executor + **the FULL agent pipeline, live**: layer selection (call 1) → plan building (call 2) → validate → execute, all via an OpenAI-compatible LLM.
 
-**Where we are:** the MVP works end to end with MQS, Cubes, and Tyche as production GIS providers. Tyche supplies the canonical OurForce observations and supports additional catalog layers with per-layer route, geometry, geography-query, and event-time field mappings stored in `source_url`. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for every provider. Test GIS adapters live under `tests/` and are excluded from the non-root production image. Queries return one final JSON response containing the operational pipeline trace. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, and client timezone.
+**Where we are:** the MVP works end to end with MQS, Cubes, and Tyche as production GIS providers. Tyche supplies the canonical OurForce observations and supports additional catalog layers with per-layer route, geometry, geography-query, and event-time field mappings stored in `source_url`. MQS is request-scoped: entity layers are never mirrored into backend memory. Every query pushes its boundary to MQS and dense results are split adaptively into geographic quadrants, deduplicated by `entity_id`, and rechecked against the original polygon. Cubes discovers official metadata/parameters, merges them with arbitrary response schemas, and parses WKT POINT locations dynamically. Provider geometry pushdown is always rechecked locally. Every setting has an `AILOCATOR_*` environment default and the Settings UI remains a live-override layer. Secrets are write-only. TLS verification defaults to enabled independently for every provider. Test GIS adapters live under `tests/` and are excluded from the non-root production image. Synchronous queries return one final JSON response; the UI uses asynchronous query runs and polls their live operational trace until that response is ready. **Next candidates:** MQS server-side count/min/max pushdown, persistent server-side conversation context, and client timezone.
 
 **MQS bounded loading:** Every query-layer load defaults to the request polygon;
 non-proximity reference layers use the exact polygon, and bounded proximity uses only its
@@ -87,15 +87,15 @@ query that hits the cap uses adaptive quadtree subdivision of only saturated til
 deduplicates complete observation JSON. Keep recursion bounded and preserve the 100,000
 row safety ceiling. Never silently accept a capped unbounded query as complete.
 
-**FLAPI Flow Packages:** FLAPI is the parent provider for both Cube and Package
-resources. New rows use `provider=flapi` with `flapi://cube/<name>` or
-`flapi://package/<id>`; the legacy `provider=cubes` alias stays active. Packages fetch
-typed parameter definitions from `GET /package/v1/quick/{id}`, persist configured
-values as JSON in the source URL, and execute `POST /package/v3/{id}` with
-`lastQueries=true` unless a query is selected. Preserve exact boolean/string casing,
-numeric JSON values, raw WKT geometry text, WKT coordinate order, and JSON-object
-relative/absolute time shapes. Map result entries independently through the Cube mapper,
-tag rows with `_package_query`, and log partial-success trace IDs and capped queries.
+**FLAPI Flow Packages:** package catalog rows use `provider=flapi` and
+`flapi://package/<id>` with input cube name, input parameter, input kind (`time` or
+`geo`), and output cube stored in the source URL. Execution goes only through the
+internal `flunks` library; LocatoAI does not duplicate its HTTP or chunking logic.
+LocatoAI bounds each attempt using the live `package_timeout_seconds` setting, retries
+once, and runs FLUNKS calls in a process-wide four-worker pool. A timed-out FLUNKS call
+cannot be cancelled and is reported by `/health`. Preserve WKT as one opaque input,
+reject duplicate output columns, normalize dates/numpy scalars/geometries before mapping,
+and tag output rows with `_package_query`.
 
 ## Commands
 
@@ -138,7 +138,7 @@ Small DTO/model modules and trivial protocol declarations are the intended unit 
 
 Tiers under `backend/app/` — dependency direction is service → bl ← dal (DIP: BL contexts own `LayersRepository`/`Provider`/`ProviderRegistry`/`LLMClient`; the DAL implements them; `main.py` is the composition root that wires everything):
 
-- `service/` — routers + DTOs only, no logic. `POST /api/query` (JSON NL entry), `POST /api/area-summary` (evidence-backed polygon facts), `POST /api/execute-plan` (debug: run a hand-written plan), `POST /api/select-layers` (debug: agent call 1 only), `GET/PUT /api/settings` (backs the UI settings panel; secrets masked, responses include live catalog status), `GET /api/models` (live model ids from the configured OpenAI-compatible provider), and `GET/POST/PUT/DELETE /api/layers` (browse/manage catalog metadata).
+- `service/` — routers + DTOs only, no logic. `POST /api/query` remains the synchronous JSON NL entry; `POST /api/query-runs` plus `GET /api/query-runs/{id}` provide the UI's asynchronous execution and polling contract. Other routes include `POST /api/area-summary`, `POST /api/execute-plan`, `POST /api/select-layers`, `GET/PUT /api/settings`, `GET /api/models`, and `GET/POST/PUT/DELETE /api/layers`.
 - `bl/plan/` — **GeoQueryPlan is the core contract**: an 18-member discriminated union, including single-entity direction/origin movement and multi-entity trajectory relations. Moving operations require provider-declared identity/time schema roles. Semantic validation enforces earlier references, catalog IDs, complete target filters, required boundaries, final output ordering, and terminal count.
 - `bl/executor/` — engine dispatches via an op registry; each op is one self-registering module in `ops/` (OCP: new op = new file, engine untouched).
 - `bl/agent/` — focused `select_layers/`, `build_plan/`, and `generate_layer_metadata/` packages. Selection drops hallucinated IDs and sanitizes catalog text; planning receives selected-layer schemas/samples, supports bounded sampling, validates, retries once, and can clarify. Prompt/skill files are defaults; Agent Studio overrides persist in runtime settings and are loaded per call. `bl/query_orchestrator.py` owns select → plan → execute, zero-result diagnosis, timings, and token usage.
@@ -164,7 +164,7 @@ also go to the browser console.
 
 **The UI ↔ backend contract is exactly `{query, boundaries: MultiPolygon}`** — mirrored between `frontend/src/types/geo-query.ts` and `backend/app/service/query/request.py`. Never change one side without the other. Geography modes (viewport bbox / drawn polygon / rectangle) all collapse into that required MultiPolygon before sending; viewport is the default.
 
-**State flow:** `components/AppShell/index.tsx` is the single state owner (query text, geography mode, drawn shape, live map view, current request/response, up to eight completed in-memory turns, settings visibility). It builds the request when the composer is submitted and calls `services/geoQueryService.ts`, which posts to the `/api/query` JSON route through the `next.config.ts` proxy. A reply following `status="clarify"` includes the immediately preceding request as textual context; this is not persistent server conversation memory. “New geo query” resets conversation and geography state.
+**State flow:** `components/AppShell/index.tsx` is the single state owner (query text, geography mode, drawn shape, live map view, active query run, current request/response, up to eight completed in-memory turns, settings visibility). It posts exactly `{query, boundaries}` to `/api/query-runs`, while `useQueryRunPolling.ts` polls every 1.5 seconds and exposes live pipeline events until the final response. A reply following `status="clarify"` includes the immediately preceding request as textual context; this is not persistent server conversation memory. “New geo query” resets conversation and geography state and stops client polling.
 
 **UI layout:** the application UI is Hebrew-first and globally RTL (`<html lang="he" dir="rtl">`). Technical values such as URLs, credentials, provider names, model ids, table names, and JSON stay LTR. The spatial-intelligence workspace uses a dark navigation/history sidebar, bounded conversation surface, live status cues, and bottom composer. Quick-question presets are intentionally absent. `QueryPanel` owns layout only; `AgentTrace`, `ResultsPanel`, and `RequestPreview` render the assistant response. `RequestPreview` can copy the full request/response/plan/trace debug bundle. Geography choices are compact chips above the composer. Light/dark theme state lives in `AppShell`, follows the OS on first visit, persists as `locato-theme` in localStorage, and is applied through `data-theme` on `<html>`. Styling is centralized in `src/styles/globals.css`; icons come from `lucide-react`.
 

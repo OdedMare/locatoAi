@@ -12,10 +12,11 @@ full backend pipeline and repository-wide constraints.
   immediately preceding request as textual context; there is no server-side session.
 - Every query sends exactly `{query, boundaries}` with a required GeoJSON
   `MultiPolygon`; the supported scopes are viewport, polygon, and rectangle.
-- Keep HTTP calls in `src/services` and mirror backend DTOs in `src/types`.
-- `AgentTrace` renders the public `pipeline_trace`, plan, tool calls, timings,
-  selected layers, and feedback from the final JSON response. It must support all
-  18 plan operations.
+- Keep HTTP calls behind `src/services/api.ts`, which traces timing, redacts secrets,
+  and normalizes FastAPI error bodies; mirror backend DTOs in `src/types`.
+- `useQueryRunPolling.ts` owns the non-overlapping 1.5-second poll and timer cleanup.
+  `AgentTrace` renders its live `pipeline_trace`, then the final plan, tool calls,
+  timings, selected layers, and feedback. It must support all 18 plan operations.
 - Keep Leaflet and Leaflet Draw behind the dynamically imported client-only map
   path. GeoJSON is `[lng, lat]`; Leaflet positions are `[lat, lng]`.
 - Keep the coordinate console top-center so it does not overlap the top-right layer

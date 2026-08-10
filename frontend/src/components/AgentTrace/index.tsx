@@ -243,6 +243,9 @@ function PipelineTimeline({ trace, requestId }: PipelineTimelineProps) {
 interface AgentTraceProps {
   response: GeoQueryResponse | null;
   isSubmitting: boolean;
+  liveTrace?: PipelineTraceEntry[];
+  activeRunId?: string | null;
+  pollError?: string | null;
   /** The query text that produced `response` (for feedback logging). */
   query: string;
 }
@@ -253,7 +256,7 @@ interface AgentTraceProps {
  * selection quality can be judged at a glance.
  */
 export default function AgentTrace({
-  response, isSubmitting, query,
+  response, isSubmitting, query, liveTrace = [], activeRunId, pollError,
 }: AgentTraceProps) {
   const [voteState, setVoteState] = useState<{
     query: string;
@@ -324,7 +327,9 @@ export default function AgentTrace({
         )}
       </header>
 
-      {isSubmitting ? (
+      {isSubmitting && liveTrace.length > 0 ? (
+        <PipelineTimeline trace={liveTrace} requestId={activeRunId} />
+      ) : isSubmitting ? (
         <div className="plan-trace" aria-live="polite">
           <p className="agent-step running agent-status-line">
             <LoaderCircle className="pipeline-spinner" size={16} />
@@ -336,6 +341,12 @@ export default function AgentTrace({
           trace={response.pipeline_trace}
           requestId={response.request_id}
         />
+      )}
+
+      {isSubmitting && pollError && (
+        <p className="pipeline-error" role="status" dir="auto">
+          עדכון המצב נכשל זמנית: {pollError}. מתבצע ניסיון נוסף…
+        </p>
       )}
 
       {isSubmitting ? null : response!.status === "error" ? (

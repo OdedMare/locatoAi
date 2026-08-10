@@ -19,6 +19,7 @@ def test_env_defaults_apply(tmp_path):
     assert store.get().llm_model == "gpt-x"
     assert store.get().llm_diet_mode is True
     assert store.get().layers_table == "public.layers"
+    assert store.get().package_timeout_seconds == 120
 
 
 def test_update_persists_and_reloads(tmp_path):
@@ -142,11 +143,13 @@ def test_cubes_settings_normalize_persist_and_clear(tmp_path):
         "cubes_base_url": "https://cubes.example/api/cube/v1/",
         "cubes_token": "secret-jwt",
         "flapi_username": "oded",
+        "package_timeout_seconds": 45,
     })
     reloaded = make_store(tmp_path)
     assert reloaded.get().cubes_base_url == "https://cubes.example/api"
     assert reloaded.get().cubes_token == "secret-jwt"
     assert reloaded.get().flapi_username == "oded"
+    assert reloaded.get().package_timeout_seconds == 45
     reloaded.update({"cubes_base_url": None})
     assert reloaded.get().cubes_base_url is None
 

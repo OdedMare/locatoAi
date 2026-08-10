@@ -1,3 +1,7 @@
+import json
+import time
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 from pydantic import BaseModel
@@ -9,6 +13,10 @@ from app.common.errors.provider_error import ProviderError
 from app.common.runtime_settings.runtime_settings_store import RuntimeSettingsStore
 from app.dal.providers.flapi.mapper import FlunksMapper
 from app.dal.providers.flapi.provider import FlapiProvider
+from app.dal.providers.flapi.runner_config import (
+    build_flapi_config,
+    run_bounded,
+)
 from app.service.catalog.router import normalized_source
 
 
@@ -426,3 +434,67 @@ def test_package_requires_flapi_username(tmp_path):
 
     with pytest.raises(ProviderError, match="flapi_username"):
         FlapiProvider(store).fetch_features(package_layer(configured_source()))
+
+
+def test_package_retries_once_after_transient_flunks_failure(
+    tmp_path, monkeypatch,
+):
+    attempts = []
+
+    class RetryRunner(StubRunner):
+        def run(self):
+            attempts.append(len(attempts) + 1)
+            if len(attempts) == 1:
+                raise RuntimeError("temporary")
+            return self.result
+
+    provider = make_provider(tmp_path, RetryRunner, monkeypatch)
+
+    features = provider.fetch_features(package_layer(configured_source()))
+
+    assert attempts == [1, 2]
+    assert list(features["id"]) == ["result-1"]
+
+
+def test_flunks_mapper_rejects_duplicate_columns():
+    frame = pd.DataFrame([["first", "second"]], columns=["id", "id"])
+
+    with pytest.raises(ProviderError, match="duplicate columns"):
+        FlunksMapper().normalize(frame)
+
+
+def test_flunks_mapper_normalizes_timestamps_for_json():
+    records = FlunksMapper().normalize(pd.DataFrame([
+        {"eventTime": pd.Timestamp("2026-07-24T10:00:00Z")},
+        {"eventTime": pd.NaT},
+    ]))
+
+    assert json.dumps(records)
+    assert records[0]["eventTime"] == "2026-07-24T10:00:00+00:00"
+    assert records[1]["eventTime"] is None
+
+
+def test_flunks_run_is_bounded_by_timeout():
+    class SlowRunner:
+        @staticmethod
+        def run():
+            time.sleep(0.05)
+
+    with pytest.raises(ProviderError, match="timed out"):
+        run_bounded(SlowRunner(), 0.01, "slow-package")
+
+
+def test_flapi_tls_setting_reaches_compatible_flunks_config():
+    class ModernConfig:
+        __annotations__ = {"verify_tls": bool}
+
+        def __init__(self, **values):
+            self.__dict__.update(values)
+
+    settings = SimpleNamespace(
+        flapi_username="oded", cubes_token="jwt", cubes_verify_tls=False,
+    )
+
+    config = build_flapi_config(ModernConfig, settings)
+
+    assert config.verify_tls is False
