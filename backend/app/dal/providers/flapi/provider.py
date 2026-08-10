@@ -79,11 +79,13 @@ def _cube_values(cube: Any) -> str:
 
 def _package_summary(package: Any) -> str:
     cube = package.main_input_cube
+    additional = getattr(package, "additional_input_cubes", []) or []
     return (
-        "package_id=%r input_cube=%r parameter=%r %s output_cube=%r"
+        "package_id=%r input_cube=%r parameter=%r %s additional_inputs=%d "
+        "output_cube=%r"
         % (
             package.package_id, cube.cube_name, cube.cube_parameter,
-            _cube_values(cube), package.output_cube.cube_name,
+            _cube_values(cube), len(additional), package.output_cube.cube_name,
         )
     )
 

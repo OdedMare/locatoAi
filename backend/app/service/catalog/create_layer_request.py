@@ -2,6 +2,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from app.service.catalog.package_additional_input_cube_request import (
+    PackageAdditionalInputCubeRequest,
+)
+
 
 class CreateLayerRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
@@ -18,6 +22,9 @@ class CreateLayerRequest(BaseModel):
         default=None, max_length=200
     )
     package_input_cube_kind: Optional[str] = Field(default=None, max_length=10)
+    package_additional_input_cubes: List[
+        PackageAdditionalInputCubeRequest
+    ] = Field(default_factory=list, max_length=20)
     package_output_cube_name: Optional[str] = Field(default=None, max_length=200)
     entity_field: Optional[str] = Field(
         default=None, min_length=1, max_length=60

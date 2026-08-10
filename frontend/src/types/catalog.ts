@@ -17,6 +17,13 @@ export interface LayersResponse {
   count: number;
 }
 
+export interface PackageAdditionalInputCube {
+  cube_name: string;
+  cube_parameter: string;
+  kind: "time" | "values";
+  values: string[];
+}
+
 export interface CreateLayerRequest {
   name: string;
   description: string;
@@ -27,6 +34,7 @@ export interface CreateLayerRequest {
   package_input_cube_name?: string | null;
   package_input_cube_parameter?: string | null;
   package_input_cube_kind?: string | null;
+  package_additional_input_cubes?: PackageAdditionalInputCube[];
   package_output_cube_name?: string | null;
   entity_field?: string;
   display_field?: string;
@@ -62,6 +70,7 @@ export interface GenerateLayerMetadataRequest {
   package_input_cube_name?: string | null;
   package_input_cube_parameter?: string | null;
   package_input_cube_kind?: string | null;
+  package_additional_input_cubes?: PackageAdditionalInputCube[];
   package_output_cube_name?: string | null;
   cubes_sample_boundary?: GeoJSONMultiPolygon | null;
   tyche_geometry_field?: string;

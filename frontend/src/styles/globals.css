@@ -3375,6 +3375,68 @@ button {
   margin-bottom: 8px;
 }
 
+.package-additional-cubes-heading,
+.package-additional-cube-row-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.package-additional-cubes-heading > small,
+.package-additional-cubes-empty {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.package-cube-icon-button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid var(--accent-strong);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+
+.package-cube-icon-button.danger {
+  color: #b42318;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.package-cube-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: .52;
+}
+
+.package-additional-cubes-empty {
+  margin: 8px 0 0;
+  font-size: 11px;
+}
+
+.package-additional-cube-row {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.package-additional-cube-row-heading {
+  margin-bottom: 10px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.package-cube-values {
+  min-height: 68px;
+  resize: vertical;
+}
+
 .tyche-parameter-row {
   margin-bottom: 8px;
 }
@@ -3773,6 +3835,12 @@ button {
 
 :root[data-theme="dark"] .catalog-delete-button:hover:not(:disabled) {
   background: #5f1d1d;
+}
+
+:root[data-theme="dark"] .package-cube-icon-button.danger {
+  color: #fca5a5;
+  border-color: #7f1d1d;
+  background: #451a1a;
 }
 
 :root[data-theme="dark"] .layers-item {

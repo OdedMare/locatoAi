@@ -1,8 +1,11 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from app.service.shared.geo_json_multi_polygon import GeoJSONMultiPolygon
+from app.service.catalog.package_additional_input_cube_request import (
+    PackageAdditionalInputCubeRequest,
+)
 
 
 class GenerateLayerMetadataRequest(BaseModel):
@@ -18,6 +21,9 @@ class GenerateLayerMetadataRequest(BaseModel):
         default=None, max_length=200
     )
     package_input_cube_kind: Optional[str] = Field(default=None, max_length=10)
+    package_additional_input_cubes: List[
+        PackageAdditionalInputCubeRequest
+    ] = Field(default_factory=list, max_length=20)
     package_output_cube_name: Optional[str] = Field(default=None, max_length=200)
     cubes_sample_boundary: Optional[GeoJSONMultiPolygon] = None
     tyche_geometry_field: Optional[str] = Field(

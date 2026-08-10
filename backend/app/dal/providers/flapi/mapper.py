@@ -1,5 +1,6 @@
 """Translate catalog/query values to and from flunks models."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlsplit
@@ -24,6 +25,7 @@ class FlunksMapper:
 
     _SAMPLE_WINDOW = timedelta(hours=1)
     _TIME_FIELDS = ("eventTime", "arriveTime", "timestamp", "time", "datetime")
+    _MAX_ADDITIONAL_INPUT_CUBES = 20
 
     def package_config(
         self, layer: LayerMeta, geometry: Optional[BaseGeometry] = None,
@@ -34,27 +36,31 @@ class FlunksMapper:
         name = self._required(options, "input_cube_name")
         parameter = self._required(options, "input_cube_parameter")
         output = self._required(options, "output_cube_name")
+        effective_now = now or datetime.now(timezone.utc)
         cube = self.build_input_cube(
             name, parameter, kind=options.get("input_cube_kind") or "time",
-            geometry=geometry, temporal_range=temporal_range, now=now,
+            geometry=geometry, temporal_range=temporal_range, now=effective_now,
         )
         return FlunksPackageConfig(
             package_id=self._package_id(layer), package_name="",
             main_input_cube=cube, output_cube=PackageOutputCube(cube_name=output),
+            additional_input_cubes=self._additional_input_cubes(
+                options, temporal_range, effective_now,
+            ),
         )
 
     def build_input_cube(
         self, name: Optional[str], parameter: Optional[str],
         kind: str = "time", geometry: Optional[BaseGeometry] = None,
         temporal_range: Optional[Tuple[str, str]] = None,
-        now: Optional[datetime] = None,
+        now: Optional[datetime] = None, values: Optional[List[Any]] = None,
     ) -> PackageInputCube:
         if not name:
             raise ProviderError("Flow Package input cube name is required")
         if not parameter:
             raise ProviderError("Flow Package input cube parameter is required")
         return self._input_cube(
-            kind, name, parameter, geometry, temporal_range, now,
+            kind, name, parameter, geometry, temporal_range, now, values,
         )
 
     def output(
@@ -118,18 +124,57 @@ class FlunksMapper:
         return parts[-1]
 
     def _input_cube(
-        self, kind, name, parameter, geometry, temporal_range, now,
+        self, kind, name, parameter, geometry, temporal_range, now, values,
     ) -> PackageInputCube:
-        if (kind or "").lower() == "geo":
+        normalized_kind = (kind or "").lower()
+        if normalized_kind == "geo":
             return PackageInputCube(
                 cube_name=name, cube_parameter=parameter,
                 values=self._multipolygon(geometry),
             )
+        if normalized_kind == "values":
+            if not values:
+                raise ProviderError(
+                    "Flow Package values input requires at least one value"
+                )
+            return PackageInputCube(
+                cube_name=name, cube_parameter=parameter, values=values,
+            )
+        if normalized_kind != "time":
+            raise ProviderError("Unsupported Flow Package input kind")
         start, end = self._range(temporal_range, now)
         return PackageInputCube(
             cube_name=name, cube_parameter=parameter,
             start_time=start, end_time=end,
         )
+
+    def _additional_input_cubes(
+        self, options, temporal_range, now,
+    ) -> List[PackageInputCube]:
+        return [
+            self.build_input_cube(
+                spec.get("cube_name"), spec.get("cube_parameter"),
+                kind=spec.get("kind") or "time", values=spec.get("values"),
+                temporal_range=temporal_range, now=now,
+            )
+            for spec in self._additional_specs(options)
+        ]
+
+    def _additional_specs(self, options) -> List[dict]:
+        raw = options.get("additional_input_cubes")
+        if not raw:
+            return []
+        try:
+            specs = json.loads(raw)
+        except (TypeError, ValueError) as exc:
+            raise ProviderError(
+                "Flow Package additional input cubes must be valid JSON"
+            ) from exc
+        if not isinstance(specs, list) or len(specs) > self._MAX_ADDITIONAL_INPUT_CUBES:
+            raise ProviderError("Flow Package additional input cubes are invalid")
+        if not all(isinstance(spec, dict) for spec in specs):
+            raise ProviderError("Flow Package additional input cube is invalid")
+        return specs
 
     @staticmethod
     def _multipolygon(geometry: Optional[BaseGeometry]) -> List[str]:

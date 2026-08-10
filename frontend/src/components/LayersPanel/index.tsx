@@ -17,7 +17,9 @@ import {
 } from "@/services/catalogService";
 import type { CatalogLayer, RemoteMqsLayer } from "@/types/catalog";
 import type { GeoJSONMultiPolygon } from "@/types/geo-query";
-import PackageCubesFieldset from "./PackageCubesFieldset";
+import PackageCubesFieldset, {
+  type AdditionalInputCubeDraft,
+} from "./PackageCubesFieldset";
 import TycheParametersFieldset from "./TycheParametersFieldset";
 
 interface LayersPanelProps {
@@ -66,6 +68,27 @@ function layerErrorMessage(error: unknown, fallback: string): string {
   return error.message;
 }
 
+function packageCubeValues(value: string): string[] {
+  return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function packageAdditionalCubes(cubes: AdditionalInputCubeDraft[]) {
+  return cubes.map((cube) => ({
+    cube_name: cube.cubeName.trim(),
+    cube_parameter: cube.cubeParameter.trim(),
+    kind: cube.kind,
+    values: cube.kind === "values" ? packageCubeValues(cube.values) : [],
+  }));
+}
+
+function packageCubeConfigured(cube: AdditionalInputCubeDraft): boolean {
+  return Boolean(
+    cube.cubeName.trim()
+    && cube.cubeParameter.trim()
+    && (cube.kind === "time" || packageCubeValues(cube.values).length),
+  );
+}
+
 /**
  * Catalog browser: every data layer the agent can query, searchable by
  * name / description / tags — so users know what they can ask about.
@@ -100,8 +123,8 @@ export default function LayersPanel({
   const [packageQuery, setPackageQuery] = useState("");
   const [packageInputCubeName, setPackageInputCubeName] = useState("");
   const [packageInputCubeParameter, setPackageInputCubeParameter] = useState("");
-  const [packageInputCubeKind, setPackageInputCubeKind] =
-    useState<"time" | "geo">("time");
+  const [packageAdditionalInputCubes, setPackageAdditionalInputCubes] =
+    useState<AdditionalInputCubeDraft[]>([]);
   const [packageOutputCubeName, setPackageOutputCubeName] = useState("");
   const [cubesSampleBoundary, setCubesSampleBoundary] =
     useState<GeoJSONMultiPolygon | null>(null);
@@ -130,6 +153,12 @@ export default function LayersPanel({
   const [deletingLayerId, setDeletingLayerId] = useState<string | null>(null);
   const providerName = provider.trim().toLowerCase();
   const isFlowPackage = providerName === "flapi";
+  const flowPackageConfigured = !isFlowPackage || Boolean(
+    packageInputCubeName.trim()
+    && packageInputCubeParameter.trim()
+    && packageOutputCubeName.trim()
+    && packageAdditionalInputCubes.every(packageCubeConfigured)
+  );
   const tycheFieldsConfigured = providerName !== "tyche" || Boolean(
     tycheGeometryField.trim()
     && tycheGeoQueryField.trim()
@@ -263,7 +292,7 @@ export default function LayersPanel({
   };
 
   const handleAddLayer = async () => {
-    if (!name.trim() || !sourceUrl.trim() || saving) return;
+    if (!name.trim() || !sourceUrl.trim() || !flowPackageConfigured || saving) return;
     setSaving(true);
     setFormMessage(null);
     try {
@@ -278,7 +307,9 @@ export default function LayersPanel({
           ? packageInputCubeName.trim() || null : null,
         package_input_cube_parameter: isFlowPackage
           ? packageInputCubeParameter.trim() || null : null,
-        package_input_cube_kind: isFlowPackage ? packageInputCubeKind : null,
+        package_input_cube_kind: isFlowPackage ? "geo" : null,
+        package_additional_input_cubes: isFlowPackage
+          ? packageAdditionalCubes(packageAdditionalInputCubes) : [],
         package_output_cube_name: isFlowPackage
           ? packageOutputCubeName.trim() || null : null,
         entity_field: tycheEntityField.trim() || undefined,
@@ -305,7 +336,7 @@ export default function LayersPanel({
       setProfiles("");
       setPackageQuery("");
       setPackageInputCubeName("");
-      setPackageInputCubeKind("time");
+      setPackageAdditionalInputCubes([]);
       setPackageInputCubeParameter("");
       setPackageOutputCubeName("");
       setCubesSampleBoundary(null);
@@ -351,7 +382,9 @@ export default function LayersPanel({
         ? packageInputCubeName.trim() || null : null,
       package_input_cube_parameter: isFlowPackage
         ? packageInputCubeParameter.trim() || null : null,
-      package_input_cube_kind: isFlowPackage ? packageInputCubeKind : null,
+      package_input_cube_kind: isFlowPackage ? "geo" : null,
+      package_additional_input_cubes: isFlowPackage
+        ? packageAdditionalCubes(packageAdditionalInputCubes) : [],
       package_output_cube_name: isFlowPackage
         ? packageOutputCubeName.trim() || null : null,
       cubes_sample_boundary: selectedBoundary,
@@ -365,7 +398,10 @@ export default function LayersPanel({
         ? tycheTimeToField.trim() : "",
       tyche_parameters: tycheParameters,
     };
-    if (!target.name.trim() || !target.provider.trim() || !target.source_url.trim()) return;
+    if (
+      !target.name.trim() || !target.provider.trim()
+      || !target.source_url.trim() || !flowPackageConfigured
+    ) return;
     setGeneratingMetadata(true);
     setFormMessage("דוגם עד 10 ישויות ומייצר תיאור ותגיות…");
     try {
@@ -407,7 +443,7 @@ export default function LayersPanel({
     setProfiles(layer.profiles?.join(", ") ?? "");
     setPackageQuery("");
     setPackageInputCubeName("");
-    setPackageInputCubeKind("time");
+    setPackageAdditionalInputCubes([]);
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setCubesSampleBoundary(null);
@@ -426,7 +462,7 @@ export default function LayersPanel({
     setProfiles("");
     setPackageQuery("");
     setPackageInputCubeName("");
-    setPackageInputCubeKind("time");
+    setPackageAdditionalInputCubes([]);
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setCubesSampleBoundary(null);
@@ -444,7 +480,7 @@ export default function LayersPanel({
     setProvider("flapi");
     setPackageQuery("");
     setPackageInputCubeName("");
-    setPackageInputCubeKind("time");
+    setPackageAdditionalInputCubes([]);
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setSourceUrl("");
@@ -472,7 +508,7 @@ export default function LayersPanel({
     setProfiles("");
     setPackageQuery("");
     setPackageInputCubeName("");
-    setPackageInputCubeKind("time");
+    setPackageAdditionalInputCubes([]);
     setPackageInputCubeParameter("");
     setPackageOutputCubeName("");
     setCubesSampleBoundary(null);
@@ -690,7 +726,7 @@ export default function LayersPanel({
                     setProfiles("");
                     setPackageQuery("");
                     setPackageInputCubeName("");
-                    setPackageInputCubeKind("time");
+                    setPackageAdditionalInputCubes([]);
                     setPackageInputCubeParameter("");
                     setPackageOutputCubeName("");
                     setCubesSampleBoundary(null);
@@ -924,17 +960,17 @@ export default function LayersPanel({
                 <PackageCubesFieldset
                   inputCubeName={packageInputCubeName}
                   inputCubeParameter={packageInputCubeParameter}
-                  inputCubeKind={packageInputCubeKind}
+                  additionalInputCubes={packageAdditionalInputCubes}
                   outputCubeName={packageOutputCubeName}
                   onChangeInputCubeName={setPackageInputCubeName}
                   onChangeInputCubeParameter={setPackageInputCubeParameter}
-                  onChangeInputCubeKind={setPackageInputCubeKind}
+                  onChangeAdditionalInputCubes={setPackageAdditionalInputCubes}
                   onChangeOutputCubeName={setPackageOutputCubeName}
                   busy={generatingMetadata || saving}
                 />
               </>
             )}
-            {isFlowPackage && packageInputCubeKind === "geo" && (
+            {isFlowPackage && (
               <fieldset className="cubes-query-mode cubes-sample-polygon">
                 <legend>פוליגון לדגימת metadata</legend>
                 <div className="cubes-query-mode-options cubes-sample-polygon-options">
@@ -942,7 +978,10 @@ export default function LayersPanel({
                     type="button"
                     className={cubesSampleBoundarySource === "drawn" ? "active" : ""}
                     aria-pressed={cubesSampleBoundarySource === "drawn"}
-                    disabled={!drawnSampleBoundary || generatingMetadata}
+                    disabled={
+                      !drawnSampleBoundary || !flowPackageConfigured
+                      || generatingMetadata
+                    }
                     onClick={() => {
                       if (drawnSampleBoundary) {
                         handleUseSampleBoundary(drawnSampleBoundary, "drawn");
@@ -956,7 +995,7 @@ export default function LayersPanel({
                     type="button"
                     className={cubesSampleBoundarySource === "viewport" ? "active" : ""}
                     aria-pressed={cubesSampleBoundarySource === "viewport"}
-                    disabled={generatingMetadata}
+                    disabled={!flowPackageConfigured || generatingMetadata}
                     onClick={() => handleUseSampleBoundary(
                       viewportSampleBoundary, "viewport"
                     )}
@@ -975,7 +1014,8 @@ export default function LayersPanel({
                 onClick={() => void handleGenerateMetadata()}
                 disabled={
                   !name.trim() || !provider.trim() || !sourceUrl.trim()
-                  || !tycheFieldsConfigured || generatingMetadata
+                  || !tycheFieldsConfigured || !flowPackageConfigured
+                  || generatingMetadata
                 }
               >
                 {generatingMetadata
@@ -989,7 +1029,7 @@ export default function LayersPanel({
                 onClick={handleAddLayer}
                 disabled={
                   !name.trim() || !sourceUrl.trim() || !tycheFieldsConfigured
-                  || saving
+                  || !flowPackageConfigured || saving
                 }
               >
                 {saving

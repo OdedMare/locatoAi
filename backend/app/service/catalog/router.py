@@ -20,6 +20,9 @@ from app.service.catalog.generated_layer_metadata_response import GeneratedLayer
 from app.service.catalog.layers_response import LayersResponse
 from app.service.catalog.layer_fields_response import LayerFieldsResponse
 from app.service.catalog.mqs_sync_response import MqsSyncResponse
+from app.service.catalog.package_additional_input_cube_request import (
+    PackageAdditionalInputCubeRequest,
+)
 from app.service.catalog.remote_mqs_layer_response import RemoteMqsLayerResponse
 from app.service.catalog.remote_mqs_layers_response import RemoteMqsLayersResponse
 from app.service.catalog.update_layer_request import UpdateLayerRequest
@@ -27,6 +30,10 @@ from app.service.catalog.update_layer_request import UpdateLayerRequest
 router = APIRouter()
 _PARAMETER_PREFIX = "param_"
 _PACKAGE_INPUT_PREFIX = "input_"
+_PACKAGE_CONFIG_KEYS = {
+    "query", "input_cube_name", "input_cube_parameter", "input_cube_kind",
+    "additional_input_cubes", "output_cube_name",
+}
 _TYCHE_FIELDS = {
     "geometry_field": "geometry",
     "geo_query_field": "location",
@@ -133,6 +140,7 @@ def generate_layer_metadata(
             package_input_cube_name=body.package_input_cube_name,
             package_input_cube_parameter=body.package_input_cube_parameter,
             package_input_cube_kind=body.package_input_cube_kind,
+            package_additional_input_cubes=body.package_additional_input_cubes,
             package_output_cube_name=body.package_output_cube_name,
             tyche_geometry_field=body.tyche_geometry_field,
             tyche_geo_query_field=body.tyche_geo_query_field,
@@ -185,6 +193,9 @@ def normalized_source(
     package_input_cube_name: Optional[str] = None,
     package_input_cube_parameter: Optional[str] = None,
     package_input_cube_kind: Optional[str] = None,
+    package_additional_input_cubes: Optional[
+        List[PackageAdditionalInputCubeRequest]
+    ] = None,
     package_output_cube_name: Optional[str] = None,
     tyche_geometry_field: Optional[str] = None,
     tyche_geo_query_field: Optional[str] = None,
@@ -200,7 +211,8 @@ def normalized_source(
         return _normalized_flapi_source(
             source, package_parameters, package_query,
             package_input_cube_name, package_input_cube_parameter,
-            package_input_cube_kind, package_output_cube_name,
+            package_input_cube_kind, package_additional_input_cubes,
+            package_output_cube_name,
         )
     if provider_name == "tyche":
         return _normalized_tyche_source(
@@ -218,6 +230,9 @@ def _normalized_flapi_source(
     package_input_cube_name: Optional[str] = None,
     package_input_cube_parameter: Optional[str] = None,
     package_input_cube_kind: Optional[str] = None,
+    package_additional_input_cubes: Optional[
+        List[PackageAdditionalInputCubeRequest]
+    ] = None,
     package_output_cube_name: Optional[str] = None,
 ) -> str:
     source = (
@@ -227,7 +242,8 @@ def _normalized_flapi_source(
     return with_package_config(
         source, package_parameters or {}, package_query,
         package_input_cube_name, package_input_cube_parameter,
-        package_input_cube_kind, package_output_cube_name,
+        package_input_cube_kind, package_additional_input_cubes,
+        package_output_cube_name,
     )
 
 def _normalized_tyche_source(
@@ -282,33 +298,46 @@ def with_package_config(
     input_cube_name: Optional[str] = None,
     input_cube_parameter: Optional[str] = None,
     input_cube_kind: Optional[str] = None,
+    additional_input_cubes: Optional[
+        List[PackageAdditionalInputCubeRequest]
+    ] = None,
     output_cube_name: Optional[str] = None,
 ) -> str:
     parsed = urlsplit(source)
-    query = parse_qs(parsed.query, keep_blank_values=True)
-    for key in [key for key in query if key.startswith(_PACKAGE_INPUT_PREFIX)]:
-        query.pop(key)
-    for key in (
-        "query", "input_cube_name", "input_cube_parameter",
-        "input_cube_kind", "output_cube_name",
-    ):
-        query.pop(key, None)
+    query = _package_query(parsed.query, parameters)
+    _set_query_value(query, "query", selected_query)
+    _set_query_value(query, "input_cube_name", input_cube_name)
+    _set_query_value(query, "input_cube_parameter", input_cube_parameter)
+    _set_query_value(query, "input_cube_kind", input_cube_kind)
+    _set_additional_cubes(query, additional_input_cubes or [])
+    _set_query_value(query, "output_cube_name", output_cube_name)
+    return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
+
+def _package_query(raw_query: str, parameters: Dict[str, Any]):
+    query = parse_qs(raw_query, keep_blank_values=True)
+    for key in list(query):
+        if key.startswith(_PACKAGE_INPUT_PREFIX) or key in _PACKAGE_CONFIG_KEYS:
+            query.pop(key)
     for name, value in parameters.items():
         if name and value not in (None, ""):
             query[f"{_PACKAGE_INPUT_PREFIX}{name}"] = [
                 json.dumps(value, ensure_ascii=False, separators=(",", ":"))
             ]
-    if selected_query:
-        query["query"] = [selected_query.strip()]
-    if input_cube_name and input_cube_name.strip():
-        query["input_cube_name"] = [input_cube_name.strip()]
-    if input_cube_parameter and input_cube_parameter.strip():
-        query["input_cube_parameter"] = [input_cube_parameter.strip()]
-    if input_cube_kind and input_cube_kind.strip().lower() == "geo":
-        query["input_cube_kind"] = ["geo"]
-    if output_cube_name and output_cube_name.strip():
-        query["output_cube_name"] = [output_cube_name.strip()]
-    return urlunsplit(parsed._replace(query=urlencode(query, doseq=True)))
+    return query
+
+def _set_query_value(query, key: str, value: Optional[str]) -> None:
+    if value and value.strip():
+        query[key] = [value.strip()]
+
+def _set_additional_cubes(
+    query, cubes: List[PackageAdditionalInputCubeRequest],
+) -> None:
+    if not cubes:
+        return
+    query["additional_input_cubes"] = [json.dumps(
+        [cube.model_dump() for cube in cubes],
+        ensure_ascii=False, separators=(",", ":"),
+    )]
 
 def clean_tags(tags: List[str], limit: int) -> List[str]:
     cleaned = (str(tag).strip()[:60] for tag in tags)
@@ -343,6 +372,7 @@ def _new_layer(body: CreateLayerRequest) -> LayerMeta:
             package_input_cube_name=body.package_input_cube_name,
             package_input_cube_parameter=body.package_input_cube_parameter,
             package_input_cube_kind=body.package_input_cube_kind,
+            package_additional_input_cubes=body.package_additional_input_cubes,
             package_output_cube_name=body.package_output_cube_name,
             tyche_geometry_field=body.tyche_geometry_field,
             tyche_geo_query_field=body.tyche_geo_query_field,
